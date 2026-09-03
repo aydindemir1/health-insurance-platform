@@ -21,3 +21,26 @@ export interface SubmitPreAuthorization {
   requestedAmount: number
   currency: string
 }
+
+export type PreAuthorizationSortField = 'createdAt' | 'requestedAmount' | 'status'
+export type SortDirection = 'asc' | 'desc'
+
+export interface PreAuthorizationSearch {
+  status?: PreAuthorizationStatus
+  memberId?: string
+  policyNumber?: string
+  page: number
+  size: number
+  sortBy: PreAuthorizationSortField
+  direction: SortDirection
+}
+
+export interface PageResult<T> {
+  content: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  first: boolean
+  last: boolean
+}

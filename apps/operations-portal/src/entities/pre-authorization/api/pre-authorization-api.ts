@@ -1,7 +1,24 @@
 import { apiRequest } from '@/shared/api/http-client'
-import type { PreAuthorization, SubmitPreAuthorization } from '@/entities/pre-authorization/model/types'
+import type {
+  PageResult,
+  PreAuthorization,
+  PreAuthorizationSearch,
+  SubmitPreAuthorization,
+} from '@/entities/pre-authorization/model/types'
 
 export const preAuthorizationApi = {
+  search: (search: PreAuthorizationSearch) => {
+    const parameters = new URLSearchParams({
+      page: search.page.toString(),
+      size: search.size.toString(),
+      sortBy: search.sortBy,
+      direction: search.direction,
+    })
+    if (search.status) parameters.set('status', search.status)
+    if (search.memberId) parameters.set('memberId', search.memberId)
+    if (search.policyNumber) parameters.set('policyNumber', search.policyNumber)
+    return apiRequest<PageResult<PreAuthorization>>(`/pre-authorizations?${parameters}`)
+  },
   getById: (id: string) => apiRequest<PreAuthorization>(`/pre-authorizations/${id}`),
   submit: (request: SubmitPreAuthorization) => apiRequest<PreAuthorization>('/pre-authorizations', {
     method: 'POST',
