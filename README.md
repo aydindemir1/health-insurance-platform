@@ -11,8 +11,9 @@ and an insurance specialist approves or rejects the request according to the
 member's policy and coverage.
 
 The first milestone implements the **Authorization bounded context**. The
-second milestone adds a React and TypeScript operations portal. Later milestones add policy, claims/billing,
-messaging, caching, observability, and a GitOps delivery pipeline.
+second milestone adds a React and TypeScript operations portal. Later milestones
+add policy, claims/billing, messaging, caching, observability, and a GitOps
+delivery pipeline.
 
 ## Architecture
 
@@ -112,17 +113,23 @@ context test can be run individually without Docker.
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | POST | `/api/v1/pre-authorizations` | Submit a request |
+| GET | `/api/v1/pre-authorizations` | Filter, sort, and paginate the authorized work queue |
 | GET | `/api/v1/pre-authorizations/{id}` | Read request details |
 | POST | `/api/v1/pre-authorizations/{id}/approval` | Approve a pending request |
 | POST | `/api/v1/pre-authorizations/{id}/rejection` | Reject a pending request |
 | GET | `/actuator/health` | Liveness/readiness information |
+
+The collection endpoint accepts `status`, `memberId`, `policyNumber`, `page`,
+`size`, `sortBy`, and `direction`. Supported sort fields are `createdAt`,
+`requestedAmount`, and `status`; page size is limited to 100. Hospital users
+only receive records owned by the provider identity in their access token.
 
 ## Roadmap
 
 - [x] Authorization domain and REST API
 - [ ] Keycloak realm import and executable API examples
 - [ ] Policy service and coverage verification
-- [ ] React + TypeScript operations portal
+- [x] React + TypeScript operations portal
 - [ ] Transactional Outbox and Kafka domain events
 - [ ] RabbitMQ notification worker
 - [ ] Redis cache-aside strategy

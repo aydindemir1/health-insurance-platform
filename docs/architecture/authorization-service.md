@@ -33,6 +33,35 @@ The application service remains framework-free. An infrastructure decorator
 wraps its input ports in Spring-managed transactions: commands use read/write
 transactions and queries use read-only transactions.
 
+## Paginated work queue
+
+The list operation uses application-owned `SearchPreAuthorizationsQuery`,
+`PreAuthorizationSearchCriteria`, and `PageResult` types. Spring Data `Page`,
+`Pageable`, and `Specification` remain inside the persistence adapter.
+
+```mermaid
+sequenceDiagram
+    participant Portal
+    participant REST as REST controller
+    participant App as Search use case
+    participant Repo as Repository port
+    participant JPA as JPA adapter
+
+    Portal->>REST: GET collection + filters + bearer token
+    REST->>App: Query with ActorContext
+    App->>App: Resolve provider scope from roles
+    App->>Repo: Framework-free search criteria
+    Repo->>JPA: Filtered and stable paginated query
+    JPA-->>App: PageResult of aggregates
+    App-->>REST: PageResult of DTOs
+    REST-->>Portal: Page response
+```
+
+Hospital users always receive a provider-scoped query. Insurance specialists
+and system administrators can search across providers. Sort fields are
+explicitly allow-listed, and `id` is added as a deterministic tie-breaker so
+records do not move unpredictably between pages when primary sort values match.
+
 ## Concurrent decisions
 
 The JPA entity has a version column. If two specialists load the same pending
