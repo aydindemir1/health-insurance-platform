@@ -1,10 +1,12 @@
 package com.aydindemir.health.authorization.infrastructure.persistence;
 
+import com.aydindemir.health.authorization.application.exception.ConcurrentPreAuthorizationUpdateException;
 import com.aydindemir.health.authorization.domain.model.PreAuthorization;
 import com.aydindemir.health.authorization.domain.model.PreAuthorizationStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.OptimisticLockingFailureException;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -15,6 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -34,7 +37,7 @@ class JpaPreAuthorizationRepositoryAdapterTest {
     void setUp() {
         repository = mock(SpringDataPreAuthorizationRepository.class);
         adapter = new JpaPreAuthorizationRepositoryAdapter(repository);
-        when(repository.save(any(PreAuthorizationJpaEntity.class)))
+        when(repository.saveAndFlush(any(PreAuthorizationJpaEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
@@ -45,7 +48,7 @@ class JpaPreAuthorizationRepositoryAdapterTest {
         var saved = adapter.save(newPendingPreAuthorization());
 
         var captor = ArgumentCaptor.forClass(PreAuthorizationJpaEntity.class);
-        verify(repository).save(captor.capture());
+        verify(repository).saveAndFlush(captor.capture());
         var entity = captor.getValue();
         assertThat(entity.id).isEqualTo(PRE_AUTHORIZATION_ID);
         assertThat(entity.memberId).isEqualTo(MEMBER_ID);
@@ -73,7 +76,7 @@ class JpaPreAuthorizationRepositoryAdapterTest {
         adapter.save(approved);
 
         var captor = ArgumentCaptor.forClass(PreAuthorizationJpaEntity.class);
-        verify(repository).save(captor.capture());
+        verify(repository).saveAndFlush(captor.capture());
         assertThat(captor.getValue()).isSameAs(existingEntity);
         assertThat(existingEntity.version).isEqualTo(7L);
         assertThat(existingEntity.status).isEqualTo(PreAuthorizationStatus.APPROVED);
@@ -104,6 +107,19 @@ class JpaPreAuthorizationRepositoryAdapterTest {
         assertThat(domain.decisionReason()).isEqualTo("Policy limit exceeded");
         assertThat(domain.createdAt()).isEqualTo(NOW);
         assertThat(domain.decidedAt()).isEqualTo(NOW.plusSeconds(60));
+    }
+
+    @Test
+    void translatesOptimisticLockFailureToApplicationConflict() {
+        when(repository.findById(PRE_AUTHORIZATION_ID))
+                .thenReturn(Optional.of(pendingEntity()));
+        when(repository.saveAndFlush(any(PreAuthorizationJpaEntity.class)))
+                .thenThrow(new OptimisticLockingFailureException("stale version"));
+
+        assertThatThrownBy(() -> adapter.save(newPendingPreAuthorization()))
+                .isInstanceOf(ConcurrentPreAuthorizationUpdateException.class)
+                .hasMessageContaining(PRE_AUTHORIZATION_ID.toString())
+                .hasCauseInstanceOf(OptimisticLockingFailureException.class);
     }
 
     private PreAuthorization newPendingPreAuthorization() {

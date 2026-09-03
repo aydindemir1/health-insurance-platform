@@ -3,6 +3,7 @@ package com.aydindemir.health.authorization.presentation.rest;
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.dto.PreAuthorizationResult;
 import com.aydindemir.health.authorization.application.exception.ApplicationAccessDeniedException;
+import com.aydindemir.health.authorization.application.exception.ConcurrentPreAuthorizationUpdateException;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthorizationUseCase;
@@ -139,12 +140,38 @@ class PreAuthorizationControllerTest {
                         "Hospital users can only view their own provider's pre-authorizations"));
     }
 
+    @Test
+    void rendersConcurrentDecisionAsConflictProblemDetail() throws Exception {
+        when(decideUseCase.approve(any())).thenThrow(
+                new ConcurrentPreAuthorizationUpdateException(
+                        PRE_AUTHORIZATION_ID, new RuntimeException("stale version")));
+
+        mockMvc.perform(post("/api/v1/pre-authorizations/{id}/approval", PRE_AUTHORIZATION_ID)
+                        .with(specialistJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"reason": "Coverage verified"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.type").value(
+                        "https://api.health-insurance.example/problems/concurrent-update"))
+                .andExpect(jsonPath("$.title").value("Concurrent update"))
+                .andExpect(jsonPath("$.status").value(409));
+    }
+
     private org.springframework.test.web.servlet.request.RequestPostProcessor hospitalJwt() {
         return jwt()
                 .jwt(token -> token
                         .subject("hospital-user")
                         .claim("provider_id", TRUSTED_PROVIDER_ID.toString()))
                 .authorities(new SimpleGrantedAuthority("ROLE_HOSPITAL_USER"));
+    }
+
+    private org.springframework.test.web.servlet.request.RequestPostProcessor specialistJwt() {
+        return jwt()
+                .jwt(token -> token.subject("insurance-specialist"))
+                .authorities(new SimpleGrantedAuthority("ROLE_INSURANCE_SPECIALIST"));
     }
 
     private PreAuthorizationResult pendingResult() {

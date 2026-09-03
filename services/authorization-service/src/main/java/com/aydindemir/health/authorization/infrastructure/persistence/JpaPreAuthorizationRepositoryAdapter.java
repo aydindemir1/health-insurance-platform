@@ -1,7 +1,9 @@
 package com.aydindemir.health.authorization.infrastructure.persistence;
 
+import com.aydindemir.health.authorization.application.exception.ConcurrentPreAuthorizationUpdateException;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
 import com.aydindemir.health.authorization.domain.model.PreAuthorization;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
 
 import java.util.Currency;
@@ -21,7 +23,11 @@ class JpaPreAuthorizationRepositoryAdapter implements PreAuthorizationRepository
         var entity = repository.findById(domain.id())
                 .orElseGet(PreAuthorizationJpaEntity::new);
         mapToEntity(domain, entity);
-        return mapToDomain(repository.save(entity));
+        try {
+            return mapToDomain(repository.saveAndFlush(entity));
+        } catch (OptimisticLockingFailureException exception) {
+            throw new ConcurrentPreAuthorizationUpdateException(domain.id(), exception);
+        }
     }
 
     @Override

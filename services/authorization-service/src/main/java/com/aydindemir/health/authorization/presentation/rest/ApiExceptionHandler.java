@@ -1,6 +1,7 @@
 package com.aydindemir.health.authorization.presentation.rest;
 
 import com.aydindemir.health.authorization.application.exception.ApplicationAccessDeniedException;
+import com.aydindemir.health.authorization.application.exception.ConcurrentPreAuthorizationUpdateException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationNotFoundException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationStateConflictException;
 import org.springframework.http.HttpStatus;
@@ -26,6 +27,11 @@ class ApiExceptionHandler {
     @ExceptionHandler(PreAuthorizationStateConflictException.class)
     ProblemDetail handleBusinessRule(PreAuthorizationStateConflictException exception) {
         return problem(HttpStatus.CONFLICT, "Business rule violation", exception.getMessage());
+    }
+
+    @ExceptionHandler(ConcurrentPreAuthorizationUpdateException.class)
+    ProblemDetail handleConcurrentUpdate(ConcurrentPreAuthorizationUpdateException exception) {
+        return problem(HttpStatus.CONFLICT, "Concurrent update", exception.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
