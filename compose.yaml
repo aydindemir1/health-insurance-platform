@@ -31,6 +31,22 @@ services:
     volumes:
       - policy-db-data:/var/lib/postgresql/data
 
+  claims-billing-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: claims_billing
+      POSTGRES_USER: ${CLAIMS_BILLING_DB_USERNAME:?Set CLAIMS_BILLING_DB_USERNAME in .env}
+      POSTGRES_PASSWORD: ${CLAIMS_BILLING_DB_PASSWORD:?Set CLAIMS_BILLING_DB_PASSWORD in .env}
+    ports:
+      - "5435:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - claims-billing-db-data:/var/lib/postgresql/data
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.4
     command: start-dev --import-realm
@@ -78,6 +94,26 @@ services:
       keycloak:
         condition: service_started
 
+  claims-billing-service:
+    build: services/claims-billing-service
+    environment:
+      DB_URL: jdbc:postgresql://claims-billing-db:5432/claims_billing
+      DB_USERNAME: ${CLAIMS_BILLING_DB_USERNAME:?Set CLAIMS_BILLING_DB_USERNAME in .env}
+      DB_PASSWORD: ${CLAIMS_BILLING_DB_PASSWORD:?Set CLAIMS_BILLING_DB_PASSWORD in .env}
+      KEYCLOAK_ISSUER_URI: http://localhost:8080/realms/health-insurance
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/health-insurance/protocol/openid-connect/certs
+      AUTHORIZATION_SERVICE_BASE_URL: http://authorization-service:8081
+    ports:
+      - "8083:8083"
+    depends_on:
+      claims-billing-db:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+      authorization-service:
+        condition: service_started
+
 volumes:
   authorization-db-data:
   policy-db-data:
+  claims-billing-db-data:
