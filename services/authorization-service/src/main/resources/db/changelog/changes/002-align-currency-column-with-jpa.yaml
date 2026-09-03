@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-align-currency-column-with-jpa
+      author: aydin-demir
+      changes:
+        - modifyDataType:
+            tableName: pre_authorizations
+            columnName: currency
+            newDataType: VARCHAR(3)
