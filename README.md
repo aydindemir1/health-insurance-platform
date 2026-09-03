@@ -10,8 +10,8 @@ a healthcare provider requests treatment authorization for an insured member,
 and an insurance specialist approves or rejects the request according to the
 member's policy and coverage.
 
-The first milestone implements the **Authorization bounded context**. Later
-milestones add policy, claims/billing, a React + TypeScript application,
+The first milestone implements the **Authorization bounded context**. The
+second milestone adds a React and TypeScript operations portal. Later milestones add policy, claims/billing,
 messaging, caching, observability, and a GitOps delivery pipeline.
 
 ## Architecture
@@ -74,6 +74,19 @@ their healthcare provider. Keycloak maps it to the trusted `provider_id` access
 token claim. The API derives provider ownership from this claim and never trusts
 a provider identifier supplied in a request body.
 
+Run the operations portal in another terminal:
+
+```bash
+cd apps/operations-portal
+npm install
+npm run dev
+```
+
+The portal is available on `http://localhost:5173` and uses the
+`health-insurance-web` public Keycloak client with Authorization Code + PKCE.
+Copy `apps/operations-portal/.env.example` to `.env` only when overriding local
+URLs; no client secret is used or stored in the browser application.
+
 For backend-only development, start PostgreSQL and Keycloak, then run:
 
 ```bash
@@ -125,3 +138,4 @@ context test can be run individually without Docker.
 - [ADR-001: Clean Architecture service boundaries](docs/adr/001-hexagonal-architecture.md)
 - [ADR-002: Provider ownership from authenticated identity](docs/adr/002-provider-ownership-from-authenticated-identity.md)
 - [ADR-003: Optimistic concurrency for decisions](docs/adr/003-optimistic-concurrency-for-decisions.md)
+- [ADR-004: Feature-Sliced operations portal](docs/adr/004-feature-sliced-operations-portal.md)
