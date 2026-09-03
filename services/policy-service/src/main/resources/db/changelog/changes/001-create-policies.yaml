@@ -1,0 +1,94 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-policies
+      author: aydin-demir
+      changes:
+        - createTable:
+            tableName: policies
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: policy_number
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: member_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: valid_from
+                  type: DATE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: valid_until
+                  type: DATE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - createTable:
+            tableName: policy_coverages
+            columns:
+              - column:
+                  name: policy_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_policy_coverages_policy
+                    references: policies(id)
+              - column:
+                  name: service_code
+                  type: VARCHAR(40)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: limit_amount
+                  type: DECIMAL(19,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: used_amount
+                  type: DECIMAL(19,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: currency
+                  type: VARCHAR(3)
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: policy_coverages
+            columnNames: policy_id, service_code
+            constraintName: uk_policy_coverages_service
+        - sql:
+            dbms: postgresql
+            sql: >-
+              CREATE UNIQUE INDEX uk_policies_policy_number_lower
+              ON policies (lower(policy_number))
+        - createIndex:
+            tableName: policies
+            indexName: idx_policies_member_validity
+            columns:
+              - column:
+                  name: member_id
+              - column:
+                  name: valid_from
+              - column:
+                  name: valid_until
