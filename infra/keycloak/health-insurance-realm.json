@@ -1,0 +1,45 @@
+{
+  "realm": "health-insurance",
+  "enabled": true,
+  "displayName": "Health Insurance Platform",
+  "roles": {
+    "realm": [
+      { "name": "HOSPITAL_USER", "description": "Submits and views provider requests" },
+      { "name": "INSURANCE_SPECIALIST", "description": "Reviews and decides requests" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "health-insurance-web",
+      "name": "Health Insurance Web Application",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "redirectUris": ["http://localhost:5173/*"],
+      "webOrigins": ["http://localhost:5173"]
+    }
+  ],
+  "users": [
+    {
+      "username": "hospital.user",
+      "enabled": true,
+      "firstName": "Hospital",
+      "lastName": "User",
+      "realmRoles": ["HOSPITAL_USER"],
+      "credentials": [
+        { "type": "password", "value": "hospital", "temporary": false }
+      ]
+    },
+    {
+      "username": "insurance.specialist",
+      "enabled": true,
+      "firstName": "Insurance",
+      "lastName": "Specialist",
+      "realmRoles": ["INSURANCE_SPECIALIST"],
+      "credentials": [
+        { "type": "password", "value": "insurance", "temporary": false }
+      ]
+    }
+  ]
+}
