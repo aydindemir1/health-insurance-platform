@@ -33,7 +33,7 @@ at the application and adapter boundaries.
 
 ## Implemented in milestone 1
 
-- Java 17 and Spring Boot 4.1
+- Java 21 and Spring Boot 4.1
 - REST endpoints with Bean Validation
 - Domain aggregate with explicit state transitions
 - PostgreSQL persistence through Spring Data JPA
@@ -49,7 +49,7 @@ at the application and adapter boundaries.
 
 ## Run locally
 
-Requirements: Docker with Compose support.
+Requirements: Java 21 for backend development and Docker with Compose support.
 
 ```bash
 docker compose up --build
