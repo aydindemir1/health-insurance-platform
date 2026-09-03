@@ -1,0 +1,53 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-claims-billing
+      author: aydin-demir
+      changes:
+        - sql:
+            sql: |
+              create table claims (
+                id uuid primary key,
+                pre_authorization_id uuid not null,
+                member_id uuid not null,
+                provider_id uuid not null,
+                policy_number varchar(50) not null,
+                service_code varchar(50) not null,
+                claimed_amount numeric(19,2) not null check (claimed_amount > 0),
+                approved_amount numeric(19,2),
+                currency varchar(3) not null,
+                status varchar(30) not null,
+                rejection_reason varchar(500),
+                submitted_at timestamp with time zone not null,
+                review_started_at timestamp with time zone,
+                decided_at timestamp with time zone,
+                version bigint not null default 0,
+                constraint uk_claims_pre_authorization unique (pre_authorization_id)
+              );
+              create index idx_claims_provider_status on claims (provider_id, status, submitted_at desc);
+              create index idx_claims_member on claims (member_id, submitted_at desc);
+
+              create table invoices (
+                id uuid primary key,
+                claim_id uuid not null references claims(id),
+                provider_id uuid not null,
+                invoice_number varchar(80) not null,
+                total_amount numeric(19,2) not null check (total_amount > 0),
+                payable_amount numeric(19,2),
+                currency varchar(3) not null,
+                status varchar(30) not null,
+                issued_at timestamp with time zone not null,
+                reconciled_at timestamp with time zone,
+                settled_at timestamp with time zone,
+                version bigint not null default 0,
+                constraint uk_invoices_claim unique (claim_id)
+              );
+              create unique index uk_invoices_number_lower on invoices (lower(invoice_number));
+              create index idx_invoices_provider_status on invoices (provider_id, status, issued_at desc);
+
+              create table invoice_payments (
+                invoice_id uuid not null references invoices(id) on delete cascade,
+                payment_reference varchar(100) not null,
+                amount numeric(19,2) not null check (amount > 0),
+                paid_at timestamp with time zone not null,
+                primary key (invoice_id, payment_reference)
+              );
