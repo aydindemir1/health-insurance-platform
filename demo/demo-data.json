@@ -1,0 +1,20 @@
+{
+  "dataClassification": "SYNTHETIC_DEMO_ONLY",
+  "providerId": "30000000-0000-0000-0000-000000000001",
+  "memberId": "20000000-0000-0000-0000-000000000001",
+  "policy": {
+    "numberPrefix": "POL-DEMO",
+    "validFrom": "2026-01-01",
+    "validUntil": "2030-12-31",
+    "coverages": [
+      { "serviceCode": "IMG-MRI", "limit": 50000.00, "currency": "TRY" },
+      { "serviceCode": "LAB-CBC", "limit": 5000.00, "currency": "TRY" }
+    ]
+  },
+  "preAuthorizations": {
+    "pending": { "serviceCode": "LAB-CBC", "diagnosisCode": "Z00.0", "amount": 750.00 },
+    "rejected": { "serviceCode": "IMG-MRI", "diagnosisCode": "M54.5", "amount": 1800.00 },
+    "settledClaim": { "serviceCode": "IMG-MRI", "diagnosisCode": "M25.5", "amount": 2400.00 },
+    "disputedClaim": { "serviceCode": "IMG-MRI", "diagnosisCode": "S83.2", "amount": 3200.00 }
+  }
+}
