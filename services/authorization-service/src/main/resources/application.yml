@@ -7,8 +7,8 @@ spring:
     name: authorization-service
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/authorization}
-    username: ${DB_USERNAME:authorization}
-    password: ${DB_PASSWORD:authorization}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   jpa:
     open-in-view: false
     hibernate:

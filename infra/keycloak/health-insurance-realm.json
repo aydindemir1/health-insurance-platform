@@ -5,7 +5,9 @@
   "roles": {
     "realm": [
       { "name": "HOSPITAL_USER", "description": "Submits and views provider requests" },
-      { "name": "INSURANCE_SPECIALIST", "description": "Reviews and decides requests" }
+      { "name": "INSURANCE_SPECIALIST", "description": "Reviews and decides pre-authorization requests" },
+      { "name": "CLAIM_APPROVER", "description": "Reviews and approves insurance claims" },
+      { "name": "SYSTEM_ADMIN", "description": "Administers platform configuration and access" }
     ]
   },
   "clients": [
@@ -15,7 +17,10 @@
       "enabled": true,
       "publicClient": true,
       "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      },
       "redirectUris": ["http://localhost:5173/*"],
       "webOrigins": ["http://localhost:5173"]
     }

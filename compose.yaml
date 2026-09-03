@@ -3,8 +3,8 @@ services:
     image: postgres:17-alpine
     environment:
       POSTGRES_DB: authorization
-      POSTGRES_USER: authorization
-      POSTGRES_PASSWORD: authorization
+      POSTGRES_USER: ${AUTHORIZATION_DB_USERNAME:?Set AUTHORIZATION_DB_USERNAME in .env}
+      POSTGRES_PASSWORD: ${AUTHORIZATION_DB_PASSWORD:?Set AUTHORIZATION_DB_PASSWORD in .env}
     ports:
       - "5433:5432"
     healthcheck:
@@ -30,8 +30,8 @@ services:
     build: services/authorization-service
     environment:
       DB_URL: jdbc:postgresql://authorization-db:5432/authorization
-      DB_USERNAME: authorization
-      DB_PASSWORD: authorization
+      DB_USERNAME: ${AUTHORIZATION_DB_USERNAME:?Set AUTHORIZATION_DB_USERNAME in .env}
+      DB_PASSWORD: ${AUTHORIZATION_DB_PASSWORD:?Set AUTHORIZATION_DB_PASSWORD in .env}
       KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/health-insurance
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/health-insurance/protocol/openid-connect/certs
     ports:
