@@ -17,7 +17,9 @@ consume published domain events instead of reading its database directly.
 ## Primary workflow
 
 1. A provider submits a request for an insured member.
-2. The service validates the command and creates a pending aggregate.
+2. The service validates the command and creates a pending aggregate. The
+   provider identity comes from the authenticated user's trusted token claim
+   rather than the request body.
 3. An insurance specialist makes a decision.
 4. The aggregate enforces that only a pending request can be decided.
 5. A future milestone publishes the decision through a transactional Outbox.

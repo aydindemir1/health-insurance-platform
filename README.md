@@ -16,20 +16,21 @@ messaging, caching, observability, and a GitOps delivery pipeline.
 
 ## Architecture
 
-The authorization service follows a pragmatic hexagonal architecture:
+The authorization service follows Clean Architecture with explicit ports:
 
 ```text
-HTTP API -> Application use cases -> Domain model
-                    |
-                    v
-             Repository port
-                    |
-                    v
-       PostgreSQL persistence adapter
+HTTP/Presentation -> Input ports -> Application use cases -> Domain model
+                                          |
+                                          v
+                                      Output ports
+                                          ^
+                                          |
+                         Infrastructure adapters (JPA, security, transactions)
 ```
 
-The domain model does not depend on Spring or JPA. Framework annotations remain
-at the application and adapter boundaries.
+The domain and application layers do not depend on Spring, JPA, or web APIs.
+ArchUnit tests enforce these dependency rules. Framework annotations remain in
+the infrastructure and presentation boundaries.
 
 ## Implemented in milestone 1
 
@@ -67,6 +68,11 @@ available on `http://localhost:8080`. Sign in with the local administrator
 values in `.env`, then create test users and assign either the `HOSPITAL_USER`
 or `INSURANCE_SPECIALIST` realm role. The ignored `.env` file must never be
 committed.
+
+Hospital users must have a `providerId` user attribute containing the UUID of
+their healthcare provider. Keycloak maps it to the trusted `provider_id` access
+token claim. The API derives provider ownership from this claim and never trusts
+a provider identifier supplied in a request body.
 
 For backend-only development, start PostgreSQL and Keycloak, then run:
 
@@ -110,4 +116,6 @@ cd services/authorization-service
 ## Engineering documentation
 
 - [System context](docs/architecture/system-context.md)
-- [ADR-001: Hexagonal service boundaries](docs/adr/001-hexagonal-architecture.md)
+- [Authorization service components](docs/architecture/authorization-service.md)
+- [ADR-001: Clean Architecture service boundaries](docs/adr/001-hexagonal-architecture.md)
+- [ADR-002: Provider ownership from authenticated identity](docs/adr/002-provider-ownership-from-authenticated-identity.md)
