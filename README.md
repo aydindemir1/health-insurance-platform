@@ -12,9 +12,10 @@ member's policy and coverage.
 
 The first milestone implements the **Authorization bounded context**. The
 second milestone adds a React and TypeScript operations portal. Milestone 3 adds
-the **Policy bounded context** and synchronous coverage evaluation. Later
-milestones add claims/billing, messaging, caching, observability, and a GitOps
-delivery pipeline.
+the **Policy bounded context** and synchronous coverage evaluation. Milestone 4
+adds the **Claims and Billing bounded context**, including adjudication,
+reconciliation, and settlement. Later milestones add messaging, caching,
+observability, and a GitOps delivery pipeline.
 
 ## Architecture
 
@@ -52,6 +53,9 @@ the infrastructure and presentation boundaries.
 - Policy aggregate with validity, coverage, currency, and limit rules
 - Database-per-service PostgreSQL and Liquibase ownership
 - Synchronous, fail-closed coverage verification before pre-authorization
+- Claim and invoice aggregates with explicit financial state transitions
+- Approved pre-authorization verification with provider ownership enforcement
+- Payment tracking, invoice reconciliation, and database-level idempotency guards
 
 ## Run locally
 
@@ -69,7 +73,8 @@ cp .env.example .env
 ```
 
 The authorization service is available on `http://localhost:8081`, the policy
-service on `http://localhost:8082`, and Keycloak on `http://localhost:8080`.
+service on `http://localhost:8082`, the claims/billing service on
+`http://localhost:8083`, and Keycloak on `http://localhost:8080`.
 Sign in with the local administrator
 values in `.env`, then create test users and assign either the `HOSPITAL_USER`
 or `INSURANCE_SPECIALIST` realm role. The ignored `.env` file must never be
@@ -97,9 +102,10 @@ For backend-only development, start both PostgreSQL databases and Keycloak,
 then run the two services in separate terminals:
 
 ```bash
-docker compose up -d authorization-db policy-db keycloak
+docker compose up -d authorization-db policy-db claims-billing-db keycloak
 (cd services/policy-service && ./mvnw spring-boot:run)
 (cd services/authorization-service && ./mvnw spring-boot:run)
+(cd services/claims-billing-service && ./mvnw spring-boot:run)
 ```
 
 Run unit tests:
@@ -108,6 +114,8 @@ Run unit tests:
 cd services/authorization-service
 ./mvnw test
 cd ../policy-service
+./mvnw test
+cd ../claims-billing-service
 ./mvnw test
 ```
 
@@ -127,6 +135,14 @@ context test can be run individually without Docker.
 | POST | `/api/v1/pre-authorizations/{id}/rejection` | Reject a pending request |
 | POST | `/api/v1/policies` | Issue a policy with one or more coverages |
 | POST | `/api/v1/coverage-evaluations` | Evaluate policy eligibility without reserving a limit |
+| POST | `/api/v1/claims` | Create a claim and invoice from an approved pre-authorization |
+| GET | `/api/v1/claims/{id}` | Read a claim with provider ownership enforcement |
+| POST | `/api/v1/claims/{id}/review` | Move a submitted claim into review |
+| POST | `/api/v1/claims/{id}/approval` | Approve a claim and reconcile its invoice |
+| POST | `/api/v1/claims/{id}/rejection` | Reject a claim and void its unpaid invoice |
+| GET | `/api/v1/invoices/{id}` | Read an invoice with provider ownership enforcement |
+| POST | `/api/v1/invoices/{id}/dispute-resolution` | Agree the payable amount |
+| POST | `/api/v1/invoices/{id}/payments` | Record a payment and settle when fully paid |
 | GET | `/actuator/health` | Liveness/readiness information |
 
 The collection endpoint accepts `status`, `memberId`, `policyNumber`, `page`,
@@ -140,6 +156,7 @@ only receive records owned by the provider identity in their access token.
 - [ ] Keycloak realm import and executable API examples
 - [x] Policy service and coverage verification
 - [x] React + TypeScript operations portal
+- [x] Claims and billing lifecycle
 - [ ] Transactional Outbox and Kafka domain events
 - [ ] RabbitMQ notification worker
 - [ ] Redis cache-aside strategy
@@ -153,8 +170,10 @@ only receive records owned by the provider identity in their access token.
 - [System context](docs/architecture/system-context.md)
 - [Authorization service components](docs/architecture/authorization-service.md)
 - [Policy service components](docs/architecture/policy-service.md)
+- [Claims and billing service components](docs/architecture/claims-billing-service.md)
 - [ADR-001: Clean Architecture service boundaries](docs/adr/001-hexagonal-architecture.md)
 - [ADR-002: Provider ownership from authenticated identity](docs/adr/002-provider-ownership-from-authenticated-identity.md)
 - [ADR-003: Optimistic concurrency for decisions](docs/adr/003-optimistic-concurrency-for-decisions.md)
 - [ADR-004: Feature-Sliced operations portal](docs/adr/004-feature-sliced-operations-portal.md)
 - [ADR-005: Synchronous policy coverage evaluation](docs/adr/005-synchronous-policy-coverage-evaluation.md)
+- [ADR-006: Claims and billing ownership and integration](docs/adr/006-claims-billing-ownership-and-integration.md)
