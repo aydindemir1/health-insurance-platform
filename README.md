@@ -89,6 +89,11 @@ cd services/authorization-service
 ./mvnw test
 ```
 
+The complete test suite uses Testcontainers for PostgreSQL integration and
+optimistic-concurrency checks, so Docker must be running. Framework-free domain
+and application tests, the MVC slice, and the limited transaction-wiring
+context test can be run individually without Docker.
+
 ## API endpoints
 
 | Method | Endpoint | Purpose |
@@ -119,3 +124,4 @@ cd services/authorization-service
 - [Authorization service components](docs/architecture/authorization-service.md)
 - [ADR-001: Clean Architecture service boundaries](docs/adr/001-hexagonal-architecture.md)
 - [ADR-002: Provider ownership from authenticated identity](docs/adr/002-provider-ownership-from-authenticated-identity.md)
+- [ADR-003: Optimistic concurrency for decisions](docs/adr/003-optimistic-concurrency-for-decisions.md)

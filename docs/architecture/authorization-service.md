@@ -29,6 +29,19 @@ flowchart LR
 - `infrastructure.configuration`: dependency wiring and transaction boundaries.
 - `presentation.rest`: HTTP requests, responses, validation, and Problem Details.
 
+The application service remains framework-free. An infrastructure decorator
+wraps its input ports in Spring-managed transactions: commands use read/write
+transactions and queries use read-only transactions.
+
+## Concurrent decisions
+
+The JPA entity has a version column. If two specialists load the same pending
+request, the first decision increments that version and the second update no
+longer matches the database row. The persistence adapter flushes inside the
+transaction boundary and translates Spring's optimistic-lock exception into an
+application conflict. The REST boundary returns an RFC 9457 `409 Conflict`
+response with the `concurrent-update` problem type.
+
 ## Submit flow
 
 ```mermaid
