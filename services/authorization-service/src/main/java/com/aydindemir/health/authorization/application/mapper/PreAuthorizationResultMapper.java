@@ -10,7 +10,7 @@ public final class PreAuthorizationResultMapper {
     public static PreAuthorizationResult toResult(PreAuthorization source) {
         return new PreAuthorizationResult(
                 source.id(), source.memberId(), source.providerId(),
-                source.policyNumber(), source.diagnosisCode(),
+                source.policyNumber(), source.serviceCode(), source.diagnosisCode(),
                 source.requestedAmount(), source.currency().getCurrencyCode(),
                 source.status().name(), source.decisionReason(), source.createdAt(),
                 source.decidedAt());

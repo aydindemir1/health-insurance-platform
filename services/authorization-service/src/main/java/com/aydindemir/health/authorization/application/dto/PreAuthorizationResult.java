@@ -9,6 +9,7 @@ public record PreAuthorizationResult(
         UUID memberId,
         UUID providerId,
         String policyNumber,
+        String serviceCode,
         String diagnosisCode,
         BigDecimal requestedAmount,
         String currency,

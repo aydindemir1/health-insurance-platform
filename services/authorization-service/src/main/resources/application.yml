@@ -36,3 +36,9 @@ management:
 app:
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+
+clients:
+  policy-service:
+    base-url: ${POLICY_SERVICE_BASE_URL:http://localhost:8082}
+    connect-timeout: ${POLICY_SERVICE_CONNECT_TIMEOUT:2s}
+    read-timeout: ${POLICY_SERVICE_READ_TIMEOUT:3s}

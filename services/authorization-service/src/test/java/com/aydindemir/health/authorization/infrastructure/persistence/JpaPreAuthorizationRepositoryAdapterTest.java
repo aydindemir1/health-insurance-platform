@@ -54,6 +54,7 @@ class JpaPreAuthorizationRepositoryAdapterTest {
         assertThat(entity.memberId).isEqualTo(MEMBER_ID);
         assertThat(entity.providerId).isEqualTo(PROVIDER_ID);
         assertThat(entity.policyNumber).isEqualTo("POL-100");
+        assertThat(entity.serviceCode).isEqualTo("IMG-MRI");
         assertThat(entity.diagnosisCode).isEqualTo("J18.9");
         assertThat(entity.requestedAmount).isEqualByComparingTo("1250.00");
         assertThat(entity.currency).isEqualTo("TRY");
@@ -100,6 +101,7 @@ class JpaPreAuthorizationRepositoryAdapterTest {
         assertThat(domain.memberId()).isEqualTo(MEMBER_ID);
         assertThat(domain.providerId()).isEqualTo(PROVIDER_ID);
         assertThat(domain.policyNumber()).isEqualTo("POL-100");
+        assertThat(domain.serviceCode()).isEqualTo("IMG-MRI");
         assertThat(domain.diagnosisCode()).isEqualTo("J18.9");
         assertThat(domain.requestedAmount()).isEqualByComparingTo("1250.00");
         assertThat(domain.currency()).isEqualTo(Currency.getInstance("TRY"));
@@ -128,6 +130,7 @@ class JpaPreAuthorizationRepositoryAdapterTest {
                 MEMBER_ID,
                 PROVIDER_ID,
                 "POL-100",
+                "IMG-MRI",
                 "J18.9",
                 new BigDecimal("1250.00"),
                 Currency.getInstance("TRY"),
@@ -140,6 +143,7 @@ class JpaPreAuthorizationRepositoryAdapterTest {
         entity.memberId = MEMBER_ID;
         entity.providerId = PROVIDER_ID;
         entity.policyNumber = "POL-100";
+        entity.serviceCode = "IMG-MRI";
         entity.diagnosisCode = "J18.9";
         entity.requestedAmount = new BigDecimal("1250.00");
         entity.currency = "TRY";

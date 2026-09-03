@@ -97,6 +97,7 @@ class JpaPreAuthorizationRepositoryAdapter implements PreAuthorizationRepository
         target.memberId = source.memberId();
         target.providerId = source.providerId();
         target.policyNumber = source.policyNumber();
+        target.serviceCode = source.serviceCode();
         target.diagnosisCode = source.diagnosisCode();
         target.requestedAmount = source.requestedAmount();
         target.currency = source.currency().getCurrencyCode();
@@ -109,6 +110,7 @@ class JpaPreAuthorizationRepositoryAdapter implements PreAuthorizationRepository
     private PreAuthorization mapToDomain(PreAuthorizationJpaEntity entity) {
         return PreAuthorization.rehydrate(
                 entity.id, entity.memberId, entity.providerId, entity.policyNumber,
+                entity.serviceCode,
                 entity.diagnosisCode, entity.requestedAmount,
                 Currency.getInstance(entity.currency), entity.status,
                 entity.decisionReason, entity.createdAt, entity.decidedAt);

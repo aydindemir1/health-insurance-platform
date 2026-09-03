@@ -21,6 +21,8 @@ class PreAuthorizationJpaEntity {
     UUID memberId;
     UUID providerId;
     String policyNumber;
+    @Column(length = 40, nullable = false)
+    String serviceCode;
     String diagnosisCode;
     BigDecimal requestedAmount;
     @Column(length = 3, nullable = false)

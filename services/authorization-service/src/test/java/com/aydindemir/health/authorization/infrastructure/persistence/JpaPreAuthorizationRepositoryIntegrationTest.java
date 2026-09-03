@@ -63,11 +63,12 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
 
         repository.save(submitted);
 
-        assertThat(appliedChangeSets).isEqualTo(3);
+        assertThat(appliedChangeSets).isEqualTo(4);
         assertThat(repository.findById(submitted.id()))
                 .hasValueSatisfying(reloaded -> {
                     assertThat(reloaded.memberId()).isEqualTo(submitted.memberId());
                     assertThat(reloaded.providerId()).isEqualTo(submitted.providerId());
+                    assertThat(reloaded.serviceCode()).isEqualTo(submitted.serviceCode());
                     assertThat(reloaded.requestedAmount())
                             .isEqualByComparingTo(submitted.requestedAmount());
                     assertThat(reloaded.status()).isEqualTo(PreAuthorizationStatus.PENDING);
@@ -145,6 +146,7 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "POL-1001",
+                "IMG-MRI",
                 "J18.9",
                 new BigDecimal("1250.00"),
                 Currency.getInstance("TRY"),
@@ -162,6 +164,7 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
                 memberId,
                 providerId,
                 policyNumber,
+                "IMG-MRI",
                 "J18.9",
                 new BigDecimal(amount),
                 Currency.getInstance("TRY"),

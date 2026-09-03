@@ -4,7 +4,9 @@ import com.aydindemir.health.authorization.application.command.DecidePreAuthoriz
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.dto.PageResult;
 import com.aydindemir.health.authorization.application.exception.ApplicationAccessDeniedException;
+import com.aydindemir.health.authorization.application.exception.CoverageDeniedException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationStateConflictException;
+import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
 import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
@@ -46,7 +48,10 @@ class PreAuthorizationApplicationServiceTest {
     void setUp() {
         repository = new InMemoryPreAuthorizationRepository();
         service = new PreAuthorizationApplicationService(
-                repository, () -> PRE_AUTHORIZATION_ID, CLOCK);
+                repository, () -> PRE_AUTHORIZATION_ID,
+                request -> new CoverageVerificationPort.CoverageVerificationResult(
+                        true, "ELIGIBLE", "Coverage is eligible"),
+                CLOCK);
     }
 
     @Test
@@ -99,6 +104,20 @@ class PreAuthorizationApplicationServiceTest {
     }
 
     @Test
+    void rejectsIneligibleCoverageWithoutPersistingPreAuthorization() {
+        service = new PreAuthorizationApplicationService(
+                repository, () -> PRE_AUTHORIZATION_ID,
+                request -> new CoverageVerificationPort.CoverageVerificationResult(
+                        false, "LIMIT_EXCEEDED", "Policy coverage limit is insufficient"),
+                CLOCK);
+
+        assertThatThrownBy(() -> service.submit(submitCommand(hospitalActor(PROVIDER_ID))))
+                .isInstanceOf(CoverageDeniedException.class)
+                .hasMessageContaining("limit");
+        assertThat(repository.findById(PRE_AUTHORIZATION_ID)).isEmpty();
+    }
+
+    @Test
     void scopesHospitalSearchToAuthenticatedProvider() {
         service.search(searchQuery(hospitalActor(PROVIDER_ID)));
 
@@ -148,7 +167,7 @@ class PreAuthorizationApplicationServiceTest {
 
     private SubmitPreAuthorizationCommand submitCommand(ActorContext actor) {
         return new SubmitPreAuthorizationCommand(
-                actor, MEMBER_ID, "POL-100", "J18.9",
+                actor, MEMBER_ID, "POL-100", "IMG-MRI", "J18.9",
                 new BigDecimal("1250.00"), Currency.getInstance("TRY"));
     }
 

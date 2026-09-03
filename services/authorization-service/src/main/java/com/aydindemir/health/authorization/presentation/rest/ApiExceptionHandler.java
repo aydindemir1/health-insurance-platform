@@ -2,6 +2,8 @@ package com.aydindemir.health.authorization.presentation.rest;
 
 import com.aydindemir.health.authorization.application.exception.ApplicationAccessDeniedException;
 import com.aydindemir.health.authorization.application.exception.ConcurrentPreAuthorizationUpdateException;
+import com.aydindemir.health.authorization.application.exception.CoverageDeniedException;
+import com.aydindemir.health.authorization.application.exception.PolicyServiceUnavailableException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationNotFoundException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationStateConflictException;
 import org.springframework.http.HttpStatus;
@@ -32,6 +34,20 @@ class ApiExceptionHandler {
     @ExceptionHandler(ConcurrentPreAuthorizationUpdateException.class)
     ProblemDetail handleConcurrentUpdate(ConcurrentPreAuthorizationUpdateException exception) {
         return problem(HttpStatus.CONFLICT, "Concurrent update", exception.getMessage());
+    }
+
+    @ExceptionHandler(CoverageDeniedException.class)
+    ProblemDetail handleCoverageDenied(CoverageDeniedException exception) {
+        var detail = problem(HttpStatus.UNPROCESSABLE_CONTENT,
+                "Coverage denied", exception.getMessage());
+        detail.setProperty("denialCode", exception.denialCode());
+        return detail;
+    }
+
+    @ExceptionHandler(PolicyServiceUnavailableException.class)
+    ProblemDetail handlePolicyServiceUnavailable(PolicyServiceUnavailableException exception) {
+        return problem(HttpStatus.SERVICE_UNAVAILABLE,
+                "Policy service unavailable", exception.getMessage());
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

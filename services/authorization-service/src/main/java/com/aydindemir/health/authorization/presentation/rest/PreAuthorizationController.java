@@ -53,7 +53,7 @@ class PreAuthorizationController {
             JwtAuthenticationToken authentication) {
         var created = submitUseCase.submit(new SubmitPreAuthorizationCommand(
                 actorMapper.from(authentication), request.memberId(), request.policyNumber(),
-                request.diagnosisCode(), request.requestedAmount(),
+                request.serviceCode(), request.diagnosisCode(), request.requestedAmount(),
                 Currency.getInstance(request.currency())));
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(created.id()).toUri();

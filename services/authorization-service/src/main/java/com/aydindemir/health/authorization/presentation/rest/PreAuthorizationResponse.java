@@ -11,6 +11,7 @@ record PreAuthorizationResponse(
         UUID memberId,
         UUID providerId,
         String policyNumber,
+        String serviceCode,
         String diagnosisCode,
         BigDecimal requestedAmount,
         String currency,
@@ -22,7 +23,7 @@ record PreAuthorizationResponse(
     static PreAuthorizationResponse from(PreAuthorizationResult source) {
         return new PreAuthorizationResponse(
                 source.id(), source.memberId(), source.providerId(),
-                source.policyNumber(), source.diagnosisCode(),
+                source.policyNumber(), source.serviceCode(), source.diagnosisCode(),
                 source.requestedAmount(), source.currency(),
                 source.status(), source.decisionReason(), source.createdAt(),
                 source.decidedAt());

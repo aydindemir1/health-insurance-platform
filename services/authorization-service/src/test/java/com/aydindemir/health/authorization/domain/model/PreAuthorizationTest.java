@@ -23,6 +23,7 @@ class PreAuthorizationTest {
         var request = newRequest();
 
         assertThat(request.status()).isEqualTo(PreAuthorizationStatus.PENDING);
+        assertThat(request.serviceCode()).isEqualTo("IMG-MRI");
         assertThat(request.createdAt()).isEqualTo(NOW);
         assertThat(request.decidedAt()).isNull();
     }
@@ -62,7 +63,7 @@ class PreAuthorizationTest {
     void rejectsNonPositiveAmount() {
         assertThatThrownBy(() -> PreAuthorization.submit(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "POL-100",
-                "J18.9", BigDecimal.ZERO, Currency.getInstance("TRY"), CLOCK))
+                "IMG-MRI", "J18.9", BigDecimal.ZERO, Currency.getInstance("TRY"), CLOCK))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("positive");
     }
@@ -70,7 +71,7 @@ class PreAuthorizationTest {
     private PreAuthorization newRequest() {
         return PreAuthorization.submit(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "POL-100",
-                "J18.9", new BigDecimal("1250.00"),
+                "img-mri", "J18.9", new BigDecimal("1250.00"),
                 Currency.getInstance("TRY"), CLOCK);
     }
 }

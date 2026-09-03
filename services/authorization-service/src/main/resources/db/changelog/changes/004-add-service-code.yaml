@@ -1,0 +1,18 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-add-service-code
+      author: aydin-demir
+      changes:
+        - addColumn:
+            tableName: pre_authorizations
+            columns:
+              - column:
+                  name: service_code
+                  type: VARCHAR(40)
+                  defaultValue: UNSPECIFIED
+                  constraints:
+                    nullable: false
+        - dropDefaultValue:
+            tableName: pre_authorizations
+            columnName: service_code
+            columnDataType: VARCHAR(40)

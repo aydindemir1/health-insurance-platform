@@ -10,6 +10,7 @@ public record SubmitPreAuthorizationCommand(
         ActorContext actor,
         UUID memberId,
         String policyNumber,
+        String serviceCode,
         String diagnosisCode,
         BigDecimal requestedAmount,
         Currency currency) {

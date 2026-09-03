@@ -12,6 +12,7 @@ import java.util.UUID;
 record SubmitPreAuthorizationRequest(
         @NotNull UUID memberId,
         @NotBlank @Size(max = 50) String policyNumber,
+        @NotBlank @Size(max = 40) String serviceCode,
         @NotBlank @Size(max = 20) String diagnosisCode,
         @NotNull @DecimalMin(value = "0.01") BigDecimal requestedAmount,
         @NotBlank @Pattern(regexp = "[A-Z]{3}") String currency) {

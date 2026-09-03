@@ -7,6 +7,7 @@ import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizati
 import com.aydindemir.health.authorization.application.port.in.SearchPreAuthorizationsUseCase;
 import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
+import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
 import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
 import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
@@ -72,6 +73,7 @@ class ApplicationConfigurationTest {
                     actor,
                     UUID.randomUUID(),
                     "POL-1001",
+                    "IMG-MRI",
                     "J18.9",
                     new BigDecimal("1250.00"),
                     Currency.getInstance("TRY")));
@@ -92,6 +94,12 @@ class ApplicationConfigurationTest {
         @Bean
         PreAuthorizationRepository preAuthorizationRepository() {
             return new InMemoryPreAuthorizationRepository();
+        }
+
+        @Bean
+        CoverageVerificationPort coverageVerificationPort() {
+            return request -> new CoverageVerificationPort.CoverageVerificationResult(
+                    true, "ELIGIBLE", "Coverage is eligible");
         }
 
         @Bean

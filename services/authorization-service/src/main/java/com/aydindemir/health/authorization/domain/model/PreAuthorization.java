@@ -6,6 +6,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Currency;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -14,6 +15,7 @@ public final class PreAuthorization {
     private final UUID memberId;
     private final UUID providerId;
     private final String policyNumber;
+    private final String serviceCode;
     private final String diagnosisCode;
     private final BigDecimal requestedAmount;
     private final Currency currency;
@@ -27,6 +29,7 @@ public final class PreAuthorization {
             UUID memberId,
             UUID providerId,
             String policyNumber,
+            String serviceCode,
             String diagnosisCode,
             BigDecimal requestedAmount,
             Currency currency,
@@ -38,6 +41,7 @@ public final class PreAuthorization {
         this.memberId = Objects.requireNonNull(memberId);
         this.providerId = Objects.requireNonNull(providerId);
         this.policyNumber = requireText(policyNumber, "policyNumber");
+        this.serviceCode = requireText(serviceCode, "serviceCode").toUpperCase(Locale.ROOT);
         this.diagnosisCode = requireText(diagnosisCode, "diagnosisCode");
         if (requestedAmount == null || requestedAmount.signum() <= 0) {
             throw new IllegalArgumentException("requestedAmount must be positive");
@@ -55,12 +59,13 @@ public final class PreAuthorization {
             UUID memberId,
             UUID providerId,
             String policyNumber,
+            String serviceCode,
             String diagnosisCode,
             BigDecimal requestedAmount,
             Currency currency,
             Clock clock) {
         return new PreAuthorization(
-                id, memberId, providerId, policyNumber, diagnosisCode,
+                id, memberId, providerId, policyNumber, serviceCode, diagnosisCode,
                 requestedAmount, currency, PreAuthorizationStatus.PENDING, null,
                 Objects.requireNonNull(clock).instant(), null);
     }
@@ -70,6 +75,7 @@ public final class PreAuthorization {
             UUID memberId,
             UUID providerId,
             String policyNumber,
+            String serviceCode,
             String diagnosisCode,
             BigDecimal requestedAmount,
             Currency currency,
@@ -78,7 +84,7 @@ public final class PreAuthorization {
             Instant createdAt,
             Instant decidedAt) {
         return new PreAuthorization(
-                id, memberId, providerId, policyNumber, diagnosisCode,
+                id, memberId, providerId, policyNumber, serviceCode, diagnosisCode,
                 requestedAmount, currency, status, decisionReason, createdAt, decidedAt);
     }
 
@@ -115,6 +121,7 @@ public final class PreAuthorization {
     public UUID memberId() { return memberId; }
     public UUID providerId() { return providerId; }
     public String policyNumber() { return policyNumber; }
+    public String serviceCode() { return serviceCode; }
     public String diagnosisCode() { return diagnosisCode; }
     public BigDecimal requestedAmount() { return requestedAmount; }
     public Currency currency() { return currency; }

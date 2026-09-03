@@ -5,6 +5,7 @@ import com.aydindemir.health.authorization.application.command.SubmitPreAuthoriz
 import com.aydindemir.health.authorization.application.dto.PageResult;
 import com.aydindemir.health.authorization.application.dto.PreAuthorizationResult;
 import com.aydindemir.health.authorization.application.exception.ApplicationAccessDeniedException;
+import com.aydindemir.health.authorization.application.exception.CoverageDeniedException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationNotFoundException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationStateConflictException;
 import com.aydindemir.health.authorization.application.mapper.PreAuthorizationResultMapper;
@@ -14,6 +15,7 @@ import com.aydindemir.health.authorization.application.port.in.SearchPreAuthoriz
 import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationIdGenerator;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
+import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
 import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
 import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
@@ -23,6 +25,7 @@ import com.aydindemir.health.authorization.domain.model.PreAuthorization;
 import com.aydindemir.health.authorization.domain.exception.InvalidPreAuthorizationStateException;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -34,14 +37,17 @@ public final class PreAuthorizationApplicationService implements
 
     private final PreAuthorizationRepository repository;
     private final PreAuthorizationIdGenerator idGenerator;
+    private final CoverageVerificationPort coverageVerification;
     private final Clock clock;
 
     public PreAuthorizationApplicationService(
             PreAuthorizationRepository repository,
             PreAuthorizationIdGenerator idGenerator,
+            CoverageVerificationPort coverageVerification,
             Clock clock) {
         this.repository = Objects.requireNonNull(repository);
         this.idGenerator = Objects.requireNonNull(idGenerator);
+        this.coverageVerification = Objects.requireNonNull(coverageVerification);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -50,9 +56,16 @@ public final class PreAuthorizationApplicationService implements
         Objects.requireNonNull(command);
         requireRole(command.actor(), ApplicationRole.HOSPITAL_USER);
         UUID providerId = requireProvider(command.actor());
+        var coverage = coverageVerification.verify(
+                new CoverageVerificationPort.CoverageVerificationRequest(
+                        command.policyNumber(), command.memberId(), command.serviceCode(),
+                        command.requestedAmount(), command.currency(), LocalDate.now(clock)));
+        if (!coverage.eligible()) {
+            throw new CoverageDeniedException(coverage.code(), coverage.reason());
+        }
         var preAuthorization = PreAuthorization.submit(
                 idGenerator.generate(), command.memberId(), providerId,
-                command.policyNumber(), command.diagnosisCode(),
+                command.policyNumber(), command.serviceCode(), command.diagnosisCode(),
                 command.requestedAmount(), command.currency(), clock);
         return PreAuthorizationResultMapper.toResult(repository.save(preAuthorization));
     }

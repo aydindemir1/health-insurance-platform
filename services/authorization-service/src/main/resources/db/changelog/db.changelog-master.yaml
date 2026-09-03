@@ -5,3 +5,5 @@ databaseChangeLog:
       file: db/changelog/changes/002-align-currency-column-with-jpa.yaml
   - include:
       file: db/changelog/changes/003-index-pre-authorization-search.yaml
+  - include:
+      file: db/changelog/changes/004-add-service-code.yaml

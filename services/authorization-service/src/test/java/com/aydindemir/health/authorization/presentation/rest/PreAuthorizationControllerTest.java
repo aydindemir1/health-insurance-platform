@@ -5,6 +5,7 @@ import com.aydindemir.health.authorization.application.dto.PageResult;
 import com.aydindemir.health.authorization.application.dto.PreAuthorizationResult;
 import com.aydindemir.health.authorization.application.exception.ApplicationAccessDeniedException;
 import com.aydindemir.health.authorization.application.exception.ConcurrentPreAuthorizationUpdateException;
+import com.aydindemir.health.authorization.application.exception.CoverageDeniedException;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.SearchPreAuthorizationsUseCase;
@@ -81,6 +82,7 @@ class PreAuthorizationControllerTest {
                                   "memberId": "%s",
                                   "providerId": "%s",
                                   "policyNumber": "POL-100",
+                                  "serviceCode": "IMG-MRI",
                                   "diagnosisCode": "J18.9",
                                   "requestedAmount": 1250.00,
                                   "currency": "TRY"
@@ -143,6 +145,30 @@ class PreAuthorizationControllerTest {
                 .andExpect(jsonPath("$.title").value("Operation not permitted"))
                 .andExpect(jsonPath("$.detail").value(
                         "Hospital users can only view their own provider's pre-authorizations"));
+    }
+
+    @Test
+    void rendersCoverageDenialAsUnprocessableProblemDetail() throws Exception {
+        when(submitUseCase.submit(any())).thenThrow(
+                new CoverageDeniedException("LIMIT_EXCEEDED",
+                        "Policy coverage limit is insufficient"));
+
+        mockMvc.perform(post("/api/v1/pre-authorizations")
+                        .with(hospitalJwt())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "memberId": "%s",
+                                  "policyNumber": "POL-100",
+                                  "serviceCode": "IMG-MRI",
+                                  "diagnosisCode": "J18.9",
+                                  "requestedAmount": 1250.00,
+                                  "currency": "TRY"
+                                }
+                                """.formatted(MEMBER_ID)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.title").value("Coverage denied"))
+                .andExpect(jsonPath("$.denialCode").value("LIMIT_EXCEEDED"));
     }
 
     @Test
@@ -234,6 +260,7 @@ class PreAuthorizationControllerTest {
                 MEMBER_ID,
                 TRUSTED_PROVIDER_ID,
                 "POL-100",
+                "IMG-MRI",
                 "J18.9",
                 new BigDecimal("1250.00"),
                 "TRY",
