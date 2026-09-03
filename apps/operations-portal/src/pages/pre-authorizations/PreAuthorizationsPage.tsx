@@ -157,7 +157,7 @@ export function PreAuthorizationsPage() {
               <thead><tr><th>Policy</th><th>Member</th><th>Amount</th><th>Status</th><th>Submitted</th><th /></tr></thead>
               <tbody>{query.data.content.map((item) => (
                 <tr key={item.id}>
-                  <td><strong>{item.policyNumber}</strong><small>{item.diagnosisCode}</small></td>
+                  <td><strong>{item.policyNumber}</strong><small>{item.serviceCode} · {item.diagnosisCode}</small></td>
                   <td><code>{item.memberId}</code></td>
                   <td>{new Intl.NumberFormat('tr-TR', { style: 'currency', currency: item.currency }).format(item.requestedAmount)}</td>
                   <td><StatusBadge status={item.status} /></td>

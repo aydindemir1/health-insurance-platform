@@ -5,6 +5,7 @@ export interface PreAuthorization {
   memberId: string
   providerId: string
   policyNumber: string
+  serviceCode: string
   diagnosisCode: string
   requestedAmount: number
   currency: string
@@ -17,6 +18,7 @@ export interface PreAuthorization {
 export interface SubmitPreAuthorization {
   memberId: string
   policyNumber: string
+  serviceCode: string
   diagnosisCode: string
   requestedAmount: number
   currency: string

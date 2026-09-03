@@ -18,6 +18,7 @@ describe('SubmitPreAuthorizationForm', () => {
 
     expect(await screen.findByText('Enter a valid member UUID.')).toBeInTheDocument()
     expect(screen.getByText('Policy number is required.')).toBeInTheDocument()
+    expect(screen.getByText('Service code is required.')).toBeInTheDocument()
     expect(screen.getByText('Diagnosis code is required.')).toBeInTheDocument()
     expect(screen.getByText('Enter a positive amount with up to two decimals.')).toBeInTheDocument()
   })

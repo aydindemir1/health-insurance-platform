@@ -19,7 +19,7 @@ export function PreAuthorizationDetailPage() {
         <div className="detail-heading"><div><small>Authorization ID</small><code>{item.id}</code></div><StatusBadge status={item.status} /></div>
         <dl className="detail-grid">
           <div><dt>Member ID</dt><dd>{item.memberId}</dd></div><div><dt>Provider ID</dt><dd>{item.providerId}</dd></div>
-          <div><dt>Diagnosis</dt><dd>{item.diagnosisCode}</dd></div><div><dt>Requested amount</dt><dd>{new Intl.NumberFormat('tr-TR', { style: 'currency', currency: item.currency }).format(item.requestedAmount)}</dd></div>
+          <div><dt>Service</dt><dd>{item.serviceCode}</dd></div><div><dt>Diagnosis</dt><dd>{item.diagnosisCode}</dd></div><div><dt>Requested amount</dt><dd>{new Intl.NumberFormat('tr-TR', { style: 'currency', currency: item.currency }).format(item.requestedAmount)}</dd></div>
           <div><dt>Submitted</dt><dd>{new Date(item.createdAt).toLocaleString('tr-TR')}</dd></div><div><dt>Decision reason</dt><dd>{item.decisionReason ?? '—'}</dd></div>
         </dl>
       </section>

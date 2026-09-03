@@ -19,6 +19,7 @@ describe('PreAuthorizationsPage', () => {
         memberId: '20000000-0000-0000-0000-000000000001',
         providerId: '30000000-0000-0000-0000-000000000001',
         policyNumber: 'POL-100',
+        serviceCode: 'IMG-MRI',
         diagnosisCode: 'J18.9',
         requestedAmount: 1250,
         currency: 'TRY',
