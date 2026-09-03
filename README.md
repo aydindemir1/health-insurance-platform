@@ -11,8 +11,9 @@ and an insurance specialist approves or rejects the request according to the
 member's policy and coverage.
 
 The first milestone implements the **Authorization bounded context**. The
-second milestone adds a React and TypeScript operations portal. Later milestones
-add policy, claims/billing, messaging, caching, observability, and a GitOps
+second milestone adds a React and TypeScript operations portal. Milestone 3 adds
+the **Policy bounded context** and synchronous coverage evaluation. Later
+milestones add claims/billing, messaging, caching, observability, and a GitOps
 delivery pipeline.
 
 ## Architecture
@@ -33,7 +34,7 @@ The domain and application layers do not depend on Spring, JPA, or web APIs.
 ArchUnit tests enforce these dependency rules. Framework annotations remain in
 the infrastructure and presentation boundaries.
 
-## Implemented in milestone 1
+## Implemented so far
 
 - Java 21 and Spring Boot 4.1
 - REST endpoints with Bean Validation
@@ -48,6 +49,9 @@ the infrastructure and presentation boundaries.
 - GitHub Actions build and test workflow
 - Docker Compose development environment
 - Health and readiness endpoints
+- Policy aggregate with validity, coverage, currency, and limit rules
+- Database-per-service PostgreSQL and Liquibase ownership
+- Synchronous, fail-closed coverage verification before pre-authorization
 
 ## Run locally
 
@@ -64,8 +68,9 @@ placeholder values:
 cp .env.example .env
 ```
 
-The authorization service is available on `http://localhost:8081`. Keycloak is
-available on `http://localhost:8080`. Sign in with the local administrator
+The authorization service is available on `http://localhost:8081`, the policy
+service on `http://localhost:8082`, and Keycloak on `http://localhost:8080`.
+Sign in with the local administrator
 values in `.env`, then create test users and assign either the `HOSPITAL_USER`
 or `INSURANCE_SPECIALIST` realm role. The ignored `.env` file must never be
 committed.
@@ -88,18 +93,21 @@ The portal is available on `http://localhost:5173` and uses the
 Copy `apps/operations-portal/.env.example` to `.env` only when overriding local
 URLs; no client secret is used or stored in the browser application.
 
-For backend-only development, start PostgreSQL and Keycloak, then run:
+For backend-only development, start both PostgreSQL databases and Keycloak,
+then run the two services in separate terminals:
 
 ```bash
-docker compose up -d authorization-db keycloak
-cd services/authorization-service
-./mvnw spring-boot:run
+docker compose up -d authorization-db policy-db keycloak
+(cd services/policy-service && ./mvnw spring-boot:run)
+(cd services/authorization-service && ./mvnw spring-boot:run)
 ```
 
 Run unit tests:
 
 ```bash
 cd services/authorization-service
+./mvnw test
+cd ../policy-service
 ./mvnw test
 ```
 
@@ -117,6 +125,8 @@ context test can be run individually without Docker.
 | GET | `/api/v1/pre-authorizations/{id}` | Read request details |
 | POST | `/api/v1/pre-authorizations/{id}/approval` | Approve a pending request |
 | POST | `/api/v1/pre-authorizations/{id}/rejection` | Reject a pending request |
+| POST | `/api/v1/policies` | Issue a policy with one or more coverages |
+| POST | `/api/v1/coverage-evaluations` | Evaluate policy eligibility without reserving a limit |
 | GET | `/actuator/health` | Liveness/readiness information |
 
 The collection endpoint accepts `status`, `memberId`, `policyNumber`, `page`,
@@ -128,7 +138,7 @@ only receive records owned by the provider identity in their access token.
 
 - [x] Authorization domain and REST API
 - [ ] Keycloak realm import and executable API examples
-- [ ] Policy service and coverage verification
+- [x] Policy service and coverage verification
 - [x] React + TypeScript operations portal
 - [ ] Transactional Outbox and Kafka domain events
 - [ ] RabbitMQ notification worker
@@ -142,7 +152,9 @@ only receive records owned by the provider identity in their access token.
 
 - [System context](docs/architecture/system-context.md)
 - [Authorization service components](docs/architecture/authorization-service.md)
+- [Policy service components](docs/architecture/policy-service.md)
 - [ADR-001: Clean Architecture service boundaries](docs/adr/001-hexagonal-architecture.md)
 - [ADR-002: Provider ownership from authenticated identity](docs/adr/002-provider-ownership-from-authenticated-identity.md)
 - [ADR-003: Optimistic concurrency for decisions](docs/adr/003-optimistic-concurrency-for-decisions.md)
 - [ADR-004: Feature-Sliced operations portal](docs/adr/004-feature-sliced-operations-portal.md)
+- [ADR-005: Synchronous policy coverage evaluation](docs/adr/005-synchronous-policy-coverage-evaluation.md)

@@ -10,7 +10,9 @@ flowchart LR
     UseCases --> Domain[Domain aggregate]
     UseCases --> OutputPorts[Application output ports]
     Persistence[Infrastructure / JPA adapter] --> OutputPorts
+    PolicyAdapter[Infrastructure / Policy REST adapter] --> OutputPorts
     Persistence --> Database[(Authorization PostgreSQL)]
+    PolicyAdapter --> Policy[Policy Service]
     Configuration[Infrastructure / transaction configuration] --> InputPorts
     Keycloak[Keycloak] --> Presentation
 ```
@@ -79,12 +81,15 @@ sequenceDiagram
     participant REST as REST controller
     participant App as Submit use case
     participant Domain as PreAuthorization
+    participant Policy as Policy Service
     participant Repo as Repository port
 
     Client->>REST: POST request + bearer token
     REST->>REST: Map verified provider_id and roles
     REST->>App: Command with ActorContext
     App->>App: Require HOSPITAL_USER and provider identity
+    App->>Policy: Verify policy coverage through output port
+    Policy-->>App: Eligible or denial code
     App->>Domain: Submit using trusted provider UUID
     App->>Repo: Save aggregate
     Repo-->>App: Persisted aggregate
