@@ -5,23 +5,28 @@ on:
     branches: [main]
     paths:
       - "services/authorization-service/**"
+      - "services/policy-service/**"
       - ".github/workflows/backend-ci.yml"
   pull_request:
     branches: [main]
     paths:
       - "services/authorization-service/**"
+      - "services/policy-service/**"
       - ".github/workflows/backend-ci.yml"
 
 permissions:
   contents: read
 
 jobs:
-  authorization-service:
-    name: Authorization service
+  service:
+    name: ${{ matrix.service }}
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: services/authorization-service
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - authorization-service
+          - policy-service
 
     steps:
       - name: Check out repository
@@ -33,7 +38,8 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
-          cache-dependency-path: services/authorization-service/pom.xml
+          cache-dependency-path: services/${{ matrix.service }}/pom.xml
 
       - name: Verify application
         run: ./mvnw --batch-mode --no-transfer-progress verify
+        working-directory: services/${{ matrix.service }}
