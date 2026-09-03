@@ -34,6 +34,7 @@ services:
       DB_PASSWORD: ${AUTHORIZATION_DB_PASSWORD:?Set AUTHORIZATION_DB_PASSWORD in .env}
       KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/health-insurance
       KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/health-insurance/protocol/openid-connect/certs
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
     ports:
       - "8081:8081"
     depends_on:

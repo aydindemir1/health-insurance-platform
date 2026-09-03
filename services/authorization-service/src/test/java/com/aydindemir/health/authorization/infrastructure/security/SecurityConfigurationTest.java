@@ -2,6 +2,7 @@ package com.aydindemir.health.authorization.infrastructure.security;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.util.List;
 import java.util.Map;
@@ -31,6 +32,21 @@ class SecurityConfigurationTest {
 
         assertThat(authentication).isNotNull();
         assertThat(authentication.getAuthorities()).isEmpty();
+    }
+
+    @Test
+    void limitsCorsToTheConfiguredPortalOrigin() {
+        var source = configuration.corsConfigurationSource(
+                List.of("http://localhost:5173"));
+        var request = new MockHttpServletRequest("OPTIONS", "/api/v1/pre-authorizations");
+
+        var cors = source.getCorsConfiguration(request);
+
+        assertThat(cors).isNotNull();
+        assertThat(cors.getAllowedOrigins()).containsExactly("http://localhost:5173");
+        assertThat(cors.getAllowedMethods()).containsExactly("GET", "POST", "OPTIONS");
+        assertThat(cors.getAllowedHeaders()).containsExactly("Authorization", "Content-Type");
+        assertThat(cors.getAllowCredentials()).isNotEqualTo(true);
     }
 
     private Jwt jwt(Map<String, Object> realmAccess) {
