@@ -43,6 +43,7 @@ at the application and adapter boundaries.
 - Role-based authorization
 - RFC 9457 Problem Details error responses
 - Unit tests for business rules
+- GitHub Actions build and test workflow
 - Docker Compose development environment
 - Health and readiness endpoints
 
