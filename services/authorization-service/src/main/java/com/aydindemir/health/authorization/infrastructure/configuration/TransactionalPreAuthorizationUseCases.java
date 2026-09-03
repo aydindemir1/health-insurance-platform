@@ -2,17 +2,21 @@ package com.aydindemir.health.authorization.infrastructure.configuration;
 
 import com.aydindemir.health.authorization.application.command.DecidePreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
+import com.aydindemir.health.authorization.application.dto.PageResult;
 import com.aydindemir.health.authorization.application.dto.PreAuthorizationResult;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizationUseCase;
+import com.aydindemir.health.authorization.application.port.in.SearchPreAuthorizationsUseCase;
 import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
+import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
 import com.aydindemir.health.authorization.application.usecase.PreAuthorizationApplicationService;
 import org.springframework.transaction.annotation.Transactional;
 
 public class TransactionalPreAuthorizationUseCases implements
         SubmitPreAuthorizationUseCase,
         GetPreAuthorizationUseCase,
+        SearchPreAuthorizationsUseCase,
         DecidePreAuthorizationUseCase {
 
     private final PreAuthorizationApplicationService delegate;
@@ -31,6 +35,12 @@ public class TransactionalPreAuthorizationUseCases implements
     @Transactional(readOnly = true)
     public PreAuthorizationResult get(GetPreAuthorizationQuery query) {
         return delegate.get(query);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PageResult<PreAuthorizationResult> search(SearchPreAuthorizationsQuery query) {
+        return delegate.search(query);
     }
 
     @Override

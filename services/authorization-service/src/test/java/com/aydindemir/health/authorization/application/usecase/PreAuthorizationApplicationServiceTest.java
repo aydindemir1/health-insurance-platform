@@ -2,13 +2,17 @@ package com.aydindemir.health.authorization.application.usecase;
 
 import com.aydindemir.health.authorization.application.command.DecidePreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
+import com.aydindemir.health.authorization.application.dto.PageResult;
 import com.aydindemir.health.authorization.application.exception.ApplicationAccessDeniedException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationStateConflictException;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
+import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
+import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
 import com.aydindemir.health.authorization.application.security.ActorContext;
 import com.aydindemir.health.authorization.application.security.ApplicationRole;
 import com.aydindemir.health.authorization.domain.model.PreAuthorization;
+import com.aydindemir.health.authorization.domain.model.PreAuthorizationStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +22,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Currency;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -94,6 +99,31 @@ class PreAuthorizationApplicationServiceTest {
     }
 
     @Test
+    void scopesHospitalSearchToAuthenticatedProvider() {
+        service.search(searchQuery(hospitalActor(PROVIDER_ID)));
+
+        assertThat(repository.lastSearchCriteria.providerId()).isEqualTo(PROVIDER_ID);
+    }
+
+    @Test
+    void allowsSpecialistToSearchAcrossProviders() {
+        service.search(searchQuery(specialistActor()));
+
+        assertThat(repository.lastSearchCriteria.providerId()).isNull();
+        assertThat(repository.lastSearchCriteria.status())
+                .isEqualTo(PreAuthorizationStatus.PENDING);
+    }
+
+    @Test
+    void deniesSearchWithoutAnOperationsRole() {
+        var actor = new ActorContext("claims-user", null, Set.of(ApplicationRole.CLAIM_APPROVER));
+
+        assertThatThrownBy(() -> service.search(searchQuery(actor)))
+                .isInstanceOf(ApplicationAccessDeniedException.class)
+                .hasMessageContaining("HOSPITAL_USER");
+    }
+
+    @Test
     void enforcesDecisionRoleInsideApplicationLayer() {
         service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
         var command = new DecidePreAuthorizationCommand(
@@ -132,9 +162,15 @@ class PreAuthorizationApplicationServiceTest {
                 "specialist-user", null, Set.of(ApplicationRole.INSURANCE_SPECIALIST));
     }
 
+    private SearchPreAuthorizationsQuery searchQuery(ActorContext actor) {
+        return SearchPreAuthorizationsQuery.fromRequest(
+                actor, "PENDING", null, "POL-100", 0, 20, "createdAt", "desc");
+    }
+
     private static final class InMemoryPreAuthorizationRepository
             implements PreAuthorizationRepository {
         private final Map<UUID, PreAuthorization> entries = new HashMap<>();
+        private PreAuthorizationSearchCriteria lastSearchCriteria;
 
         @Override
         public PreAuthorization save(PreAuthorization preAuthorization) {
@@ -145,6 +181,12 @@ class PreAuthorizationApplicationServiceTest {
         @Override
         public Optional<PreAuthorization> findById(UUID id) {
             return Optional.ofNullable(entries.get(id));
+        }
+
+        @Override
+        public PageResult<PreAuthorization> search(PreAuthorizationSearchCriteria criteria) {
+            lastSearchCriteria = criteria;
+            return new PageResult<>(List.of(), criteria.page(), criteria.size(), 0, 0);
         }
     }
 }

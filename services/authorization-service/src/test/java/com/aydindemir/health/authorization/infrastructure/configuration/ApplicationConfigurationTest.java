@@ -1,11 +1,15 @@
 package com.aydindemir.health.authorization.infrastructure.configuration;
 
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
+import com.aydindemir.health.authorization.application.dto.PageResult;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizationUseCase;
+import com.aydindemir.health.authorization.application.port.in.SearchPreAuthorizationsUseCase;
 import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
+import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
+import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
 import com.aydindemir.health.authorization.application.security.ActorContext;
 import com.aydindemir.health.authorization.application.security.ApplicationRole;
 import com.aydindemir.health.authorization.domain.model.PreAuthorization;
@@ -43,9 +47,10 @@ class ApplicationConfigurationTest {
 
             Object submit = context.getBean(SubmitPreAuthorizationUseCase.class);
             Object get = context.getBean(GetPreAuthorizationUseCase.class);
+            Object search = context.getBean(SearchPreAuthorizationsUseCase.class);
             Object decide = context.getBean(DecidePreAuthorizationUseCase.class);
 
-            assertThat(submit).isSameAs(get).isSameAs(decide);
+            assertThat(submit).isSameAs(get).isSameAs(search).isSameAs(decide);
             assertThat(AopUtils.isAopProxy(submit)).isTrue();
             assertThat(AopUtils.getTargetClass(submit))
                     .isEqualTo(TransactionalPreAuthorizationUseCases.class);
@@ -57,6 +62,7 @@ class ApplicationConfigurationTest {
         contextRunner.run(context -> {
             var submit = context.getBean(SubmitPreAuthorizationUseCase.class);
             var get = context.getBean(GetPreAuthorizationUseCase.class);
+            var search = context.getBean(SearchPreAuthorizationsUseCase.class);
             var transactionManager = context.getBean(RecordingTransactionManager.class);
             UUID providerId = UUID.randomUUID();
             var actor = new ActorContext(
@@ -70,10 +76,12 @@ class ApplicationConfigurationTest {
                     new BigDecimal("1250.00"),
                     Currency.getInstance("TRY")));
             get.get(new GetPreAuthorizationQuery(submitted.id(), actor));
+            search.search(SearchPreAuthorizationsQuery.fromRequest(
+                    actor, null, null, null, 0, 20, "createdAt", "desc"));
 
             assertThat(transactionManager.readOnlyTransactions())
-                    .containsExactly(false, true);
-            assertThat(transactionManager.committedTransactions()).isEqualTo(2);
+                    .containsExactly(false, true, true);
+            assertThat(transactionManager.committedTransactions()).isEqualTo(3);
         });
     }
 
@@ -105,6 +113,13 @@ class ApplicationConfigurationTest {
         @Override
         public Optional<PreAuthorization> findById(UUID id) {
             return Optional.ofNullable(records.get(id));
+        }
+
+        @Override
+        public PageResult<PreAuthorization> search(PreAuthorizationSearchCriteria criteria) {
+            return new PageResult<>(List.copyOf(records.values()),
+                    criteria.page(), criteria.size(), records.size(),
+                    records.isEmpty() ? 0 : 1);
         }
     }
 

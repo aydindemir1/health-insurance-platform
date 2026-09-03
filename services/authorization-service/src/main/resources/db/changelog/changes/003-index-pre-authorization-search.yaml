@@ -1,0 +1,20 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-index-pre-authorization-search
+      author: aydin-demir
+      changes:
+        - createIndex:
+            tableName: pre_authorizations
+            indexName: idx_pre_auth_provider_status_created
+            columns:
+              - column:
+                  name: provider_id
+              - column:
+                  name: status
+              - column:
+                  name: created_at
+        - sql:
+            dbms: postgresql
+            sql: >-
+              CREATE INDEX idx_pre_auth_policy_number_lower
+              ON pre_authorizations (lower(policy_number))

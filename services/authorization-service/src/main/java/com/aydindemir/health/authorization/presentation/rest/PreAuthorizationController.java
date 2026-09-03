@@ -4,8 +4,10 @@ import com.aydindemir.health.authorization.application.command.DecidePreAuthoriz
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizationUseCase;
+import com.aydindemir.health.authorization.application.port.in.SearchPreAuthorizationsUseCase;
 import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
+import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -26,16 +29,19 @@ import java.util.UUID;
 class PreAuthorizationController {
     private final SubmitPreAuthorizationUseCase submitUseCase;
     private final GetPreAuthorizationUseCase getUseCase;
+    private final SearchPreAuthorizationsUseCase searchUseCase;
     private final DecidePreAuthorizationUseCase decideUseCase;
     private final AuthenticatedActorMapper actorMapper;
 
     PreAuthorizationController(
             SubmitPreAuthorizationUseCase submitUseCase,
             GetPreAuthorizationUseCase getUseCase,
+            SearchPreAuthorizationsUseCase searchUseCase,
             DecidePreAuthorizationUseCase decideUseCase,
             AuthenticatedActorMapper actorMapper) {
         this.submitUseCase = submitUseCase;
         this.getUseCase = getUseCase;
+        this.searchUseCase = searchUseCase;
         this.decideUseCase = decideUseCase;
         this.actorMapper = actorMapper;
     }
@@ -52,6 +58,23 @@ class PreAuthorizationController {
         var location = ServletUriComponentsBuilder.fromCurrentRequest()
                 .path("/{id}").buildAndExpand(created.id()).toUri();
         return ResponseEntity.created(location).body(PreAuthorizationResponse.from(created));
+    }
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('HOSPITAL_USER', 'INSURANCE_SPECIALIST', 'SYSTEM_ADMIN')")
+    PreAuthorizationPageResponse search(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) UUID memberId,
+            @RequestParam(required = false) String policyNumber,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction,
+            JwtAuthenticationToken authentication) {
+        var query = SearchPreAuthorizationsQuery.fromRequest(
+                actorMapper.from(authentication), status, memberId, policyNumber,
+                page, size, sortBy, direction);
+        return PreAuthorizationPageResponse.from(searchUseCase.search(query));
     }
 
     @GetMapping("/{id}")

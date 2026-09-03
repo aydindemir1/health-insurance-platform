@@ -1,6 +1,8 @@
 package com.aydindemir.health.authorization.infrastructure.persistence;
 
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
+import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
+import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
 import com.aydindemir.health.authorization.domain.model.PreAuthorization;
 import com.aydindemir.health.authorization.domain.model.PreAuthorizationStatus;
 import jakarta.persistence.EntityManagerFactory;
@@ -61,7 +63,7 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
 
         repository.save(submitted);
 
-        assertThat(appliedChangeSets).isEqualTo(2);
+        assertThat(appliedChangeSets).isEqualTo(3);
         assertThat(repository.findById(submitted.id()))
                 .hasValueSatisfying(reloaded -> {
                     assertThat(reloaded.memberId()).isEqualTo(submitted.memberId());
@@ -100,6 +102,43 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
         }
     }
 
+    @Test
+    void filtersScopesSortsAndPaginatesWithPostgreSql() {
+        jdbcTemplate.update("delete from pre_authorizations");
+        UUID providerId = UUID.randomUUID();
+        UUID memberId = UUID.randomUUID();
+        repository.save(newPreAuthorization(
+                providerId, memberId, "POL-SEARCH", "100.00", 1));
+        repository.save(newPreAuthorization(
+                providerId, memberId, "POL-SEARCH", "300.00", 3));
+        repository.save(newPreAuthorization(
+                providerId, memberId, "POL-SEARCH", "200.00", 2));
+        repository.save(newPreAuthorization(
+                UUID.randomUUID(), memberId, "POL-SEARCH", "999.00", 4));
+        repository.save(newPreAuthorization(
+                providerId, UUID.randomUUID(), "POL-OTHER", "888.00", 5));
+
+        var criteria = new PreAuthorizationSearchCriteria(
+                providerId,
+                PreAuthorizationStatus.PENDING,
+                memberId,
+                "pol-search",
+                0,
+                2,
+                SearchPreAuthorizationsQuery.SortField.REQUESTED_AMOUNT,
+                SearchPreAuthorizationsQuery.SortDirection.DESC);
+
+        var result = repository.search(criteria);
+
+        assertThat(result.content())
+                .extracting(PreAuthorization::requestedAmount)
+                .containsExactly(new BigDecimal("300.00"), new BigDecimal("200.00"));
+        assertThat(result.totalElements()).isEqualTo(3);
+        assertThat(result.totalPages()).isEqualTo(2);
+        assertThat(result.page()).isZero();
+        assertThat(result.size()).isEqualTo(2);
+    }
+
     private PreAuthorization newPreAuthorization() {
         return PreAuthorization.submit(
                 UUID.randomUUID(),
@@ -110,6 +149,24 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
                 new BigDecimal("1250.00"),
                 Currency.getInstance("TRY"),
                 FIXED_CLOCK);
+    }
+
+    private PreAuthorization newPreAuthorization(
+            UUID providerId,
+            UUID memberId,
+            String policyNumber,
+            String amount,
+            long createdMinute) {
+        return PreAuthorization.submit(
+                UUID.randomUUID(),
+                memberId,
+                providerId,
+                policyNumber,
+                "J18.9",
+                new BigDecimal(amount),
+                Currency.getInstance("TRY"),
+                Clock.fixed(FIXED_CLOCK.instant().plusSeconds(createdMinute * 60),
+                        ZoneOffset.UTC));
     }
 
     private void rollbackIfActive(jakarta.persistence.EntityManager entityManager) {

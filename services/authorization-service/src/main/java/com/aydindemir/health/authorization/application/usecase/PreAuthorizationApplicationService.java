@@ -2,6 +2,7 @@ package com.aydindemir.health.authorization.application.usecase;
 
 import com.aydindemir.health.authorization.application.command.DecidePreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
+import com.aydindemir.health.authorization.application.dto.PageResult;
 import com.aydindemir.health.authorization.application.dto.PreAuthorizationResult;
 import com.aydindemir.health.authorization.application.exception.ApplicationAccessDeniedException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationNotFoundException;
@@ -9,10 +10,13 @@ import com.aydindemir.health.authorization.application.exception.PreAuthorizatio
 import com.aydindemir.health.authorization.application.mapper.PreAuthorizationResultMapper;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizationUseCase;
+import com.aydindemir.health.authorization.application.port.in.SearchPreAuthorizationsUseCase;
 import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationIdGenerator;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
+import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
+import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
 import com.aydindemir.health.authorization.application.security.ActorContext;
 import com.aydindemir.health.authorization.application.security.ApplicationRole;
 import com.aydindemir.health.authorization.domain.model.PreAuthorization;
@@ -25,6 +29,7 @@ import java.util.UUID;
 public final class PreAuthorizationApplicationService implements
         SubmitPreAuthorizationUseCase,
         GetPreAuthorizationUseCase,
+        SearchPreAuthorizationsUseCase,
         DecidePreAuthorizationUseCase {
 
     private final PreAuthorizationRepository repository;
@@ -58,6 +63,22 @@ public final class PreAuthorizationApplicationService implements
         var preAuthorization = find(query.id());
         assertCanView(query.actor(), preAuthorization.providerId());
         return PreAuthorizationResultMapper.toResult(preAuthorization);
+    }
+
+    @Override
+    public PageResult<PreAuthorizationResult> search(SearchPreAuthorizationsQuery query) {
+        Objects.requireNonNull(query);
+        UUID providerScope = resolveProviderScope(query.actor());
+        var criteria = new PreAuthorizationSearchCriteria(
+                providerScope,
+                query.status(),
+                query.memberId(),
+                query.policyNumber(),
+                query.page(),
+                query.size(),
+                query.sortBy(),
+                query.direction());
+        return repository.search(criteria).map(PreAuthorizationResultMapper::toResult);
     }
 
     @Override
@@ -99,6 +120,15 @@ public final class PreAuthorizationApplicationService implements
             throw new ApplicationAccessDeniedException(
                     "Hospital users can only view their own provider's pre-authorizations");
         }
+    }
+
+    private UUID resolveProviderScope(ActorContext actor) {
+        if (actor.hasRole(ApplicationRole.INSURANCE_SPECIALIST)
+                || actor.hasRole(ApplicationRole.SYSTEM_ADMIN)) {
+            return null;
+        }
+        requireRole(actor, ApplicationRole.HOSPITAL_USER);
+        return requireProvider(actor);
     }
 
     private void requireSpecialist(DecidePreAuthorizationCommand command) {

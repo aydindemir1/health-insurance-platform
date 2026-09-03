@@ -1,11 +1,13 @@
 package com.aydindemir.health.authorization.presentation.rest;
 
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
+import com.aydindemir.health.authorization.application.dto.PageResult;
 import com.aydindemir.health.authorization.application.dto.PreAuthorizationResult;
 import com.aydindemir.health.authorization.application.exception.ApplicationAccessDeniedException;
 import com.aydindemir.health.authorization.application.exception.ConcurrentPreAuthorizationUpdateException;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizationUseCase;
+import com.aydindemir.health.authorization.application.port.in.SearchPreAuthorizationsUseCase;
 import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthorizationUseCase;
 import com.aydindemir.health.authorization.infrastructure.security.SecurityConfiguration;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,9 @@ class PreAuthorizationControllerTest {
 
     @MockitoBean
     private GetPreAuthorizationUseCase getUseCase;
+
+    @MockitoBean
+    private SearchPreAuthorizationsUseCase searchUseCase;
 
     @MockitoBean
     private DecidePreAuthorizationUseCase decideUseCase;
@@ -138,6 +143,55 @@ class PreAuthorizationControllerTest {
                 .andExpect(jsonPath("$.title").value("Operation not permitted"))
                 .andExpect(jsonPath("$.detail").value(
                         "Hospital users can only view their own provider's pre-authorizations"));
+    }
+
+    @Test
+    void returnsFilteredPageMetadata() throws Exception {
+        when(searchUseCase.search(any())).thenReturn(new PageResult<>(
+                java.util.List.of(pendingResult()), 1, 10, 21, 3));
+
+        mockMvc.perform(get("/api/v1/pre-authorizations")
+                        .with(specialistJwt())
+                        .param("status", "PENDING")
+                        .param("policyNumber", "POL-100")
+                        .param("page", "1")
+                        .param("size", "10")
+                        .param("sortBy", "requestedAmount")
+                        .param("direction", "asc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id")
+                        .value(PRE_AUTHORIZATION_ID.toString()))
+                .andExpect(jsonPath("$.page").value(1))
+                .andExpect(jsonPath("$.size").value(10))
+                .andExpect(jsonPath("$.totalElements").value(21))
+                .andExpect(jsonPath("$.totalPages").value(3))
+                .andExpect(jsonPath("$.first").value(false))
+                .andExpect(jsonPath("$.last").value(false));
+
+        verify(searchUseCase).search(any());
+    }
+
+    @Test
+    void rejectsUnsupportedSortField() throws Exception {
+        mockMvc.perform(get("/api/v1/pre-authorizations")
+                        .with(specialistJwt())
+                        .param("sortBy", "providerId"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Invalid request"));
+
+        verify(searchUseCase, never()).search(any());
+    }
+
+    @Test
+    void rejectsPageSizeAboveApplicationLimit() throws Exception {
+        mockMvc.perform(get("/api/v1/pre-authorizations")
+                        .with(specialistJwt())
+                        .param("size", "101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail")
+                        .value("Page size must be between 1 and 100"));
+
+        verify(searchUseCase, never()).search(any());
     }
 
     @Test
