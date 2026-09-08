@@ -56,6 +56,23 @@ function New-PreAuthorization {
         }
 }
 
+function Wait-EventDrivenClaim {
+    param([Parameter(Mandatory)] [string]$PreAuthorizationId)
+    $deadline = (Get-Date).AddSeconds(20)
+    do {
+        try {
+            return Invoke-DemoApi -Method GET `
+                -Uri "$ClaimsBaseUrl/claims/by-pre-authorization/$PreAuthorizationId" `
+                -Token $HospitalToken
+        }
+        catch {
+            if ($_.Exception.Response.StatusCode.value__ -ne 404) { throw }
+            Start-Sleep -Milliseconds 250
+        }
+    } while ((Get-Date) -lt $deadline)
+    throw "Kafka event did not create a claim for pre-authorization $PreAuthorizationId within 20 seconds."
+}
+
 $policy = Invoke-DemoApi -Method POST -Uri "$PolicyBaseUrl/policies" `
     -Token $InsuranceToken -Body @{
         policyNumber = $policyNumber
@@ -75,13 +92,7 @@ $settledAuthorization = New-PreAuthorization $data.preAuthorizations.settledClai
 $settledAuthorization = Invoke-DemoApi -Method POST `
     -Uri "$AuthorizationBaseUrl/pre-authorizations/$($settledAuthorization.id)/approval" `
     -Token $InsuranceToken -Body @{ reason = "Synthetic demo: policy and medical rules verified" }
-$settled = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims" `
-    -Token $HospitalToken -Body @{
-        preAuthorizationId = $settledAuthorization.id
-        invoiceNumber = "INV-DEMO-SETTLED-$RunId"
-        invoicedAmount = 2400.00
-        currency = "TRY"
-    }
+$settled = Wait-EventDrivenClaim $settledAuthorization.id
 $null = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims/$($settled.claim.id)/review" `
     -Token $ClaimApproverToken
 $settled = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims/$($settled.claim.id)/approval" `
@@ -108,13 +119,7 @@ $disputedAuthorization = New-PreAuthorization $data.preAuthorizations.disputedCl
 $disputedAuthorization = Invoke-DemoApi -Method POST `
     -Uri "$AuthorizationBaseUrl/pre-authorizations/$($disputedAuthorization.id)/approval" `
     -Token $InsuranceToken -Body @{ reason = "Synthetic demo: approved for claim submission" }
-$disputed = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims" `
-    -Token $HospitalToken -Body @{
-        preAuthorizationId = $disputedAuthorization.id
-        invoiceNumber = "INV-DEMO-DISPUTED-$RunId"
-        invoicedAmount = 3200.00
-        currency = "TRY"
-    }
+$disputed = Wait-EventDrivenClaim $disputedAuthorization.id
 $null = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims/$($disputed.claim.id)/review" `
     -Token $ClaimApproverToken
 $disputed = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims/$($disputed.claim.id)/approval" `
