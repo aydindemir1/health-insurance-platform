@@ -1,6 +1,6 @@
-# Technical Walkthrough: Milestones 0–6
+# Technical Walkthrough: Milestones 0–7
 
-This document explains the implemented system through Milestone 6. It is a
+This document explains the implemented system through Milestone 7. It is a
 living technical narrative: every completed milestone updates it, the README, the
 architecture diagrams, the demo, and relevant screenshots.
 
@@ -150,6 +150,30 @@ transaction; only a committed success is acknowledged. PostgreSQL/RabbitMQ
 Testcontainers prove duplicate suppression and real dead-letter routing, while
 the synthetic Compose demo proves three decisions reach `DELIVERED`.
 
+### Milestone 7 — Cache, search, and observability
+
+Policy's application service depends on a `CoverageEvaluationCache` port, not on
+Redis. It asks the cache before loading the aggregate and stores the resulting
+decision for 30 seconds. The adapter hashes the complete evaluation identity so
+Redis keys do not reveal member or policy identifiers. Reads, writes, and
+invalidation fail open to PostgreSQL; only the authoritative dependency failure
+prevents Authorization from accepting an unverified request.
+
+Cross-context operations search is a new read-model bounded context. Every
+Claims/Billing transition persists a complete `ClaimSearchProjection` beside the
+aggregate in one transaction. A scheduled relay publishes the projection to
+Kafka, while Search Service also consumes Authorization decision events. It maps
+both contracts into deterministic Elasticsearch documents. This gives at-least-
+once idempotency without allowing Search to mutate or impersonate source
+aggregates. Hospital queries are always replaced with the signed provider scope.
+
+The portal's new Search entity/API/page slice talks to port 8084 and retains
+filters and pagination in the URL. TanStack Query owns remote state. The shared
+HTTP client creates `X-Correlation-ID`; servlet filters validate and echo it,
+REST clients forward it, and asynchronous listeners derive it from event/task
+metadata. Spring Boot renders MDC as ECS JSON. Docker attaches the Elastic Java
+agent externally, so tracing concerns do not enter domain or application code.
+
 ## 3. Architecture at runtime
 
 ```mermaid
@@ -168,6 +192,17 @@ flowchart LR
     Rabbit -->|bounded retry + DLQ| Listener[Version-aware AMQP listener]
     Listener --> Worker[Notification Worker core]
     Worker --> WorkerDB[(Notification PostgreSQL)]
+    Policy --> Redis[(Redis cache)]
+    Claims -->|projection outbox| Kafka
+    Kafka --> Search[Search Service]
+    Browser -->|secured search| Search
+    Search --> Elastic[(Elasticsearch)]
+    Elastic --> Kibana[Kibana]
+    Auth -. traces .-> APM[APM Server]
+    Policy -. traces .-> APM
+    Claims -. traces .-> APM
+    Search -. traces .-> APM
+    Worker -. traces .-> APM
 ```
 
 The current service-to-service calls relay the caller's access token. This
@@ -318,16 +353,16 @@ rotting while later milestones change the implementation.
 
 ## 10. Delivery and local operations
 
-Docker Compose runs Keycloak, Kafka, RabbitMQ, three API services, Notification
-Worker, and four private databases.
+Docker Compose runs Keycloak, Kafka, RabbitMQ, Redis, four API services,
+Notification Worker, four private databases, Elasticsearch, Kibana, and APM
+Server.
 Required credentials are supplied from an ignored `.env`, using `.env.example`
 as a safe template. Health checks order database-dependent startup. GitHub
 Actions independently tests backend services and the operations portal using
 Java 21 and Node.
 
 The repository does not yet contain Kubernetes, APISIX, Jenkins, SonarQube,
-Nexus, Harbor, Argo CD, Redis, Elasticsearch, Kibana, or Elastic APM runtime
-implementations. Those remain planned slices and will only be added
+Nexus, Harbor, or Argo CD implementations. Those remain planned slices and will only be added
 when they solve an explicit operational or domain problem.
 
 ## 11. .NET-to-Java mapping
@@ -349,6 +384,10 @@ when they solve an explicit operational or domain problem.
 | EF Core transactional outbox table | JPA outbox adapter + scheduled relay |
 | MassTransit consumer/error transport | Spring Kafka listener + DLT or Spring AMQP listener + DLQ |
 | EF Core persistence adapter | Notification JPA entity + repository adapter |
+| `IDistributedCache` adapter | Redis-backed cache output port with explicit fallback |
+| Elasticsearch .NET client/read model | Elastic Java Client projection adapter |
+| Serilog ECS + `LogContext` | Spring Boot ECS logging + SLF4J MDC |
+| Application Insights/OpenTelemetry auto-instrumentation | Externally attached Elastic APM Java agent |
 
 ## 12. Interview explanation
 
@@ -363,8 +402,12 @@ needs an immediate answer. Aggregate decisions and outbox events commit together
 Kafka then starts Claims/Billing through an idempotent consumer with retry/DLT.
 Aggregates protect state and money rules, Liquibase versions each schema, and
 optimistic locking prevents concurrent double decisions. A React/TypeScript portal uses
-Feature-Sliced boundaries and TanStack Query for server state. Tests cover
-domain rules, security, architecture, persistence, and concurrency.”
+Feature-Sliced boundaries and TanStack Query for server state. Redis accelerates
+coverage reads without becoming authoritative; Kafka-backed outboxes build a
+provider-scoped Elasticsearch read model. ECS logs, correlation propagation and
+Elastic APM make synchronous and asynchronous paths diagnosable. Tests cover
+domain rules, security, architecture, persistence, concurrency, cache failure,
+and real search infrastructure.”
 
 ### Questions to expect
 
@@ -382,8 +425,13 @@ domain rules, security, architecture, persistence, and concurrency.”
 - Why use Kafka and RabbitMQ for different responsibilities?
 - Why does retry wrap the transaction decorator rather than execute inside one transaction?
 - Which notification errors should bypass retry and go directly to the DLQ?
+- Why does Redis fail open while Policy Service failure remains fail closed?
+- Why is Elasticsearch a projection rather than the source of truth?
+- How does the search projection avoid a dual-write inconsistency?
+- What does a correlation ID prove, and what does it not prove?
+- Why attach the APM agent externally instead of adding a code dependency?
 
-## 13. Known gaps in Milestone 6
+## 13. Known gaps after Milestone 7
 
 - The portal has no policy, claim, invoice, or payment screens yet; those flows
   are demonstrated through the API seed script.
@@ -392,6 +440,11 @@ domain rules, security, architecture, persistence, and concurrency.”
   identity or token exchange.
 - Synchronous dependencies do not yet use circuit breakers or controlled retry.
 - Outbox retention and automated DLT inspection/replay are not operationalized.
+- Authorization search currently projects decisions; pending items use the
+  strongly consistent Authorization work queue.
+- Search reindex/rebuild and index lifecycle policies are not automated.
+- ECS logs are emitted to stdout but a production log shipper, redaction policy,
+  dashboards, alerts, and retention policy are not yet configured.
 - Demo users must be created locally because credentials are never committed.
 - Production-grade consent, PHI classification, encryption/key management,
   retention, audit trail, and regulatory controls require explicit design.

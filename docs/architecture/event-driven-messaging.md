@@ -156,3 +156,23 @@ The relay can publish a duplicate if it crashes after Kafka acknowledgement but
 before committing `published_at`. That window is why the inbox table is required.
 Outbox rows are retained as delivery evidence; retention/archival and DLT replay
 are explicit operational follow-ups.
+
+## Search projection path (Milestone 7)
+
+```mermaid
+flowchart LR
+    AuthTopic{{Authorization decision topic}} --> Search[Search Service consumers]
+    Claims[Claims and Billing transaction] --> CDB[(claims + invoices)]
+    Claims --> SO[(claim_search_outbox)]
+    Relay[Scheduled search relay] --> SO
+    Relay --> SearchTopic{{health.claims.search-projection.v1}}
+    SearchTopic --> Search
+    Search -->|deterministic document ID| ES[(healthcare-operations-v1)]
+```
+
+Claim and invoice transitions update their aggregate and append a complete
+operational projection in one local transaction. The relay publishes only after
+commit and marks rows published only after Kafka acknowledgement. Search consumes
+at least once; `CLAIM-{claimId}` and `PRE_AUTHORIZATION-{id}` document IDs turn
+redelivery into replacement. Kafka partition keys preserve claim transition order
+for one aggregate. Elasticsearch remains disposable and rebuildable read state.

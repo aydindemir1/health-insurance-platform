@@ -11,6 +11,9 @@ flowchart LR
     Ports --> UseCases[Policy use cases]
     UseCases --> Aggregate[Policy aggregate]
     UseCases --> RepoPort[Policy repository port]
+    UseCases --> CachePort[Coverage evaluation cache port]
+    Redis[Redis adapter] --> CachePort
+    Redis --> Cache[(Redis)]
     JPA[JPA adapter] --> RepoPort
     JPA --> DB[(Policy PostgreSQL)]
     Keycloak[Keycloak] --> REST
@@ -36,13 +39,20 @@ sequenceDiagram
     participant Authorization
     participant Policy
     participant PolicyDB as Policy PostgreSQL
+    participant Redis
     participant AuthorizationDB as Authorization PostgreSQL
 
     Portal->>Authorization: Submit pre-authorization + bearer token
     Authorization->>Authorization: Check hospital role and provider ownership
     Authorization->>Policy: Evaluate policy/member/service/amount/date
-    Policy->>PolicyDB: Load policy by number
-    Policy->>Policy: Apply validity, coverage, currency, and limit rules
+    Policy->>Redis: Read hashed evaluation key
+    alt cache hit
+        Redis-->>Policy: Cached immutable decision
+    else miss or Redis unavailable
+        Policy->>PolicyDB: Load policy by number
+        Policy->>Policy: Apply validity, coverage, currency, and limit rules
+        Policy->>Redis: Store for 30 seconds
+    end
     Policy-->>Authorization: Eligible or stable denial code
     alt eligible
         Authorization->>AuthorizationDB: Save pending pre-authorization
@@ -58,3 +68,7 @@ The evaluation is deliberately query-like and does not consume or reserve a
 limit yet. Reservation becomes a state-changing, idempotent operation with
 optimistic concurrency and compensation in the event-driven milestone.
 
+Redis is an acceleration adapter, not policy storage. It hashes the full lookup
+identity, tracks keys per policy for invalidation, and fails open on every cache
+operation. PostgreSQL remains authoritative and its failure is never converted
+into an assumed eligible response.

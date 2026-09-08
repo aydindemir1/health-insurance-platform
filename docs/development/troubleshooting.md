@@ -1,6 +1,6 @@
 # Local Troubleshooting
 
-This guide covers reproducible local-development failures through Milestone 6.
+This guide covers reproducible local-development failures through Milestone 7.
 Never paste passwords, access tokens, message payloads, or real health data into
 commands, issues, screenshots, or logs.
 
@@ -91,6 +91,60 @@ Each service currently copies its source before invoking Maven, so a cold or
 invalidated Docker cache may download dependencies again. This is a performance
 limitation, not a correctness failure. A future build-only improvement can add a
 BuildKit Maven cache or dependency-first layer without changing runtime behavior.
+
+## Redis is unavailable
+
+Policy Service deliberately treats Redis as an optimization. Inspect only a
+bounded log tail and look for a cache warning followed by a successful database
+evaluation:
+
+```powershell
+docker compose ps redis policy-service
+docker compose logs --no-color --tail 100 policy-service
+```
+
+Do not change Authorization to accept unknown coverage. Redis failures fall back
+to Policy PostgreSQL; a PostgreSQL/Policy failure still returns `503` and creates
+no authorization. Never log or inspect raw cache values using real identifiers.
+
+## Elasticsearch, Search Service, or Kibana is not ready
+
+Elasticsearch and Kibana are memory-intensive on a cold Docker Desktop start.
+Inspect exact services and wait for the Elasticsearch health gate:
+
+```powershell
+docker compose ps elasticsearch search-service kibana apm-server
+docker compose logs --no-color --tail 120 elasticsearch search-service kibana apm-server
+curl.exe -sS http://localhost:9200/_cluster/health
+```
+
+If core claim commands succeed but search is stale, inspect unpublished
+`claim_search_outbox` rows and Search consumer logs. Do not repair this by writing
+directly to source-service databases or Elasticsearch. Restore the dependency,
+allow the relay/consumer to catch up, or use a future audited reindex operation.
+
+A full Search Testcontainers suite can time out while several large containers
+start concurrently. Run it alone before classifying the failure as a code defect:
+
+```powershell
+Set-Location services/search-service
+.\mvnw.cmd --batch-mode --no-transfer-progress test
+```
+
+## Correlation or APM data is missing
+
+Send a safe bounded header, confirm it is echoed, then find the same
+`correlationId` field in ECS JSON:
+
+```powershell
+curl.exe -i -H "X-Correlation-ID: local-diagnostic-001" http://localhost:8081/actuator/health
+docker compose logs --no-color --tail 100 authorization-service
+```
+
+The Java agent is attached through `JAVA_TOOL_OPTIONS`; verify that environment
+and APM Server connectivity in the exact container without printing tokens or
+secrets. APM unavailability must not stop business processing. Correlation IDs
+connect evidence but do not provide distributed transaction semantics.
 
 ## Safe reset
 

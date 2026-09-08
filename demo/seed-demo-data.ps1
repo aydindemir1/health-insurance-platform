@@ -6,6 +6,7 @@ param(
     [string]$PolicyBaseUrl = "http://localhost:8082/api/v1",
     [string]$AuthorizationBaseUrl = "http://localhost:8081/api/v1",
     [string]$ClaimsBaseUrl = "http://localhost:8083/api/v1",
+    [string]$SearchBaseUrl = "http://localhost:8084/api/v1",
     [switch]$VerifyNotificationDelivery,
     [string]$RunId = (Get-Date -Format "yyyyMMddHHmmss")
 )
@@ -35,7 +36,10 @@ function Invoke-DemoApi {
     $arguments = @{
         Method = $Method
         Uri = $Uri
-        Headers = @{ Authorization = "Bearer $Token" }
+        Headers = @{
+            Authorization = "Bearer $Token"
+            "X-Correlation-ID" = "demo-$RunId-$([guid]::NewGuid().ToString('N'))"
+        }
         ContentType = "application/json"
     }
     if ($null -ne $Body) {
@@ -82,20 +86,22 @@ function Wait-NotificationDelivery {
     }
 
     $composeRoot = Split-Path -Parent $PSScriptRoot
-    $databaseUser = (& docker compose --project-directory $composeRoot `
-        exec -T notification-worker-db printenv POSTGRES_USER).Trim()
+    $databaseUserOutput = & docker compose --project-directory $composeRoot `
+        exec -T notification-worker-db printenv POSTGRES_USER
+    $databaseUser = if ($null -eq $databaseUserOutput) { "" } else { ($databaseUserOutput | Out-String).Trim() }
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($databaseUser)) {
         throw "Could not resolve the Notification Worker database user from Docker Compose."
     }
 
     $deadline = (Get-Date).AddSeconds(30)
     do {
-        $status = (& docker compose --project-directory $composeRoot `
+        $statusOutput = & docker compose --project-directory $composeRoot `
             exec -T notification-worker-db psql -U $databaseUser -d notification_worker `
-            -Atc "select status from notification_deliveries where business_reference_id = '$PreAuthorizationId' order by received_at desc limit 1").Trim()
+            -Atc "select status from notification_deliveries where business_reference_id = '$PreAuthorizationId' order by received_at desc limit 1"
         if ($LASTEXITCODE -ne 0) {
             throw "Could not query notification delivery for pre-authorization $PreAuthorizationId."
         }
+        $status = if ($null -eq $statusOutput) { "" } else { ($statusOutput | Out-String).Trim() }
         if ($status -eq "DELIVERED") {
             return $status
         }
@@ -103,6 +109,22 @@ function Wait-NotificationDelivery {
     } while ((Get-Date) -lt $deadline)
 
     throw "RabbitMQ notification was not delivered for pre-authorization $PreAuthorizationId within 30 seconds."
+}
+
+function Wait-SearchProjection {
+    param([Parameter(Mandatory)] [string]$PolicyNumber)
+    $escapedPolicyNumber = [uri]::EscapeDataString($PolicyNumber)
+    $deadline = (Get-Date).AddSeconds(30)
+    do {
+        $result = Invoke-DemoApi -Method GET `
+            -Uri "$SearchBaseUrl/search?q=$escapedPolicyNumber&page=0&size=50" `
+            -Token $InsuranceToken
+        if ($result.totalElements -ge 4) {
+            return $result
+        }
+        Start-Sleep -Milliseconds 500
+    } while ((Get-Date) -lt $deadline)
+    throw "Elasticsearch did not expose the expected projections for policy $PolicyNumber within 30 seconds."
 }
 
 $policy = Invoke-DemoApi -Method POST -Uri "$PolicyBaseUrl/policies" `
@@ -160,6 +182,8 @@ $null = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims/$($disputed.clai
 $disputed = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims/$($disputed.claim.id)/approval" `
     -Token $ClaimApproverToken -Body @{ amount = 2750.00; currency = "TRY" }
 
+$searchResult = Wait-SearchProjection $policyNumber
+
 $summary = [ordered]@{
     dataClassification = $data.dataClassification
     runId = $RunId
@@ -177,6 +201,7 @@ $summary = [ordered]@{
     disputedClaimId = $disputed.claim.id
     disputedInvoiceId = $disputed.invoice.id
     disputedInvoiceStatus = $disputed.invoice.status
+    indexedOperationsRecords = $searchResult.totalElements
 }
 
 $summary | ConvertTo-Json

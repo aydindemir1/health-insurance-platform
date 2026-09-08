@@ -10,6 +10,7 @@ erDiagram
     CLAIM ||--|| INVOICE : produces
     INVOICE ||--o{ INVOICE_PAYMENT : receives
     CLAIM }o..|| PRE_AUTHORIZATION : "references pre_authorization_id"
+    CLAIM ||--o{ CLAIM_SEARCH_OUTBOX : projects
     PRE_AUTHORIZATION ||--o{ OUTBOX_MESSAGE : emits
     PRE_AUTHORIZATION ||--o{ NOTIFICATION_TASK_OUTBOX : schedules
     NOTIFICATION_TASK_OUTBOX }o..o| NOTIFICATION_DELIVERY : "becomes task_id"
@@ -104,6 +105,15 @@ erDiagram
         varchar consumer_name
         timestamptz processed_at
     }
+    CLAIM_SEARCH_OUTBOX {
+        uuid id PK
+        uuid claim_id
+        integer projection_version
+        text payload
+        timestamptz occurred_at
+        timestamptz published_at
+        integer publish_attempts
+    }
     NOTIFICATION_DELIVERY {
         uuid task_id PK
         uuid causation_id
@@ -122,8 +132,9 @@ erDiagram
 | --- | --- | --- |
 | Policy Service | `policies`, `policy_coverages` | REST coverage evaluation only |
 | Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox` | REST snapshots; Kafka events; confirm-aware RabbitMQ task publishing |
-| Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages` | No direct database access |
+| Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages`, `claim_search_outbox` | Kafka claim search projections; no direct database access |
 | Notification Worker | `notification_deliveries` | No direct database access |
+| Search Service | Elasticsearch `healthcare-operations-v1` projection | Secured read-only Search API; rebuildable, never authoritative |
 
 Cross-context references intentionally have no foreign keys. Each owner can
 change its schema independently; consistency across services is currently

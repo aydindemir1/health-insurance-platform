@@ -1,4 +1,4 @@
-# Demonstration Scenario — Milestones 0–6
+# Demonstration Scenario — Milestones 0–7
 
 This scenario uses only synthetic identifiers and clinical codes. It proves the
 implemented happy path and leaves records in several states for UI and API
@@ -9,6 +9,11 @@ authorization creates a minimal task in the same transaction as the decision.
 A confirm-aware relay publishes it to RabbitMQ; the worker consumes it with
 bounded retry, persists an idempotent delivery row, invokes the safe local sender,
 commits, and only then acknowledges. Permanent or exhausted work goes to a DLQ.
+
+Milestone 7 adds a short-lived Redis coverage cache, eventually consistent
+Elasticsearch projections, a provider-scoped search UI, ECS JSON logs,
+correlation propagation, and Elastic APM/Kibana runtime evidence. PostgreSQL is
+still authoritative and search never participates in a command transaction.
 
 ## Preconditions
 
@@ -22,7 +27,9 @@ commits, and only then acknowledges. Permanent or exhausted work goes to a DLQ.
    - claim user: `CLAIM_APPROVER`
 4. Confirm RabbitMQ Management is available at `http://localhost:15672`; its
    credentials come from the ignored `.env`.
-5. Obtain short-lived access tokens through the configured OIDC login and keep
+5. Confirm Elasticsearch, Search Service, APM Server, and Kibana are reachable at
+   ports `9200`, `8084`, `8200`, and `5601` respectively.
+6. Obtain short-lived access tokens through the configured OIDC login and keep
    them only in the current shell.
 
 ```powershell
@@ -81,6 +88,7 @@ The script creates:
 | MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `SETTLED` | Outbox, Kafka, adjudication and payment flow |
 | MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `DISPUTED` | Eventual creation and outstanding reconciliation |
 | Three provider notification deliveries | `DELIVERED` | Authorization outbox, publisher confirm, RabbitMQ consumption, worker idempotency and commit-before-ack |
+| Claim and decision search documents | Indexed | Transactional projection outbox, Kafka delivery, deterministic idempotency, and Elasticsearch query |
 
 ## Live presentation script
 
@@ -106,7 +114,13 @@ The script creates:
    `ISSUED → DISPUTED → MATCHED → SETTLED`.
 9. Inspect the second invoice left in `DISPUTED`; explain why claim adjudication
    and invoice reconciliation are separate aggregate responsibilities.
-10. Finish with the event, architecture, and ER diagrams, highlighting separate
+10. Open Healthcare Search as the insurance specialist, search by the generated
+    policy number, and filter Claims. Explain eventual consistency and then show
+    that a hospital user cannot override their signed provider scope.
+11. In Kibana APM, show the Java services and trace navigation. Compare a portal
+    `X-Correlation-ID` response header with the same `correlationId` in ECS JSON
+    logs. Emphasize that correlation is diagnostic context, not distributed ACID.
+12. Finish with the event, architecture, and ER diagrams, highlighting separate
     Kafka-event and RabbitMQ-task semantics, at-least-once delivery, idempotency,
     bounded retry, DLT/DLQ, database ownership, and optimistic locking.
 
@@ -129,10 +143,16 @@ The script creates:
 - An unsupported notification `taskVersion` is not retried and is dead-lettered.
 - Publishing the same valid `taskId` twice results in one `DELIVERED` row and no
   duplicate sender invocation.
+- Stop Redis and repeat a coverage evaluation: safe logs report cache
+  unavailability while PostgreSQL still produces the authoritative result.
+- Stop Elasticsearch: existing command workflows continue and committed claim
+  projection outbox intent remains recoverable; search temporarily fails.
+- A hospital user supplying another `providerId` to Search is still scoped to the
+  provider in the signed token.
 
 ## Reset
 
 Demo data is stored in disposable local Docker volumes. To retain it, stop with
 `docker compose stop`. To remove it, explicitly run `docker compose down -v`
 after confirming that no local data is needed; this deletes all four database
-volumes and the RabbitMQ volume.
+volumes plus RabbitMQ, Redis, Kafka, and Elasticsearch local state.

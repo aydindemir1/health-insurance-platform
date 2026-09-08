@@ -18,6 +18,7 @@ the end of the project.
 - [Local deployment](architecture/local-deployment.md)
 - [Local troubleshooting](development/troubleshooting.md)
 - [Event-driven messaging](architecture/event-driven-messaging.md)
+- [Search, cache, and observability](architecture/search-and-observability.md)
 
 ## Learning and demonstration
 
@@ -35,6 +36,7 @@ the end of the project.
 - [ADR-006: Claims and Billing ownership and integration](adr/006-claims-billing-ownership-and-integration.md)
 - [ADR-007: Transactional outbox and idempotent Kafka consumer](adr/007-transactional-outbox-and-idempotent-kafka-consumer.md)
 - [ADR-008: RabbitMQ notification task delivery](adr/008-rabbitmq-notification-task-delivery.md)
+- [ADR-009: Cache, search, and observability boundaries](adr/009-cache-search-and-observability.md)
 
 ## Milestone documentation definition of done
 

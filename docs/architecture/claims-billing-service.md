@@ -46,7 +46,7 @@ sequenceDiagram
     K->>C: PreAuthorizationApproved v1
     C->>DB: Check processed message ID
     alt First delivery
-        C->>DB: Save Claim, Invoice and processed marker atomically
+        C->>DB: Save Claim, Invoice, processed marker and search projection atomically
     else Duplicate delivery
         C-->>K: Successful no-op
     end
@@ -61,3 +61,10 @@ The existing authenticated `POST /claims` path remains available for manual
 submission compatibility and still verifies Authorization synchronously. New
 approvals normally enter through Kafka and can be observed through the
 provider-scoped `/claims/by-pre-authorization/{id}` query.
+
+Every create/review/decision/reconciliation/payment transition also appends a
+complete `ClaimSearchProjection` to `claim_search_outbox` inside the same local
+transaction. A scheduled relay publishes version 1 to
+`health.claims.search-projection.v1`. Search availability therefore cannot roll
+back a financial command, while a committed command cannot lose its indexing
+intent.
