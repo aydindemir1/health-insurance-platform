@@ -23,22 +23,25 @@ flowchart LR
     PA[(pre_authorizations)]
     Event[(outbox_messages)]
     Task[(notification_task_outbox)]
-    AmqpRelay[AMQP outbox relay next slice]
-    Rabbit{{RabbitMQ next slice}}
+    AmqpRelay[Confirm-aware AMQP outbox relay]
+    Rabbit{{RabbitMQ runtime next slice}}
     Worker[Notification Worker]
     Delivery[(notification_deliveries)]
 
     Decision -->|one DB transaction| PA
     Decision -->|same transaction| Event
     Decision -->|same transaction| Task
-    Task -. publisher confirm .-> AmqpRelay
-    AmqpRelay -.-> Rabbit
+    Task -->|lock oldest unpublished batch| AmqpRelay
+    AmqpRelay -. persistent message + confirm/return .-> Rabbit
     Rabbit -. manual acknowledgement .-> Worker
     Worker --> Delivery
 ```
 
-The solid producer-side writes are implemented and transaction-tested. Dashed
-AMQP connections are deliberately marked as the next slice.
+The producer writes, AMQP relay, safe JSON mapping, publisher-confirm/return
+decisions, and durable delivery/DLQ topology are implemented. The dashed broker
+connections are not yet Compose-backed or integration-tested. The relay and
+topology remain disabled unless `NOTIFICATION_OUTBOX_ENABLED=true`, preventing
+the current broker-free Compose stack from generating connection noise.
 
 ### Persisted notification task intent v1
 
@@ -56,10 +59,16 @@ AMQP connections are deliberately marked as the next slice.
 }
 ```
 
-These are the implemented producer-outbox fields, not yet a published wire
-message. The future relay will map them into the versioned AMQP contract. The
-intent deliberately excludes member, policy, diagnosis, amount, decision reason,
-contact address, rendered content, and security token data.
+These fields are now both the producer-outbox intent and the versioned AMQP JSON
+contract. `taskId` becomes the AMQP message ID, `causationId` the correlation ID,
+and `taskVersion` is also carried as a header. The contract deliberately
+excludes member, policy, diagnosis, amount, decision reason, contact address,
+rendered content, and security token data.
+
+Publisher confirms prove that RabbitMQ accepted responsibility for the publish,
+not that a consumer processed it. Because a direct exchange may accept and then
+return an unroutable mandatory message, the relay requires both a positive
+confirm and the absence of a returned message before setting `published_at`.
 
 ## Event contract v1
 

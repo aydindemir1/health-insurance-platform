@@ -20,8 +20,11 @@ approved or rejected.
 - Kafka remains the integration-event stream; RabbitMQ carries notification
   delivery commands.
 - Authorization persists a notification task in a dedicated local outbox in
-  the same transaction as the decision, then an AMQP relay will publish it with
-  publisher confirms.
+  the same transaction as the decision. A scheduled AMQP relay publishes it as
+  a persistent message and waits for a correlated publisher confirm.
+- Mandatory publishing and publisher returns are enabled. A positive broker
+  confirm with a returned message is still treated as failure because no queue
+  accepted the routing key.
 - The durable direct exchange will route work to one delivery queue. Exhausted
   retries will be rejected without requeue and routed to a dead-letter queue.
 - A task contains `taskId`, `causationId`, notification type, provider recipient
@@ -40,10 +43,14 @@ approved or rejected.
 - Notification Worker can scale horizontally because RabbitMQ distributes tasks.
 - Contact resolution and a real external email/SMS provider remain separate
   security and integration decisions.
-- The first three implementation slices establish the framework-independent
+- The first four implementation slices establish the framework-independent
   worker core, its private PostgreSQL/Liquibase persistence adapter, and the
-  Authorization producer outbox with transaction rollback proof. AMQP topology,
-  publisher confirms, retry/DLQ, and runtime wiring follow.
+  Authorization producer outbox with transaction rollback proof, plus the AMQP
+  relay and durable delivery/DLQ topology. Worker acknowledgement, bounded
+  retry/rejection, and Compose-backed runtime proof follow.
+- The relay currently waits for confirms while holding a pessimistic database
+  lock. This is deliberately simple and safe for the current workload, but
+  asynchronous batching is a future throughput optimization.
 
 ## Alternatives
 

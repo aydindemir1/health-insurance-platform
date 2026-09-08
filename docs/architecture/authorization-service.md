@@ -14,11 +14,13 @@ flowchart LR
     EventOutbox[Infrastructure / Kafka event outbox adapter] --> OutputPorts
     TaskOutbox[Infrastructure / notification task outbox adapter] --> OutputPorts
     Relay[Infrastructure / Kafka relay] --> Kafka{{Kafka}}
+    NotificationRelay[Infrastructure / confirm-aware AMQP relay] -.-> Rabbit{{RabbitMQ runtime pending}}
     Persistence --> Database[(Authorization PostgreSQL)]
     PolicyAdapter --> Policy[Policy Service]
     EventOutbox --> Database
     TaskOutbox --> Database
     Relay --> Database
+    NotificationRelay --> Database
     Configuration[Infrastructure / transaction configuration] --> InputPorts
     Keycloak[Keycloak] --> Presentation
 ```
@@ -33,7 +35,8 @@ flowchart LR
 - `application.command` and `application.query`: explicit use-case inputs.
 - `application.dto`: framework-independent use-case results.
 - `infrastructure.persistence`: JPA entities, Spring Data, and repository adapter.
-- `infrastructure.messaging`: outbox persistence and at-least-once Kafka relay.
+- `infrastructure.messaging`: Kafka and notification outbox persistence,
+  at-least-once relays, safe wire mapping, and RabbitMQ topology.
 - `infrastructure.security`: OAuth2 resource-server configuration.
 - `infrastructure.configuration`: dependency wiring and transaction boundaries.
 - `presentation.rest`: HTTP requests, responses, validation, and Problem Details.
@@ -87,6 +90,13 @@ of the same transaction. Separate output ports and tables prevent the Kafka
 relay from accidentally publishing a RabbitMQ command. Broker relays remain
 outside the domain; the application depends only on outbox ports.
 See the [event-driven messaging view](event-driven-messaging.md).
+
+The notification relay uses a pessimistic write lock to keep concurrent service
+instances from selecting the same pending batch. It sends a persistent message
+to a durable direct-exchange route, waits for the correlated broker confirm,
+and also checks mandatory publisher returns. A `nack`, timeout, serialization
+failure, or unroutable return increments the attempt count and leaves the task
+unpublished for the next scheduled poll.
 
 ## Submit flow
 

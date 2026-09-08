@@ -6,9 +6,10 @@ demonstration. It does not require or contain real patient information.
 
 The current Milestone 6 checkpoint adds Notification Worker persistence and
 causes new approved/rejected authorizations to create durable notification task
-outbox rows. RabbitMQ runtime wiring is not present, so the seed script produces
-no Notification Worker delivery row yet. The existing synthetic decisions are
-now the source records for the future AMQP relay.
+outbox rows. A confirm-aware AMQP relay and topology are implemented, but
+RabbitMQ is not yet in Compose and the worker listener is not present. Therefore
+the seed script still produces no Notification Worker delivery row. Existing
+synthetic decisions are safe source records for the next end-to-end slice.
 
 ## Preconditions
 

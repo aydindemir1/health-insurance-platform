@@ -76,7 +76,8 @@ sequenceDiagram
     participant A as Authorization Use Case
     participant DB as Authorization PostgreSQL
     participant K as Kafka Relay
-    participant R as RabbitMQ Relay (next slice)
+    participant R as RabbitMQ Relay
+    participant Q as RabbitMQ (runtime pending)
 
     S->>A: Approve or reject pending request
     A->>DB: Update pre_authorizations
@@ -87,7 +88,13 @@ sequenceDiagram
     else Transaction commits
         DB-->>A: Decision committed atomically
         K->>DB: Later read Kafka event outbox
-        R-->>DB: Future read notification task outbox
+        R->>DB: Lock pending notification task batch
+        R-->>Q: Persistent JSON + message/correlation IDs
+        alt Broker nack, timeout, or unroutable return
+            R->>DB: Increment attempts and retain unpublished row
+        else Positive confirm and no return
+            R->>DB: Set published_at
+        end
     end
 ```
 

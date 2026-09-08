@@ -9,9 +9,10 @@ claim adjudication, invoice reconciliation, payment, and settlement.
 > **Current checkpoint:** Milestones 0–5 are implemented. Milestone 6 is in
 > progress: the Notification Worker domain/application core and delivery
 > idempotency contract now have a PostgreSQL/Liquibase adapter. Authorization
-> also records minimal notification tasks atomically with each decision. The
-> RabbitMQ relay and runtime wiring are not implemented yet. Planned
-> technologies are never presented as delivered.
+> records minimal notification tasks atomically with each decision and now has
+> a confirm-aware RabbitMQ outbox relay plus durable queue/DLQ topology. The
+> worker consumer and Compose-backed RabbitMQ runtime are not implemented yet.
+> Planned technologies are never presented as delivered.
 
 ## Why this project exists
 
@@ -134,9 +135,21 @@ domain concern.
   outbox in the same transaction as its decision and Kafka integration event.
 - A full Spring/PostgreSQL integration test proves all three writes commit
   together and all roll back when notification intent persistence fails.
+- A scheduled AMQP relay locks an ordered batch, publishes persistent JSON with
+  `taskId`/`causationId` message metadata, and marks the row published only
+  after a positive correlated publisher confirm.
+- Mandatory publishing plus publisher returns prevents a broker acknowledgement
+  for an unroutable message from being mistaken for successful task delivery.
+- Durable direct exchange, delivery queue, dead-letter exchange, and DLQ names
+  are explicit and covered by topology tests.
+- The relay is feature-gated by `NOTIFICATION_OUTBOX_ENABLED` and remains off in
+  the current Compose stack until RabbitMQ and the worker listener are wired.
+- The Authorization Java 21 verification suite now has 59 passing tests,
+  including positive confirm, negative confirm, unroutable return, safe wire
+  payload, and topology checks.
 
-RabbitMQ topology, publisher confirms, retry/DLQ behavior, and an actual local
-delivery adapter are the next Milestone 6 slices.
+The worker listener, manual acknowledgement, bounded consumer retry/rejection,
+and Compose-backed RabbitMQ integration proof are the next Milestone 6 slices.
 
 ## Architecture overview
 
@@ -147,7 +160,9 @@ flowchart LR
     Portal -->|Bearer token| Auth[Authorization Service]
     Auth -->|Synchronous coverage evaluation| Policy[Policy Service]
     Auth -->|Decision events via transactional outbox| Kafka{{Apache Kafka}}
+    Auth -. Notification tasks via confirm-aware relay; runtime pending .-> Rabbit{{RabbitMQ}}
     Kafka -->|Approved event, idempotent consumer| Claims[Claims & Billing Service]
+    Rabbit -. Worker consumer next slice .-> Notifications[Notification Worker]
     Claims -. manual compatibility path .-> Auth
     Auth --> AuthDB[(Authorization DB)]
     Policy --> PolicyDB[(Policy DB)]
@@ -380,10 +395,12 @@ Claims/Billing 38. The portal also passed oxlint, 6 Vitest tests in 5 files, and
 its production build. Always rerun the commands; these counts are dated
 evidence, not a substitute for verification.
 
-The current Milestone 6 checkpoint separately verifies 54 Authorization tests
+The current Milestone 6 checkpoint separately verifies 59 Authorization tests
 and 11 Notification Worker tests. The new Authorization transaction test uses
 real PostgreSQL and proves commit/rollback across the aggregate, Kafka event
-outbox, and notification task outbox.
+outbox, and notification task outbox. Five additional unit tests verify AMQP
+publisher confirms/returns, safe persistent message metadata, and durable
+delivery/DLQ topology without requiring a running broker.
 
 Validate the living portfolio documentation separately. This command checks
 local Markdown links, JSON and PowerShell syntax, the expected screenshot set,
@@ -471,8 +488,12 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
   Workload identity/token exchange is a future production security decision.
 - **At-least-once Kafka delivery:** avoids dual writes through a database outbox;
   duplicates are expected and neutralized by the consumer inbox.
+- **RabbitMQ for operational work:** notification tasks use a competing-consumer
+  queue while Kafka remains the durable business-event stream. Publisher
+  confirms and mandatory returns protect the producer boundary; consumer
+  idempotency handles inevitable redelivery.
 
-See ADR-001 through ADR-007 in [docs/adr](docs/adr/) for full context,
+See ADR-001 through ADR-008 in [docs/adr](docs/adr/) for full context,
 alternatives, consequences, and rejected options.
 
 ## Current limitations
@@ -483,8 +504,9 @@ alternatives, consequences, and rejected options.
   operationalized.
 - No production workload identity/token exchange exists between services.
 - No circuit breaker is configured for synchronous dependencies.
-- Audit trail, correlation IDs, structured observability, search, caching,
-  notifications, gateway, and Kubernetes delivery are future milestones.
+- Notification consumption/delivery, audit trail, correlation IDs, structured
+  observability, search, caching, gateway, and Kubernetes delivery remain future
+  slices.
 - Production PHI/privacy, consent, encryption/key management, retention, and
   regulatory requirements need explicit threat modeling and governance.
 

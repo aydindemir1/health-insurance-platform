@@ -127,8 +127,16 @@ Authorization now creates a second, dedicated outbox record for notification
 work. The pre-authorization decision, Kafka business event, and minimal
 notification task share one local transaction. A PostgreSQL integration test
 proves both the successful three-write commit and rollback of the decision plus
-both outboxes when notification task persistence fails. RabbitMQ relay/runtime
-wiring is deliberately not claimed at this checkpoint.
+both outboxes when notification task persistence fails.
+
+A scheduled Authorization adapter now locks pending task rows and maps each to
+a persistent, versioned JSON message. It waits for a correlated RabbitMQ
+publisher confirm and checks mandatory publisher returns before setting
+`published_at`; `nack`, timeout, serialization failure, and unroutable results
+remain pending for another poll. Durable direct exchanges, a delivery queue,
+and its dead-letter route are declared in code. These producer behaviors are
+unit-tested, while an actual RabbitMQ runtime and worker listener are deliberately
+not claimed at this checkpoint.
 
 ## 3. Architecture at runtime
 
@@ -144,8 +152,9 @@ flowchart LR
     Auth --> AuthDB[(Authorization PostgreSQL)]
     Policy --> PolicyDB[(Policy PostgreSQL)]
     Claims --> ClaimsDB[(Claims/Billing PostgreSQL)]
-    Worker[Notification Worker core] --> WorkerDB[(Notification PostgreSQL)]
-    Rabbit{{RabbitMQ next slice}} -. notification task .-> Worker
+    Auth -. confirm-aware task relay; runtime pending .-> Rabbit{{RabbitMQ}}
+    Rabbit -. worker listener next slice .-> Worker[Notification Worker core]
+    Worker --> WorkerDB[(Notification PostgreSQL)]
 ```
 
 The current service-to-service calls relay the caller's access token. This
@@ -277,12 +286,14 @@ README are the source of truth for a fresh checkout.
 The current Notification Worker checkpoint adds 11 passing tests: 3 domain, 3
 application, 3 PostgreSQL persistence, and 2 architecture tests. Its integration
 test uses a real PostgreSQL 17 container rather than an in-memory substitute.
-Authorization now has 54 passing tests, including two full-context PostgreSQL
-tests for the multi-write decision transaction.
+Authorization now has 59 passing tests, including two full-context PostgreSQL
+tests for the multi-write decision transaction and five AMQP relay/topology unit
+tests. The latter verify positive/nack/unroutable outcomes, safe persistent
+message metadata, and durable dead-letter routing without claiming a live broker.
 
 The documentation has its own executable quality gate. It validates local
 Markdown links, parses the Keycloak and demo JSON, parses the PowerShell demo
-scripts, verifies the five expected PNG files, and renders all 21 Mermaid blocks
+scripts, verifies the five expected PNG files, and renders every Mermaid block
 with Mermaid CLI. This prevents a diagram or portfolio link from silently
 rotting while later milestones change the implementation.
 
@@ -295,8 +306,8 @@ Actions independently tests backend services and the operations portal using
 Java 21 and Node.
 
 The repository does not yet contain Kubernetes, APISIX, Jenkins, SonarQube,
-Nexus, Harbor, Argo CD, Redis, RabbitMQ, Elasticsearch, Kibana, or Elastic
-APM runtime implementations. Those remain planned slices and will only be added
+Nexus, Harbor, Argo CD, Redis, a RabbitMQ runtime, Elasticsearch, Kibana, or
+Elastic APM runtime implementations. Those remain planned slices and will only be added
 when they solve an explicit operational or domain problem.
 
 ## 11. .NET-to-Java mapping
@@ -363,7 +374,8 @@ domain rules, security, architecture, persistence, and concurrency.”
 - Production-grade consent, PHI classification, encryption/key management,
   retention, audit trail, and regulatory controls require explicit design.
 
-Notification persistence and transactionally recorded producer intent exist,
-but no notification task is published or consumed at runtime yet. The next
-slices add RabbitMQ publisher confirms, manual consumer acknowledgement, bounded
-retry/DLQ behavior, and Compose-backed end-to-end proof.
+Notification persistence, transactionally recorded producer intent, the
+confirm-aware relay, and durable queue/DLQ topology exist, but no notification
+task is published or consumed against a real broker yet. The next slices add the
+worker listener, manual consumer acknowledgement, bounded retry/rejection, and
+Compose-backed end-to-end proof.
