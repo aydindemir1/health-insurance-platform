@@ -91,6 +91,8 @@ input:focus, select:focus, textarea:focus { border-color: #1c9383; box-shadow: 0
 .status--pending { background: #fff2c9; color: #775d0b; }
 .status--approved { background: #d8f4e9; color: #17654e; }
 .status--rejected { background: #fbe0e1; color: #90323a; }
+.record-type { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #e8f1f5; color: #315a68; font-size: .7rem; font-weight: 850; letter-spacing: .04em; }
+.record-type--claim { background: #e4f3ef; color: #176654; }
 .decision-panel { display: grid; gap: 18px; }
 .segmented { display: inline-flex; width: fit-content; padding: 3px; border-radius: 9px; background: #edf3f3; }
 .segmented button { padding: 8px 15px; border: 0; border-radius: 7px; background: transparent; color: #506971; cursor: pointer; }

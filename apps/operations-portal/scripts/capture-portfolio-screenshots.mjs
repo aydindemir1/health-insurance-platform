@@ -71,8 +71,15 @@ try {
   await page.getByRole("textbox", { name: "Decision reason" })
     .fill("Synthetic demo: coverage and clinical rules verified");
   await capture("05-specialist-decision.png");
+
+  await page.getByRole("link", { name: "Healthcare search" }).click();
+  await page.getByRole("textbox", { name: "Search text" })
+    .fill(process.env.DEMO_POLICY_NUMBER);
+  await page.getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByRole("table", { name: "Elasticsearch healthcare operations results" }).waitFor();
+  await capture("07-healthcare-search.png");
 } finally {
   await browser.close();
 }
 
-console.log(`Captured five synthetic screenshots in ${screenshotsDirectory}`);
+console.log(`Captured six synthetic portal screenshots in ${screenshotsDirectory}`);

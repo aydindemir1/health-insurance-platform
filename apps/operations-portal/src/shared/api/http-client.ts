@@ -30,14 +30,15 @@ export function setAccessTokenProvider(provider: AccessTokenProvider) {
   accessTokenProvider = provider
 }
 
-export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
+export async function apiRequest<T>(path: string, init: RequestInit = {}, baseUrl = environment.apiBaseUrl): Promise<T> {
   const token = await accessTokenProvider()
   const headers = new Headers(init.headers)
   headers.set('Accept', 'application/json')
   if (init.body) headers.set('Content-Type', 'application/json')
   if (token) headers.set('Authorization', `Bearer ${token}`)
+  if (!headers.has('X-Correlation-ID')) headers.set('X-Correlation-ID', crypto.randomUUID())
 
-  const response = await fetch(`${environment.apiBaseUrl}${path}`, { ...init, headers })
+  const response = await fetch(`${baseUrl}${path}`, { ...init, headers })
   if (!response.ok) {
     const problem = await response.json().catch(() => ({})) as ProblemDetails
     throw new ApiError(response.status, problem)

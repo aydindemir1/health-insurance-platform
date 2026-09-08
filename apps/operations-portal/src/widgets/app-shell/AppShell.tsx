@@ -10,6 +10,7 @@ export function AppShell() {
         <nav aria-label="Primary navigation">
           <NavLink to="/dashboard">Dashboard</NavLink>
           <NavLink to="/pre-authorizations">Pre-authorizations</NavLink>
+          <NavLink to="/search">Healthcare search</NavLink>
         </nav>
         <div className="sidebar-user">
           <span className="avatar">{auth.displayName.slice(0, 1).toUpperCase()}</span>
