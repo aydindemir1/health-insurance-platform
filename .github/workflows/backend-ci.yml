@@ -7,6 +7,7 @@ on:
       - "services/authorization-service/**"
       - "services/policy-service/**"
       - "services/claims-billing-service/**"
+      - "services/notification-worker/**"
       - ".github/workflows/backend-ci.yml"
   pull_request:
     branches: [main]
@@ -14,6 +15,7 @@ on:
       - "services/authorization-service/**"
       - "services/policy-service/**"
       - "services/claims-billing-service/**"
+      - "services/notification-worker/**"
       - ".github/workflows/backend-ci.yml"
 
 permissions:
@@ -30,6 +32,7 @@ jobs:
           - authorization-service
           - policy-service
           - claims-billing-service
+          - notification-worker
 
     steps:
       - name: Check out repository

@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: notification-worker
+  main:
+    web-application-type: none
