@@ -19,7 +19,7 @@ approved or rejected.
 
 - Kafka remains the integration-event stream; RabbitMQ carries notification
   delivery commands.
-- Authorization will persist a notification task in a dedicated local outbox in
+- Authorization persists a notification task in a dedicated local outbox in
   the same transaction as the decision, then an AMQP relay will publish it with
   publisher confirms.
 - The durable direct exchange will route work to one delivery queue. Exhausted
@@ -40,10 +40,10 @@ approved or rejected.
 - Notification Worker can scale horizontally because RabbitMQ distributes tasks.
 - Contact resolution and a real external email/SMS provider remain separate
   security and integration decisions.
-- The first two implementation slices establish the framework-independent
-  worker core and its private PostgreSQL/Liquibase persistence adapter. AMQP
-  topology, retry/DLQ, and producer outbox wiring follow in later slices of
-  Milestone 6.
+- The first three implementation slices establish the framework-independent
+  worker core, its private PostgreSQL/Liquibase persistence adapter, and the
+  Authorization producer outbox with transaction rollback proof. AMQP topology,
+  publisher confirms, retry/DLQ, and runtime wiring follow.
 
 ## Alternatives
 

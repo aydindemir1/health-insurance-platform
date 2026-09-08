@@ -11,11 +11,13 @@ flowchart LR
     UseCases --> OutputPorts[Application output ports]
     Persistence[Infrastructure / JPA adapter] --> OutputPorts
     PolicyAdapter[Infrastructure / Policy REST adapter] --> OutputPorts
-    Outbox[Infrastructure / JPA outbox adapter] --> OutputPorts
+    EventOutbox[Infrastructure / Kafka event outbox adapter] --> OutputPorts
+    TaskOutbox[Infrastructure / notification task outbox adapter] --> OutputPorts
     Relay[Infrastructure / Kafka relay] --> Kafka{{Kafka}}
     Persistence --> Database[(Authorization PostgreSQL)]
     PolicyAdapter --> Policy[Policy Service]
-    Outbox --> Database
+    EventOutbox --> Database
+    TaskOutbox --> Database
     Relay --> Database
     Configuration[Infrastructure / transaction configuration] --> InputPorts
     Keycloak[Keycloak] --> Presentation
@@ -80,9 +82,10 @@ response with the `concurrent-update` problem type.
 
 ## Decision event flow
 
-Approval/rejection and its outbox message are part of the same transaction.
-The relay is deliberately outside the domain: broker delivery is an
-infrastructure concern, while the application only depends on an outbox port.
+Approval/rejection, its Kafka event, and its minimal notification task are part
+of the same transaction. Separate output ports and tables prevent the Kafka
+relay from accidentally publishing a RabbitMQ command. Broker relays remain
+outside the domain; the application depends only on outbox ports.
 See the [event-driven messaging view](event-driven-messaging.md).
 
 ## Submit flow

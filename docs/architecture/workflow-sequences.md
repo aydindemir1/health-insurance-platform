@@ -67,6 +67,30 @@ sequenceDiagram
     CB->>DB: Add payment, Invoice → SETTLED
 ```
 
+## Decision and notification intent transaction
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor S as Insurance Specialist
+    participant A as Authorization Use Case
+    participant DB as Authorization PostgreSQL
+    participant K as Kafka Relay
+    participant R as RabbitMQ Relay (next slice)
+
+    S->>A: Approve or reject pending request
+    A->>DB: Update pre_authorizations
+    A->>DB: Insert versioned Kafka event
+    A->>DB: Insert minimal notification task
+    alt Any write fails
+        DB-->>A: Roll back all three writes
+    else Transaction commits
+        DB-->>A: Decision committed atomically
+        K->>DB: Later read Kafka event outbox
+        R-->>DB: Future read notification task outbox
+    end
+```
+
 ## Concurrency and duplicate defense
 
 ```mermaid

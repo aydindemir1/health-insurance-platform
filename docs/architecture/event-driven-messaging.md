@@ -15,6 +15,52 @@ flowchart LR
     C -. after 3 failed attempts .-> D{{.DLT topic}}
 ```
 
+## Notification command path (Milestone 6 in progress)
+
+```mermaid
+flowchart LR
+    Decision[Authorization decision use case]
+    PA[(pre_authorizations)]
+    Event[(outbox_messages)]
+    Task[(notification_task_outbox)]
+    AmqpRelay[AMQP outbox relay next slice]
+    Rabbit{{RabbitMQ next slice}}
+    Worker[Notification Worker]
+    Delivery[(notification_deliveries)]
+
+    Decision -->|one DB transaction| PA
+    Decision -->|same transaction| Event
+    Decision -->|same transaction| Task
+    Task -. publisher confirm .-> AmqpRelay
+    AmqpRelay -.-> Rabbit
+    Rabbit -. manual acknowledgement .-> Worker
+    Worker --> Delivery
+```
+
+The solid producer-side writes are implemented and transaction-tested. Dashed
+AMQP connections are deliberately marked as the next slice.
+
+### Persisted notification task intent v1
+
+```json
+{
+  "taskId": "UUID",
+  "causationId": "decision event UUID",
+  "taskVersion": 1,
+  "notificationType": "PRE_AUTHORIZATION_APPROVED",
+  "businessReferenceId": "pre-authorization UUID",
+  "recipientKind": "PROVIDER",
+  "recipientReferenceId": "provider UUID",
+  "templateKey": "pre-authorization-approved-v1",
+  "occurredAt": "2026-09-08T12:00:00Z"
+}
+```
+
+These are the implemented producer-outbox fields, not yet a published wire
+message. The future relay will map them into the versioned AMQP contract. The
+intent deliberately excludes member, policy, diagnosis, amount, decision reason,
+contact address, rendered content, and security token data.
+
 ## Event contract v1
 
 The topic contains both decision types. The payload is deliberately independent

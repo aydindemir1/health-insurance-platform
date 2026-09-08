@@ -3,14 +3,16 @@
 The Notification Worker owns operational delivery attempts. It does not own a
 member, policy, pre-authorization, claim, contact address, or clinical record.
 The current Milestone 6 checkpoint implements the domain/application core and
-PostgreSQL adapter. AMQP adapters shown with dashed lines are the next slice,
-not a delivered runtime capability.
+PostgreSQL adapter. Authorization now records the producer task outbox. AMQP
+adapters shown with dashed lines are the next slice, not a delivered runtime
+capability.
 
 ## Component boundaries
 
 ```mermaid
 flowchart LR
     Rabbit{{"RabbitMQ task queue<br/>next slice"}}
+    Producer[("Authorization<br/>notification_task_outbox")]
     Listener["AMQP listener adapter<br/>next slice"]
     UseCase["DeliverNotificationUseCase<br/>NotificationDeliveryService"]
     Aggregate["NotificationDelivery aggregate<br/>RECEIVED to DELIVERED"]
@@ -20,6 +22,7 @@ flowchart LR
     Sender["Local/external sender adapter<br/>next slice"]
     Database[("Notification PostgreSQL<br/>Liquibase-owned schema")]
 
+    Producer -. "AMQP relay next slice" .-> Rabbit
     Rabbit -.-> Listener
     Listener -.-> UseCase
     UseCase --> Aggregate

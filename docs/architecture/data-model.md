@@ -11,6 +11,8 @@ erDiagram
     INVOICE ||--o{ INVOICE_PAYMENT : receives
     CLAIM }o..|| PRE_AUTHORIZATION : "references pre_authorization_id"
     PRE_AUTHORIZATION ||--o{ OUTBOX_MESSAGE : emits
+    PRE_AUTHORIZATION ||--o{ NOTIFICATION_TASK_OUTBOX : schedules
+    NOTIFICATION_TASK_OUTBOX }o..o| NOTIFICATION_DELIVERY : "becomes task_id"
     PRE_AUTHORIZATION }o..o{ NOTIFICATION_DELIVERY : "business reference"
 
     POLICY {
@@ -84,6 +86,19 @@ erDiagram
         timestamptz published_at
         integer publish_attempts
     }
+    NOTIFICATION_TASK_OUTBOX {
+        uuid task_id PK
+        uuid causation_id UK
+        integer task_version
+        varchar notification_type
+        uuid business_reference_id
+        varchar recipient_kind
+        uuid recipient_reference_id
+        varchar template_key
+        timestamptz occurred_at
+        timestamptz published_at
+        integer publish_attempts
+    }
     PROCESSED_MESSAGE {
         uuid message_id PK
         varchar consumer_name
@@ -106,7 +121,7 @@ erDiagram
 | Database owner | Tables | Other services' access |
 | --- | --- | --- |
 | Policy Service | `policies`, `policy_coverages` | REST coverage evaluation only |
-| Authorization Service | `pre_authorizations`, `outbox_messages` | REST snapshot and Kafka events only |
+| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox` | REST snapshots; Kafka events; future RabbitMQ commands |
 | Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages` | No direct database access |
 | Notification Worker | `notification_deliveries` | No direct database access |
 

@@ -121,8 +121,14 @@ The persistence adapter stores only technical identifiers, a provider reference,
 notification type, template key, state, and timestamps. It does not store member,
 policy, diagnosis, email, phone, token, or rendered-content data. Liquibase owns
 the schema and database check constraints mirror the aggregate's state/timestamp
-invariants. RabbitMQ topology and producer/runtime wiring are deliberately not
-claimed at this checkpoint.
+invariants.
+
+Authorization now creates a second, dedicated outbox record for notification
+work. The pre-authorization decision, Kafka business event, and minimal
+notification task share one local transaction. A PostgreSQL integration test
+proves both the successful three-write commit and rollback of the decision plus
+both outboxes when notification task persistence fails. RabbitMQ relay/runtime
+wiring is deliberately not claimed at this checkpoint.
 
 ## 3. Architecture at runtime
 
@@ -271,6 +277,8 @@ README are the source of truth for a fresh checkout.
 The current Notification Worker checkpoint adds 11 passing tests: 3 domain, 3
 application, 3 PostgreSQL persistence, and 2 architecture tests. Its integration
 test uses a real PostgreSQL 17 container rather than an in-memory substitute.
+Authorization now has 54 passing tests, including two full-context PostgreSQL
+tests for the multi-write decision transaction.
 
 The documentation has its own executable quality gate. It validates local
 Markdown links, parses the Keycloak and demo JSON, parses the PowerShell demo
@@ -355,7 +363,7 @@ domain rules, security, architecture, persistence, and concurrency.”
 - Production-grade consent, PHI classification, encryption/key management,
   retention, audit trail, and regulatory controls require explicit design.
 
-Notification persistence exists, but no notification task is produced or
-consumed at runtime yet. The next slices add a transactionally recorded producer
-task, RabbitMQ publisher confirms, manual consumer acknowledgement, bounded
+Notification persistence and transactionally recorded producer intent exist,
+but no notification task is published or consumed at runtime yet. The next
+slices add RabbitMQ publisher confirms, manual consumer acknowledgement, bounded
 retry/DLQ behavior, and Compose-backed end-to-end proof.

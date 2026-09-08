@@ -8,8 +8,9 @@ claim adjudication, invoice reconciliation, payment, and settlement.
 
 > **Current checkpoint:** Milestones 0–5 are implemented. Milestone 6 is in
 > progress: the Notification Worker domain/application core and delivery
-> idempotency contract now have a PostgreSQL/Liquibase adapter, while RabbitMQ,
-> producer outbox, and runtime wiring are not implemented yet. Planned
+> idempotency contract now have a PostgreSQL/Liquibase adapter. Authorization
+> also records minimal notification tasks atomically with each decision. The
+> RabbitMQ relay and runtime wiring are not implemented yet. Planned
 > technologies are never presented as delivered.
 
 ## Why this project exists
@@ -129,8 +130,12 @@ domain concern.
   validation, and `RECEIVED`/`DELIVERED` round trips.
 - The current Java 21 verification suite has 11 passing domain, application,
   persistence, and architecture tests.
+- Authorization stores a minimal, versioned notification task in a dedicated
+  outbox in the same transaction as its decision and Kafka integration event.
+- A full Spring/PostgreSQL integration test proves all three writes commit
+  together and all roll back when notification intent persistence fails.
 
-RabbitMQ topology, producer outbox, retry/DLQ behavior, and an actual local
+RabbitMQ topology, publisher confirms, retry/DLQ behavior, and an actual local
 delivery adapter are the next Milestone 6 slices.
 
 ## Architecture overview
@@ -374,6 +379,11 @@ concurrency tests, so Docker must be running. On 8 September 2026, the Milestone
 Claims/Billing 38. The portal also passed oxlint, 6 Vitest tests in 5 files, and
 its production build. Always rerun the commands; these counts are dated
 evidence, not a substitute for verification.
+
+The current Milestone 6 checkpoint separately verifies 54 Authorization tests
+and 11 Notification Worker tests. The new Authorization transaction test uses
+real PostgreSQL and proves commit/rollback across the aggregate, Kafka event
+outbox, and notification task outbox.
 
 Validate the living portfolio documentation separately. This command checks
 local Markdown links, JSON and PowerShell syntax, the expected screenshot set,
