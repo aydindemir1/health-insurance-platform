@@ -121,7 +121,7 @@ erDiagram
 | Database owner | Tables | Other services' access |
 | --- | --- | --- |
 | Policy Service | `policies`, `policy_coverages` | REST coverage evaluation only |
-| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox` | REST snapshots; Kafka events; confirm-aware RabbitMQ task publishing (runtime pending) |
+| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox` | REST snapshots; Kafka events; confirm-aware RabbitMQ task publishing |
 | Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages` | No direct database access |
 | Notification Worker | `notification_deliveries` | No direct database access |
 

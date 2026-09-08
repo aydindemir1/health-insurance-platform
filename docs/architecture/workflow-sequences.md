@@ -77,7 +77,9 @@ sequenceDiagram
     participant DB as Authorization PostgreSQL
     participant K as Kafka Relay
     participant R as RabbitMQ Relay
-    participant Q as RabbitMQ (runtime pending)
+    participant Q as RabbitMQ
+    participant W as Notification Worker
+    participant NDB as Notification DB
 
     S->>A: Approve or reject pending request
     A->>DB: Update pre_authorizations
@@ -94,9 +96,22 @@ sequenceDiagram
             R->>DB: Increment attempts and retain unpublished row
         else Positive confirm and no return
             R->>DB: Set published_at
+            Q->>W: Deliver task at least once
+            W->>NDB: New transaction per transient attempt
+            alt Delivery commits
+                W->>Q: basicAck
+            else Permanent or 3 transient attempts fail
+                W->>Q: basicNack(requeue=false)
+                Q->>Q: Route to durable DLQ
+            end
         end
     end
 ```
+
+`taskId` is retained from producer outbox through RabbitMQ and the delivery
+primary key. A broker redelivery after a lost acknowledgement therefore becomes
+an idempotent no-op. The sender also receives `taskId` so a future external
+provider can apply the same protection across the final side-effect boundary.
 
 ## Concurrency and duplicate defense
 

@@ -1,6 +1,6 @@
 # ADR-008: RabbitMQ Notification Task Delivery
 
-- Status: Accepted for incremental implementation
+- Status: Accepted and implemented
 - Date: 2026-09-08
 
 ## Context
@@ -35,6 +35,11 @@ approved or rejected.
 - The worker acknowledges manually only after the transactional application
   use case returns. Unsupported contracts and failed processing are rejected
   without requeue so broker dead-letter routing can quarantine them.
+- Only `TransientNotificationDeliveryException` is retryable. The listener
+  performs three total attempts by default with bounded exponential backoff
+  (`250 ms`, `500 ms`, maximum `2 s`); contract/version errors and other
+  permanent failures are attempted once. Exhausted work is rejected with
+  `requeue=false` and RabbitMQ routes it to the durable DLQ.
 - The sender port must forward that idempotency key to any future email/SMS
   provider. This limits duplicate external side effects if the worker crashes
   after the provider accepts a request but before local commit.
@@ -46,12 +51,15 @@ approved or rejected.
 - Notification Worker can scale horizontally because RabbitMQ distributes tasks.
 - Contact resolution and a real external email/SMS provider remain separate
   security and integration decisions.
-- The first five implementation slices establish the framework-independent
-  worker core, its private PostgreSQL/Liquibase persistence adapter, and the
-  Authorization producer outbox with transaction rollback proof, plus the AMQP
-  relay and durable delivery/DLQ topology, plus the version-aware worker listener,
-  transactional decorator, and manual acknowledgement. Bounded retry and
-  Compose-backed runtime proof follow.
+- The implementation includes the framework-independent worker core, private
+  PostgreSQL/Liquibase persistence, Authorization producer outbox and rollback
+  proof, confirm-aware relay, durable exchange/queue/DLX/DLQ topology,
+  version-aware listener, per-attempt transactions, bounded retry, and manual
+  acknowledgement. Compose and Testcontainers both exercise a real RabbitMQ
+  broker.
+- Retry happens outside the transaction decorator. Every transient attempt gets
+  a new transaction: failed attempts roll back, the successful attempt commits,
+  and only then does the listener acknowledge the broker delivery.
 - The relay currently waits for confirms while holding a pessimistic database
   lock. This is deliberately simple and safe for the current workload, but
   asynchronous batching is a future throughput optimization.
@@ -67,3 +75,6 @@ approved or rejected.
   become a source of sensitive contact data.
 - **Assume exactly-once delivery:** rejected because acknowledgements can be lost
   and external side effects require their own idempotency contract.
+- **Retry every exception:** rejected because malformed/unsupported contracts
+  and violated invariants cannot become valid with time; retrying them delays
+  quarantine and wastes consumer capacity.

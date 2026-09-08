@@ -8,13 +8,15 @@ The current portal only implements pre-authorization operations. Policy and
 Claims/Billing are demonstrated through the API script until their screens are
 implemented in a later milestone.
 
-Screenshots retained for the Milestone 5 documentation checkpoint:
+Screenshots retained for the Milestone 6 documentation checkpoint:
 
 - `01-dashboard.png` — role-aware landing page and operational summary.
 - `02-pre-authorization-work-queue.png` — filter, sort, and pagination UI.
 - `03-submit-pre-authorization.png` — validated hospital submission form.
 - `04-pre-authorization-detail.png` — request detail and status information.
 - `05-specialist-decision.png` — specialist approval/rejection controls.
+- `06-rabbitmq-notification-queues.png` — live durable delivery queue, DLX/DLK
+  arguments, DLQ, consumer processing state, and drained message counts.
 
 ## Preview
 
@@ -27,6 +29,8 @@ Screenshots retained for the Milestone 5 documentation checkpoint:
 ![Pre-authorization detail](04-pre-authorization-detail.png)
 
 ![Specialist decision](05-specialist-decision.png)
+
+![RabbitMQ notification queues](06-rabbitmq-notification-queues.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
@@ -43,12 +47,21 @@ The capture script drives the real Keycloak login and real API-backed pages in
 headless Chrome. It fills but does not submit the example form or pending
 decision, so recapturing screenshots does not mutate business data.
 
-Milestone 5 changes backend delivery semantics but introduces no new portal
-surface, so the five images were reviewed and intentionally retained rather
-than replaced with visually identical files. Kafka/outbox evidence is captured
-in executable integration tests and the event-driven architecture diagrams.
+Milestone 6 introduces no new portal page, so the five application images were
+reviewed and retained. It does introduce a real broker runtime; the sixth image
+captures RabbitMQ after the end-to-end demo has drained the delivery queue.
 
-The current Milestone 6 persistence/producer-relay checkpoint also has no portal
-surface. Its evidence is the PostgreSQL transaction test, publisher-confirm,
-listener/acknowledgement and topology tests, and messaging/component/state/ER
-diagrams, so the same five UI screenshots remain current.
+To recapture only the broker evidence, use a temporary local RabbitMQ account
+with read-only/monitoring permissions, keep its values in the process
+environment, and remove it after capture:
+
+```powershell
+$env:RABBITMQ_SCREENSHOT_USERNAME = "<temporary-local-monitoring-user>"
+$env:RABBITMQ_SCREENSHOT_PASSWORD = "<temporary-local-password>"
+Set-Location apps/operations-portal
+npm run screenshots:rabbitmq
+```
+
+The script waits for both exact queue names before capturing. It does not read,
+publish, acknowledge, or delete messages and never writes credentials to the
+image or repository.

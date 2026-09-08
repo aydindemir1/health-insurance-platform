@@ -6,15 +6,13 @@ provider requests authorization for a member's service, an insurer verifies
 policy coverage and decides the request, and an approved service proceeds to
 claim adjudication, invoice reconciliation, payment, and settlement.
 
-> **Current checkpoint:** Milestones 0–5 are implemented. Milestone 6 is in
-> progress: the Notification Worker domain/application core and delivery
-> idempotency contract now have a PostgreSQL/Liquibase adapter. Authorization
-> records minimal notification tasks atomically with each decision and now has
-> a confirm-aware RabbitMQ outbox relay plus durable queue/DLQ topology. The
-> worker now has a version-aware JSON listener, transaction-before-ack ordering,
-> manual acknowledgement, and a safe local log sender. Compose-backed RabbitMQ
-> runtime and bounded consumer retry are not implemented yet. Planned
-> technologies are never presented as delivered.
+> **Current checkpoint:** Milestones 0–6 are implemented. Authorization records
+> minimal notification tasks atomically with each decision and publishes them
+> through a confirm-aware outbox relay. RabbitMQ provides a durable work queue
+> and DLQ; the Notification Worker applies version-aware mapping, idempotent
+> persistence, classified bounded retry, a new transaction per attempt, and
+> commit-before-manual-ack ordering. Compose and Testcontainers exercise the real
+> broker path. Planned technologies are never presented as delivered.
 
 ## Why this project exists
 
@@ -24,13 +22,15 @@ CRUD portfolio sample: aggregate state transitions, monetary invariants,
 provider ownership, concurrency, database ownership, and service failure are
 part of the model.
 
-The business problem is split into three implemented bounded contexts:
+The business problem is split into three request/financial bounded contexts and
+one operational worker:
 
 | Bounded context | Owns | Does not own |
 | --- | --- | --- |
 | Authorization | Pre-authorization request, requested service/amount, provider, decision | Policy rules, claims, invoices, payments |
 | Policy | Policy validity/status and coverage definitions/limits | Authorization decisions or limit reservation |
 | Claims and Billing | Claim adjudication, invoice reconciliation, payments, settlement | Authorization or policy source data |
+| Notification Worker | Technical delivery lifecycle and idempotency evidence | Contact, member, policy, clinical, authorization, or claim source data |
 
 The Operations Portal currently exposes the pre-authorization workflow. Policy
 and Claims/Billing behavior is available through secured APIs and the synthetic
@@ -43,7 +43,8 @@ demo script.
 - Java 21 across Maven, Dockerfiles, and GitHub Actions.
 - Spring Boot 4.1.1 services built through Maven Wrapper.
 - Multi-stage container images with non-root runtime users.
-- Docker Compose for Keycloak, three PostgreSQL databases, and three services.
+- Docker Compose for Keycloak, Kafka, RabbitMQ, four PostgreSQL databases, three
+  API services, and the Notification Worker.
 - Actuator health endpoints and database health-gated startup.
 - Secret-safe configuration through ignored `.env` files and committed examples.
 
@@ -117,7 +118,7 @@ domain concern.
 - Real PostgreSQL and Apache Kafka Testcontainers tests verify duplicate delivery
   and poison-message routing.
 
-### Milestone 6 — Notification Worker (in progress)
+### Milestone 6 — Notification Worker
 
 - Framework-independent notification delivery aggregate and use case.
 - Provider-reference recipient model that excludes contact and health data.
@@ -131,8 +132,8 @@ domain concern.
   database constraints, and operational indexes.
 - A real PostgreSQL 17 Testcontainer proves migration, Hibernate schema
   validation, and `RECEIVED`/`DELIVERED` round trips.
-- The current Java 21 verification suite has 16 passing domain, application,
-  persistence, and architecture tests.
+- PostgreSQL 17 and RabbitMQ 4.1 Testcontainers prove the real persistence,
+  broker-routing, duplicate-delivery, acknowledgement, and DLQ paths.
 - Authorization stores a minimal, versioned notification task in a dedicated
   outbox in the same transaction as its decision and Kafka integration event.
 - A full Spring/PostgreSQL integration test proves all three writes commit
@@ -144,8 +145,8 @@ domain concern.
   for an unroutable message from being mistaken for successful task delivery.
 - Durable direct exchange, delivery queue, dead-letter exchange, and DLQ names
   are explicit and covered by topology tests.
-- The relay is feature-gated by `NOTIFICATION_OUTBOX_ENABLED` and remains off in
-  the current Compose stack until RabbitMQ is wired.
+- The relay is feature-gated by `NOTIFICATION_OUTBOX_ENABLED`; Compose enables it
+  and supplies RabbitMQ connection settings from the ignored `.env`.
 - The Authorization Java 21 verification suite now has 59 passing tests,
   including positive confirm, negative confirm, unroutable return, safe wire
   payload, and topology checks.
@@ -154,14 +155,17 @@ domain concern.
 - A Spring transaction decorator commits delivery persistence before the
   listener sends manual `basicAck`; a lost acknowledgement can therefore cause
   only an idempotent redelivery.
-- Application or contract failures are negatively acknowledged without requeue,
-  allowing the declared dead-letter route to quarantine them once runtime is
-  connected.
+- Only explicit transient delivery failures receive three total attempts with
+  bounded exponential backoff. Permanent contract/invariant failures are tried
+  once. Exhausted/permanent work is negatively acknowledged without requeue and
+  routed to the durable DLQ.
+- Retry wraps the transaction decorator, so every attempt starts a new
+  transaction; a successful commit occurs before `basicAck`.
 - A local log sender demonstrates the output-port boundary without contact data
   or external provider credentials; it is not presented as email/SMS delivery.
 
-Bounded consumer retry and Compose-backed RabbitMQ integration proof are the
-next Milestone 6 slices.
+- The repeatable synthetic demo verifies three decision notifications as
+  `DELIVERED` while also completing Kafka-driven claims and billing flows.
 
 ## Architecture overview
 
@@ -172,13 +176,14 @@ flowchart LR
     Portal -->|Bearer token| Auth[Authorization Service]
     Auth -->|Synchronous coverage evaluation| Policy[Policy Service]
     Auth -->|Decision events via transactional outbox| Kafka{{Apache Kafka}}
-    Auth -. Notification tasks via confirm-aware relay; runtime pending .-> Rabbit{{RabbitMQ}}
+    Auth -->|Notification tasks via confirm-aware relay| Rabbit{{RabbitMQ}}
     Kafka -->|Approved event, idempotent consumer| Claims[Claims & Billing Service]
-    Rabbit -. Worker consumer next slice .-> Notifications[Notification Worker]
+    Rabbit -->|Bounded retry, manual ack, DLQ| Notifications[Notification Worker]
     Claims -. manual compatibility path .-> Auth
     Auth --> AuthDB[(Authorization DB)]
     Policy --> PolicyDB[(Policy DB)]
     Claims --> ClaimsDB[(Claims/Billing DB)]
+    Notifications --> NotificationDB[(Notification DB)]
 ```
 
 Each backend service applies the same dependency rule:
@@ -320,9 +325,12 @@ docker compose up --build
 | Policy Service | `http://localhost:8082` |
 | Claims and Billing Service | `http://localhost:8083` |
 | Kafka | `localhost:9092` |
+| RabbitMQ AMQP | `localhost:5672` |
+| RabbitMQ Management | `http://localhost:15672` |
 | Authorization PostgreSQL | `localhost:5433` |
 | Policy PostgreSQL | `localhost:5434` |
 | Claims/Billing PostgreSQL | `localhost:5435` |
+| Notification PostgreSQL | `localhost:5436` |
 
 The imported `health-insurance` realm defines roles and the public
 `health-insurance-web` client. Create local users through the Keycloak admin UI.
@@ -375,6 +383,7 @@ The script creates:
 - pending and rejected pre-authorizations;
 - a fully settled approved claim/invoice with partial payments;
 - a disputed invoice awaiting reconciliation.
+- three `DELIVERED` provider notification records created through RabbitMQ.
 
 It generates unique business references on each run, never stores or prints
 tokens, and uses no real patient data. The source catalogue is
@@ -398,6 +407,9 @@ Set-Location ../policy-service
 
 Set-Location ../claims-billing-service
 .\mvnw.cmd --batch-mode test
+
+Set-Location ../notification-worker
+.\mvnw.cmd --batch-mode test
 ```
 
 The full suites use Testcontainers for real PostgreSQL persistence and
@@ -407,15 +419,14 @@ Claims/Billing 38. The portal also passed oxlint, 6 Vitest tests in 5 files, and
 its production build. Always rerun the commands; these counts are dated
 evidence, not a substitute for verification.
 
-The current Milestone 6 checkpoint separately verifies 59 Authorization tests
-and 16 Notification Worker tests. The new Authorization transaction test uses
-real PostgreSQL and proves commit/rollback across the aggregate, Kafka event
-outbox, and notification task outbox. Five additional unit tests verify AMQP
-publisher confirms/returns, safe persistent message metadata, and durable
-delivery/DLQ topology without requiring a running broker.
-Worker tests additionally prove producer JSON compatibility, v1 mapping,
-success acknowledgement, requeue-free rejection, unsupported-version handling,
-and transaction commit before acknowledgement.
+Milestone 6 adds Authorization transaction/relay proof and a Notification Worker
+suite. The producer test proves commit/rollback across the aggregate, Kafka
+event outbox, and notification task outbox. Worker tests prove producer JSON
+compatibility, version mapping, classified retry, one transaction per attempt,
+commit-before-ack, idempotent duplicate handling, and real RabbitMQ dead-letter
+routing. On 8 September 2026 the four backend suites passed **141 tests**:
+Authorization 59, Policy 21, Claims/Billing 38, and Notification Worker 23.
+Commands, not prose, remain the source of truth.
 
 Validate the living portfolio documentation separately. This command checks
 local Markdown links, JSON and PowerShell syntax, the expected screenshot set,
@@ -473,6 +484,8 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 
 ![Synthetic specialist decision view](docs/screenshots/05-specialist-decision.png)
 
+![RabbitMQ notification delivery queue and DLQ](docs/screenshots/06-rabbitmq-notification-queues.png)
+
 - [Engineering documentation index](docs/README.md)
 - [Technical walkthrough and interview guide](docs/project-technical-walkthrough.md)
 - [C4 context](docs/architecture/c4-context.md) and
@@ -483,6 +496,7 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 - [Event-driven messaging](docs/architecture/event-driven-messaging.md)
 - [Frontend architecture](docs/architecture/frontend-architecture.md)
 - [Local deployment](docs/architecture/local-deployment.md)
+- [Local troubleshooting](docs/development/troubleshooting.md)
 - [Demo scenario](docs/demo/demo-scenario.md)
 - [Screenshot catalogue](docs/screenshots/README.md)
 - [ADRs](docs/adr/)
@@ -519,9 +533,9 @@ alternatives, consequences, and rejected options.
   operationalized.
 - No production workload identity/token exchange exists between services.
 - No circuit breaker is configured for synchronous dependencies.
-- Notification consumption/delivery, audit trail, correlation IDs, structured
-  observability, search, caching, gateway, and Kubernetes delivery remain future
-  slices.
+- A real email/SMS provider and contact-resolution boundary, audit trail,
+  correlation IDs, structured observability, search, caching, gateway, and
+  Kubernetes delivery remain future slices.
 - Production PHI/privacy, consent, encryption/key management, retention, and
   regulatory requirements need explicit threat modeling and governance.
 
@@ -533,7 +547,7 @@ alternatives, consequences, and rejected options.
 - [x] Milestone 3 — Policy Service and coverage evaluation
 - [x] Milestone 4 — Claims and Billing lifecycle
 - [x] Milestone 5 — Transactional Outbox, Kafka, idempotent consumer, retry/DLQ
-- [ ] Milestone 6 — RabbitMQ notification worker (core in progress)
+- [x] Milestone 6 — RabbitMQ notification worker
 - [ ] Milestone 7 — Redis, Elasticsearch, Kibana, Elastic APM, correlation IDs
 - [ ] Milestone 8 — APISIX gateway and completed security policies
 - [ ] Milestone 9 — Kubernetes and extended CI/CD toolchain

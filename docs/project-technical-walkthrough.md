@@ -1,7 +1,7 @@
-# Technical Walkthrough: Milestone 6 in Progress
+# Technical Walkthrough: Milestones 0–6
 
-This document explains the implemented system through the current Milestone 6
-checkpoint. It is a living technical narrative: every completed milestone updates it, the README, the
+This document explains the implemented system through Milestone 6. It is a
+living technical narrative: every completed milestone updates it, the README, the
 architecture diagrams, the demo, and relevant screenshots.
 
 ## 1. Portfolio story
@@ -109,7 +109,7 @@ Broker errors leave the outbox row pending for a later poll. Consumer failures
 are attempted three times with fixed backoff and then moved to a DLT. A Saga was
 not added because there is no multi-step distributed compensation policy yet.
 
-### Milestone 6 — Notification delivery (in progress)
+### Milestone 6 — Notification delivery
 
 The Notification Worker now has a framework-independent delivery aggregate,
 application use case, repository/sender ports, and private PostgreSQL schema.
@@ -139,7 +139,16 @@ unit-tested. The worker now converts the v1 JSON contract into a framework-free
 command, invokes a transaction-decorated use case, and manually acknowledges
 only after commit. Invalid versions and processing failures are rejected without
 requeue. A safe log adapter demonstrates the sender port without claiming email
-or SMS. An actual RabbitMQ runtime and bounded retry remain deliberately unclaimed.
+or SMS.
+
+RabbitMQ now runs in Compose with a durable direct exchange, delivery queue,
+dead-letter exchange, and DLQ. The listener retries only explicit transient
+delivery failures: three total attempts with bounded exponential backoff by
+default. Contract/version and invariant failures are permanent and go directly
+to the DLQ. Retry surrounds the transaction proxy so every attempt starts a new
+transaction; only a committed success is acknowledged. PostgreSQL/RabbitMQ
+Testcontainers prove duplicate suppression and real dead-letter routing, while
+the synthetic Compose demo proves three decisions reach `DELIVERED`.
 
 ## 3. Architecture at runtime
 
@@ -155,8 +164,8 @@ flowchart LR
     Auth --> AuthDB[(Authorization PostgreSQL)]
     Policy --> PolicyDB[(Policy PostgreSQL)]
     Claims --> ClaimsDB[(Claims/Billing PostgreSQL)]
-    Auth -. confirm-aware task relay; runtime pending .-> Rabbit{{RabbitMQ}}
-    Rabbit -. Compose runtime pending .-> Listener[Version-aware AMQP listener]
+    Auth -->|confirm-aware task relay| Rabbit{{RabbitMQ}}
+    Rabbit -->|bounded retry + DLQ| Listener[Version-aware AMQP listener]
     Listener --> Worker[Notification Worker core]
     Worker --> WorkerDB[(Notification PostgreSQL)]
 ```
@@ -249,9 +258,9 @@ variables. Logs and errors must not include tokens or health information.
 ## 7. Persistence and consistency
 
 Each state-owning backend component has an independent Liquibase changelog. The
-three current Compose services use PostgreSQL 17 databases; the Notification
-Worker schema is currently proven with PostgreSQL 17 Testcontainers and will be
-added to Compose with its RabbitMQ runtime wiring.
+three API services and Notification Worker use four private PostgreSQL 17
+databases in Compose. RabbitMQ is a transport, not a source of domain ownership;
+the producer outbox and worker delivery table retain durable intent/outcome.
 JPA entities are persistence representations, separate from the domain model.
 This avoids Spring/JPA annotations in the domain and lets mappings evolve at the
 adapter boundary.
@@ -269,6 +278,8 @@ APIs use RFC 9457 Problem Details for validation, authentication/authorization,
 not-found, business conflict, and dependency errors. Synchronous validation
 calls are fail-closed and use explicit timeouts. Kafka consumption has bounded
 retry and DLT recovery; outbox publication retries on later scheduled polls.
+RabbitMQ consumption classifies transient versus permanent failures, gives each
+transient attempt a fresh transaction, and dead-letters exhausted/permanent work.
 Circuit breakers for synchronous HTTP dependencies are still not implemented.
 
 ## 9. Test strategy and evidence
@@ -287,12 +298,13 @@ all 6 Vitest tests in 5 files, and the production TypeScript/Vite build. Treat
 these numbers as dated evidence, not a permanent guarantee; the commands in the
 README are the source of truth for a fresh checkout.
 
-The current Notification Worker checkpoint has 16 passing tests: 3 domain, 3
-application, 3 PostgreSQL persistence, and 2 architecture tests. Its integration
-test uses a real PostgreSQL 17 container rather than an in-memory substitute.
-Five adapter/configuration tests cover JSON compatibility, ack/nack decisions,
-unsupported versions, Spring transaction proxy wiring, and commit-before-ack
-ordering.
+The Notification Worker suite covers domain, application, persistence,
+architecture, configuration, retry/acknowledgement, and real-broker behavior.
+Its integration tests use PostgreSQL 17 and RabbitMQ 4.1 containers rather than
+in-memory substitutes. They prove that duplicate messages result in one
+`DELIVERED` row and that an unsupported version is quarantined in the real DLQ.
+On 8 September 2026 all four backend suites passed 141 tests: Authorization 59,
+Policy 21, Claims/Billing 38, and Notification Worker 23.
 Authorization now has 59 passing tests, including two full-context PostgreSQL
 tests for the multi-write decision transaction and five AMQP relay/topology unit
 tests. The latter verify positive/nack/unroutable outcomes, safe persistent
@@ -300,21 +312,22 @@ message metadata, and durable dead-letter routing without claiming a live broker
 
 The documentation has its own executable quality gate. It validates local
 Markdown links, parses the Keycloak and demo JSON, parses the PowerShell demo
-scripts, verifies the five expected PNG files, and renders every Mermaid block
+scripts, verifies the six expected PNG files, and renders every Mermaid block
 with Mermaid CLI. This prevents a diagram or portfolio link from silently
 rotting while later milestones change the implementation.
 
 ## 10. Delivery and local operations
 
-Docker Compose runs Keycloak, Kafka, three services, and three private databases.
+Docker Compose runs Keycloak, Kafka, RabbitMQ, three API services, Notification
+Worker, and four private databases.
 Required credentials are supplied from an ignored `.env`, using `.env.example`
 as a safe template. Health checks order database-dependent startup. GitHub
 Actions independently tests backend services and the operations portal using
 Java 21 and Node.
 
 The repository does not yet contain Kubernetes, APISIX, Jenkins, SonarQube,
-Nexus, Harbor, Argo CD, Redis, a RabbitMQ runtime, Elasticsearch, Kibana, or
-Elastic APM runtime implementations. Those remain planned slices and will only be added
+Nexus, Harbor, Argo CD, Redis, Elasticsearch, Kibana, or Elastic APM runtime
+implementations. Those remain planned slices and will only be added
 when they solve an explicit operational or domain problem.
 
 ## 11. .NET-to-Java mapping
@@ -366,7 +379,9 @@ domain rules, security, architecture, persistence, and concurrency.”
 - Why is a processed-message table still needed when Kafka stores offsets?
 - What happens after broker acknowledgement but before `published_at` commits?
 - How would benefit consumption differ from the current read-only evaluation?
-- Why use Kafka and RabbitMQ for different responsibilities later?
+- Why use Kafka and RabbitMQ for different responsibilities?
+- Why does retry wrap the transaction decorator rather than execute inside one transaction?
+- Which notification errors should bypass retry and go directly to the DLQ?
 
 ## 13. Known gaps in Milestone 6
 
@@ -382,6 +397,8 @@ domain rules, security, architecture, persistence, and concurrency.”
   retention, audit trail, and regulatory controls require explicit design.
 
 Notification persistence, transactionally recorded producer intent, the
-confirm-aware relay, durable queue/DLQ topology, and manual-ack worker listener
-exist, but no notification task is published or consumed against a real broker
-yet. The next slices add bounded retry and Compose-backed end-to-end proof.
+confirm-aware relay, durable queue/DLQ topology, classified bounded retry,
+manual acknowledgement, real-broker integration proof, and a Compose-backed
+end-to-end demo are complete. The local sender intentionally logs safe metadata;
+contact resolution and an external email/SMS provider require a later security
+and vendor-boundary decision.

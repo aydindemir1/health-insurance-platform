@@ -83,7 +83,8 @@ try {
         'docs/screenshots/02-pre-authorization-work-queue.png',
         'docs/screenshots/03-submit-pre-authorization.png',
         'docs/screenshots/04-pre-authorization-detail.png',
-        'docs/screenshots/05-specialist-decision.png'
+        'docs/screenshots/05-specialist-decision.png',
+        'docs/screenshots/06-rabbitmq-notification-queues.png'
     )
     foreach ($screenshot in $expectedScreenshots) {
         Assert-Condition (Test-Path -LiteralPath $screenshot -PathType Leaf) "Missing screenshot: $screenshot"

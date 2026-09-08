@@ -15,7 +15,7 @@ flowchart LR
     C -. after 3 failed attempts .-> D{{.DLT topic}}
 ```
 
-## Notification command path (Milestone 6 in progress)
+## Notification command path (Milestone 6)
 
 ```mermaid
 flowchart LR
@@ -24,24 +24,29 @@ flowchart LR
     Event[(outbox_messages)]
     Task[(notification_task_outbox)]
     AmqpRelay[Confirm-aware AMQP outbox relay]
-    Rabbit{{RabbitMQ runtime next slice}}
-    Worker[Notification Worker]
+    Rabbit{{RabbitMQ direct exchange}}
+    Queue[[health.notifications.delivery.v1]]
+    DLQ[[health.notifications.delivery.v1.dlq]]
+    Worker[Notification Worker<br/>bounded retry + manual ack]
     Delivery[(notification_deliveries)]
 
     Decision -->|one DB transaction| PA
     Decision -->|same transaction| Event
     Decision -->|same transaction| Task
     Task -->|lock oldest unpublished batch| AmqpRelay
-    AmqpRelay -. persistent message + confirm/return .-> Rabbit
-    Rabbit -. manual acknowledgement .-> Worker
+    AmqpRelay -->|persistent message + confirm/return| Rabbit
+    Rabbit --> Queue
+    Queue -->|at-least-once| Worker
     Worker --> Delivery
+    Worker -. exhausted/permanent nack .-> DLQ
 ```
 
 The producer writes, AMQP relay, safe JSON mapping, publisher-confirm/return
-decisions, and durable delivery/DLQ topology are implemented. The dashed broker
-connections are not yet Compose-backed or integration-tested. The relay and
-topology remain disabled unless `NOTIFICATION_OUTBOX_ENABLED=true`, preventing
-the current broker-free Compose stack from generating connection noise.
+decisions, durable delivery/DLQ topology, worker retry and acknowledgement are
+implemented. RabbitMQ and the worker have Compose runtime wiring, and a
+RabbitMQ/PostgreSQL Testcontainers test exercises real routing, duplicate
+delivery, persistence, acknowledgement, and dead-lettering. The adapters remain
+feature-gated for broker-free tests and standalone development.
 
 ### Persisted notification task intent v1
 
@@ -69,6 +74,21 @@ Publisher confirms prove that RabbitMQ accepted responsibility for the publish,
 not that a consumer processed it. Because a direct exchange may accept and then
 return an unroutable mandatory message, the relay requires both a positive
 confirm and the absence of a returned message before setting `published_at`.
+
+### RabbitMQ failure policy
+
+| Failure | Attempts | Broker outcome | Rationale |
+| --- | ---: | --- | --- |
+| Explicit transient delivery exception | 3 total, exponential bounded backoff | Ack after a successful committed attempt; otherwise nack without requeue | Temporary providers/dependencies can recover quickly |
+| Unsupported contract version | 1 | Nack without requeue → DLQ | Code deployment or contract handling is required |
+| Malformed JSON or invalid invariant | 1 | Nack without requeue → DLQ | Repeating identical data cannot repair it |
+| Delivered duplicate `taskId` with same intent | 1 | Idempotent no-op then ack | At-least-once redelivery is expected |
+| Same `taskId`, different intent | 1 | Nack without requeue → DLQ | Indicates producer/contract corruption |
+
+Default retry settings are configurable through `NOTIFICATION_RETRY_MAX_ATTEMPTS`,
+`NOTIFICATION_RETRY_INITIAL_INTERVAL`, `NOTIFICATION_RETRY_MULTIPLIER`, and
+`NOTIFICATION_RETRY_MAX_INTERVAL`. Defaults are three total attempts, 250 ms,
+2.0, and 2 seconds respectively.
 
 ## Event contract v1
 

@@ -14,7 +14,7 @@ flowchart LR
     EventOutbox[Infrastructure / Kafka event outbox adapter] --> OutputPorts
     TaskOutbox[Infrastructure / notification task outbox adapter] --> OutputPorts
     Relay[Infrastructure / Kafka relay] --> Kafka{{Kafka}}
-    NotificationRelay[Infrastructure / confirm-aware AMQP relay] -.-> Rabbit{{RabbitMQ runtime pending}}
+    NotificationRelay[Infrastructure / confirm-aware AMQP relay] --> Rabbit{{RabbitMQ}}
     Persistence --> Database[(Authorization PostgreSQL)]
     PolicyAdapter --> Policy[Policy Service]
     EventOutbox --> Database

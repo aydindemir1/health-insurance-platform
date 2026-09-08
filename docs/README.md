@@ -16,6 +16,7 @@ the end of the project.
 - [Workflow sequence diagrams](architecture/workflow-sequences.md)
 - [Frontend architecture](architecture/frontend-architecture.md)
 - [Local deployment](architecture/local-deployment.md)
+- [Local troubleshooting](development/troubleshooting.md)
 - [Event-driven messaging](architecture/event-driven-messaging.md)
 
 ## Learning and demonstration

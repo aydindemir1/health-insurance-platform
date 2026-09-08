@@ -1,16 +1,14 @@
-# Demonstration Scenario — Milestones 0–5 and Milestone 6 Checkpoint
+# Demonstration Scenario — Milestones 0–6
 
 This scenario uses only synthetic identifiers and clinical codes. It proves the
 implemented happy path and leaves records in several states for UI and API
 demonstration. It does not require or contain real patient information.
 
-The current Milestone 6 checkpoint adds Notification Worker persistence and
-causes new approved/rejected authorizations to create durable notification task
-outbox rows. A confirm-aware AMQP relay and topology are implemented, but
-RabbitMQ is not yet in Compose. The worker listener/manual acknowledgement and a
-safe local log sender are implemented but disabled. Therefore the seed script
-still produces no Notification Worker delivery row. Existing synthetic decisions
-are safe source records for the next end-to-end slice.
+Milestone 6 adds a complete notification command path. Each approved/rejected
+authorization creates a minimal task in the same transaction as the decision.
+A confirm-aware relay publishes it to RabbitMQ; the worker consumes it with
+bounded retry, persists an idempotent delivery row, invokes the safe local sender,
+commits, and only then acknowledges. Permanent or exhausted work goes to a DLQ.
 
 ## Preconditions
 
@@ -22,7 +20,9 @@ are safe source records for the next end-to-end slice.
      `providerId=30000000-0000-0000-0000-000000000001`
    - insurance user: `INSURANCE_SPECIALIST`
    - claim user: `CLAIM_APPROVER`
-4. Obtain short-lived access tokens through the configured OIDC login and keep
+4. Confirm RabbitMQ Management is available at `http://localhost:15672`; its
+   credentials come from the ignored `.env`.
+5. Obtain short-lived access tokens through the configured OIDC login and keep
    them only in the current shell.
 
 ```powershell
@@ -30,6 +30,13 @@ $env:DEMO_HOSPITAL_TOKEN = "<short-lived-token>"
 $env:DEMO_INSURANCE_TOKEN = "<short-lived-token>"
 $env:DEMO_CLAIM_APPROVER_TOKEN = "<short-lived-token>"
 .\demo\seed-demo-data.ps1
+```
+
+Add `-VerifyNotificationDelivery` when the Compose Notification Worker and its
+database are running. The script then waits for each decision's delivery row:
+
+```powershell
+.\demo\seed-demo-data.ps1 -VerifyNotificationDelivery
 ```
 
 Tokens are parameters/environment values and are never written by the script.
@@ -47,6 +54,11 @@ $env:DEMO_KEYCLOAK_ADMIN_PASSWORD = "<local-admin-password>"
 $env:DEMO_USER_PASSWORD = "<temporary-local-demo-password>"
 .\demo\prepare-and-seed-local-demo.ps1
 ```
+
+The repeatable preparation script enables notification verification by default.
+Its final JSON must report `DELIVERED` for rejected, settled, and disputed
+pre-authorization notifications. Use `-SkipNotificationVerification` only when
+intentionally running the business seed without the RabbitMQ/worker runtime.
 
 The direct-grant client exists only in the running local Keycloak database; it
 is not part of the imported realm or a production authentication design. The
@@ -68,6 +80,7 @@ The script creates:
 | MRI pre-authorization | `REJECTED` | Rejection state and reason |
 | MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `SETTLED` | Outbox, Kafka, adjudication and payment flow |
 | MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `DISPUTED` | Eventual creation and outstanding reconciliation |
+| Three provider notification deliveries | `DELIVERED` | Authorization outbox, publisher confirm, RabbitMQ consumption, worker idempotency and commit-before-ack |
 
 ## Live presentation script
 
@@ -84,13 +97,18 @@ The script creates:
 6. Explain that approval and an outbox row commit together. The script polls
    `GET /claims/by-pre-authorization/{id}` until Kafka delivery creates the
    claim/invoice; duplicate delivery is neutralized by `processed_messages`.
-7. Through the Claims/Billing API, inspect the settled scenario. Explain the
+7. Open RabbitMQ's Queues and Streams view. Show the durable delivery queue, its
+   DLX/DLK arguments, the durable DLQ, one consumer, and zero pending messages
+   after successful processing. Then inspect `notification_deliveries` and match
+   the three `business_reference_id` values to the JSON summary.
+8. Through the Claims/Billing API, inspect the settled scenario. Explain the
    transitions `SUBMITTED → UNDER_REVIEW → APPROVED` and
    `ISSUED → DISPUTED → MATCHED → SETTLED`.
-8. Inspect the second invoice left in `DISPUTED`; explain why claim adjudication
+9. Inspect the second invoice left in `DISPUTED`; explain why claim adjudication
    and invoice reconciliation are separate aggregate responsibilities.
-9. Finish with the event, architecture, and ER diagrams, highlighting outbox
-   at-least-once delivery, retry/DLT, database ownership, and optimistic locking.
+10. Finish with the event, architecture, and ER diagrams, highlighting separate
+    Kafka-event and RabbitMQ-task semantics, at-least-once delivery, idempotency,
+    bounded retry, DLT/DLQ, database ownership, and optimistic locking.
 
 ## Expected negative demonstrations
 
@@ -106,10 +124,15 @@ The script creates:
 - If Kafka is temporarily unavailable, the decision remains committed and its
   outbox row remains unpublished; restarting Kafka allows the relay to resend.
 - A poison event is retried three total times and then appears on the `.DLT` topic.
+- A transient notification failure gets three total bounded attempts, each in a
+  new transaction; exhaustion routes the task to the RabbitMQ DLQ.
+- An unsupported notification `taskVersion` is not retried and is dead-lettered.
+- Publishing the same valid `taskId` twice results in one `DELIVERED` row and no
+  duplicate sender invocation.
 
 ## Reset
 
 Demo data is stored in disposable local Docker volumes. To retain it, stop with
 `docker compose stop`. To remove it, explicitly run `docker compose down -v`
-after confirming that no local data is needed; this deletes all three database
-volumes.
+after confirming that no local data is needed; this deletes all four database
+volumes and the RabbitMQ volume.

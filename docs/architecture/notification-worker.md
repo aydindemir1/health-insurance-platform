@@ -2,19 +2,17 @@
 
 The Notification Worker owns operational delivery attempts. It does not own a
 member, policy, pre-authorization, claim, contact address, or clinical record.
-The current Milestone 6 checkpoint implements the domain/application core,
-PostgreSQL adapter, Authorization producer task outbox, and its confirm-aware
-AMQP relay/topology. The version-aware worker listener and manual acknowledgement
-are also implemented. Only the actual broker runtime remains dashed; live retry
-and dead-letter behavior are not yet delivered capabilities.
+Milestone 6 implements the domain/application core, PostgreSQL adapter,
+Authorization producer task outbox, confirm-aware AMQP relay, version-aware
+listener, bounded retry, manual acknowledgement, and live RabbitMQ/DLQ runtime.
 
 ## Component boundaries
 
 ```mermaid
 flowchart LR
-    Rabbit{{"RabbitMQ task queue<br/>runtime next slice"}}
+    Rabbit{{"RabbitMQ direct exchange<br/>durable queue + DLQ"}}
     Producer[("Authorization<br/>notification_task_outbox")]
-    Listener["AMQP listener adapter<br/>JSON v1 + manual ack"]
+    Listener["AMQP listener adapter<br/>JSON v1 + bounded retry + manual ack"]
     UseCase["DeliverNotificationUseCase<br/>NotificationDeliveryService"]
     Aggregate["NotificationDelivery aggregate<br/>RECEIVED to DELIVERED"]
     RepositoryPort["NotificationDeliveryRepository<br/>output port"]
@@ -23,9 +21,9 @@ flowchart LR
     Sender["Safe local log sender<br/>external provider future"]
     Database[("Notification PostgreSQL<br/>Liquibase-owned schema")]
 
-    Producer --> Relay["Authorization AMQP relay<br/>implemented + unit tested"]
-    Relay -. "Compose integration pending" .-> Rabbit
-    Rabbit -. "Compose runtime pending" .-> Listener
+    Producer --> Relay["Authorization AMQP relay<br/>publisher confirm + mandatory return"]
+    Relay -->|"persistent task"| Rabbit
+    Rabbit -->|"competing consumer delivery"| Listener
     Listener --> UseCase
     UseCase --> Aggregate
     UseCase --> RepositoryPort
@@ -34,6 +32,45 @@ flowchart LR
     Jpa --> Database
     SenderPort --> Sender
 ```
+
+## Retry and acknowledgement boundary
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Q as RabbitMQ delivery queue
+    participant L as Listener / RetryTemplate
+    participant T as Transaction decorator
+    participant U as Delivery use case
+    participant DB as Notification PostgreSQL
+    participant DLQ as Dead-letter queue
+
+    Q->>L: Deliver persistent v1 task
+    loop At most 3 attempts for transient failures
+        L->>T: Execute command
+        T->>U: Begin new transaction
+        U->>DB: Persist RECEIVED, invoke sender, mark DELIVERED
+        alt Transient failure
+            T->>DB: Roll back attempt
+            T-->>L: TransientNotificationDeliveryException
+        else Success or delivered replay
+            T->>DB: Commit
+            T-->>L: Return
+            L->>Q: basicAck
+        end
+    end
+    alt Attempts exhausted or permanent failure
+        L->>Q: basicNack(requeue=false)
+        Q->>DLQ: Dead-letter via health.notifications.dlx
+    end
+```
+
+The retry classifier is deliberately narrow. Only
+`TransientNotificationDeliveryException` receives bounded exponential backoff.
+Unsupported message versions, malformed contracts, and invariant violations are
+permanent and are rejected after one attempt. Retry wraps the transactional
+proxy, so each attempt gets a separate transaction and no failed state leaks
+into the next attempt.
 
 The domain and application packages import neither Spring nor Jakarta. JPA
 entities translate persistence rows at the infrastructure boundary, and
@@ -72,18 +109,21 @@ codes, email addresses, phone numbers, access tokens, and rendered message
 content. Database check constraints keep timestamp and state combinations
 consistent even if a future adapter bypasses the aggregate accidentally.
 
-## Current verification
+## Verification
 
-The worker Java 21 suite has 16 tests. A PostgreSQL 17 Testcontainer applies Liquibase,
-lets Hibernate validate the schema, round-trips both delivery states, and checks
-the primary-key and operational indexes. It also invokes the use case twice
-against the persisted row to prove that a delivered replay does not call the
-sender again. Authorization separately has 59 passing tests; five verify the
-relay's positive/nack/unroutable decisions, persistent safe envelope, and
-delivery/DLQ topology. Worker tests prove producer JSON conversion, command
-mapping, unsupported-version rejection, transaction commit before `basicAck`,
-and requeue-free `basicNack`. Bounded retry and live broker/dead-letter behavior
-are not part of this checkpoint and must not be inferred from adapter tests.
+The Java 21 suite uses PostgreSQL 17 and RabbitMQ 4.1 Testcontainers. Persistence
+tests apply Liquibase, let Hibernate validate the schema, round-trip both states,
+and inspect operational indexes. Application tests prove delivered replay is a
+no-op and conflicting reuse of a task ID fails. Listener tests prove transient
+success after retry, exhaustion after three attempts, immediate permanent
+failure, unsupported-version quarantine, and commit-before-ack ordering.
+
+The broker integration test sends real persistent messages through the declared
+exchange. Two identical messages create one `DELIVERED` row and leave both
+queues empty; an unsupported v99 message creates no delivery row and appears in
+`health.notifications.delivery.v1.dlq`. Compose repeats the complete producer to
+consumer path with independent PostgreSQL ownership. On 8 September 2026 the
+worker suite passed 23/23 tests.
 
 The local sender logs only the task identifier, notification type, recipient
 kind, and opaque provider reference. It demonstrates the output port and
