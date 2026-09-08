@@ -11,6 +11,8 @@ import com.aydindemir.health.claims.application.exception.ApprovedPreAuthorizati
 import com.aydindemir.health.claims.application.exception.DuplicateClaimException;
 import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizationPort;
 import com.aydindemir.health.claims.application.port.out.ClaimRepository;
+import com.aydindemir.health.claims.application.port.out.ClaimSearchProjectionOutbox;
+import com.aydindemir.health.claims.application.event.ClaimSearchProjection;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
 import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
 import com.aydindemir.health.claims.application.security.ActorContext;
@@ -53,12 +55,14 @@ class ClaimsBillingApplicationServiceTest {
     private InMemoryInvoiceRepository invoices;
     private ClaimsBillingApplicationService service;
     private InMemoryProcessedMessageRepository processedMessages;
+    private InMemorySearchOutbox searchOutbox;
 
     @BeforeEach
     void setUp() {
         claims = new InMemoryClaimRepository();
         invoices = new InMemoryInvoiceRepository();
         processedMessages = new InMemoryProcessedMessageRepository();
+        searchOutbox = new InMemorySearchOutbox();
         service = serviceWith(snapshot("APPROVED", PROVIDER_ID));
     }
 
@@ -75,6 +79,7 @@ class ClaimsBillingApplicationServiceTest {
         assertThat(claims.entries).hasSize(1);
         assertThat(invoices.entries).hasSize(1);
         assertThat(processedMessages.ids).containsExactly(messageId);
+        assertThat(searchOutbox.projections).hasSize(1);
     }
 
     @Test
@@ -186,7 +191,7 @@ class ClaimsBillingApplicationServiceTest {
         return new ClaimsBillingApplicationService(
                 claims, invoices,
                 id -> PRE_AUTHORIZATION_ID.equals(id) ? Optional.of(snapshot) : Optional.empty(),
-                ids::remove, processedMessages, CLOCK);
+                ids::remove, processedMessages, searchOutbox, CLOCK);
     }
 
     private ApprovedPreAuthorizationPort.PreAuthorizationSnapshot snapshot(
@@ -279,6 +284,15 @@ class ClaimsBillingApplicationServiceTest {
         @Override public boolean exists(UUID messageId) { return ids.contains(messageId); }
         @Override public void markProcessed(UUID messageId, String consumerName, Instant processedAt) {
             ids.add(messageId);
+        }
+    }
+
+    private static final class InMemorySearchOutbox implements ClaimSearchProjectionOutbox {
+        private final java.util.List<ClaimSearchProjection> projections = new java.util.ArrayList<>();
+
+        @Override
+        public void append(ClaimSearchProjection projection) {
+            projections.add(projection);
         }
     }
 }

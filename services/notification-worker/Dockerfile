@@ -5,7 +5,8 @@ RUN ./mvnw --batch-mode -DskipTests package
 
 FROM eclipse-temurin:21-jre-alpine
 RUN addgroup -S spring && adduser -S spring -G spring
-USER spring:spring
 WORKDIR /app
+COPY --from=docker.elastic.co/observability/apm-agent-java:1.56.0 /usr/agent/elastic-apm-agent.jar /app/elastic-apm-agent.jar
 COPY --from=build /workspace/target/notification-worker-*.jar app.jar
+USER spring:spring
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

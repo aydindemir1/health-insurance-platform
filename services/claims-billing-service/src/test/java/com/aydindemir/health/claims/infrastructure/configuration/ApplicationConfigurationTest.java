@@ -8,6 +8,7 @@ import com.aydindemir.health.claims.application.port.in.HandleApprovedPreAuthori
 import com.aydindemir.health.claims.application.port.in.ReviewClaimUseCase;
 import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizationPort;
 import com.aydindemir.health.claims.application.port.out.ClaimRepository;
+import com.aydindemir.health.claims.application.port.out.ClaimSearchProjectionOutbox;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
 import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
 import com.aydindemir.health.claims.application.security.ActorContext;
@@ -93,6 +94,9 @@ class ApplicationConfigurationTest {
         }
         @Bean ProcessedMessageRepository processedMessageRepository() {
             return mock(ProcessedMessageRepository.class);
+        }
+        @Bean ClaimSearchProjectionOutbox claimSearchProjectionOutbox() {
+            return mock(ClaimSearchProjectionOutbox.class);
         }
         @Bean RecordingTransactionManager transactionManager() { return new RecordingTransactionManager(); }
     }

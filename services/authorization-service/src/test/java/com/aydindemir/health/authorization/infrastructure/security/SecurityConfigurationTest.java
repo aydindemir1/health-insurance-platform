@@ -45,7 +45,9 @@ class SecurityConfigurationTest {
         assertThat(cors).isNotNull();
         assertThat(cors.getAllowedOrigins()).containsExactly("http://localhost:5173");
         assertThat(cors.getAllowedMethods()).containsExactly("GET", "POST", "OPTIONS");
-        assertThat(cors.getAllowedHeaders()).containsExactly("Authorization", "Content-Type");
+        assertThat(cors.getAllowedHeaders()).containsExactly(
+                "Authorization", "Content-Type", "X-Correlation-ID");
+        assertThat(cors.getExposedHeaders()).contains("X-Correlation-ID");
         assertThat(cors.getAllowCredentials()).isNotEqualTo(true);
     }
 

@@ -7,6 +7,7 @@ import tools.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import org.slf4j.MDC;
 
 import java.util.Currency;
 
@@ -33,16 +34,19 @@ class PreAuthorizationDecisionListener {
         } catch (JacksonException exception) {
             throw new IllegalArgumentException("Invalid pre-authorization event payload", exception);
         }
-        if (message.eventVersion() != 1) {
-            throw new IllegalArgumentException("Unsupported pre-authorization event version: " + message.eventVersion());
+        MDC.put("correlationId", message.eventId().toString());
+        try {
+            if (message.eventVersion() != 1) {
+                throw new IllegalArgumentException("Unsupported pre-authorization event version: " + message.eventVersion());
+            }
+            if (!"APPROVED".equals(message.decision())) return;
+            useCase.handle(new HandleApprovedPreAuthorizationCommand(
+                    message.eventId(), message.preAuthorizationId(), message.memberId(),
+                    message.providerId(), message.policyNumber(), message.serviceCode(),
+                    message.requestedAmount(), Currency.getInstance(message.currency()),
+                    message.occurredAt()));
+        } finally {
+            MDC.remove("correlationId");
         }
-        if (!"APPROVED".equals(message.decision())) {
-            return;
-        }
-        useCase.handle(new HandleApprovedPreAuthorizationCommand(
-                message.eventId(), message.preAuthorizationId(), message.memberId(),
-                message.providerId(), message.policyNumber(), message.serviceCode(),
-                message.requestedAmount(), Currency.getInstance(message.currency()),
-                message.occurredAt()));
     }
 }

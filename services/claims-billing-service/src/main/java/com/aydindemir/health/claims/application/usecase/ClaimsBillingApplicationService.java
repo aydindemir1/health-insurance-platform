@@ -16,6 +16,7 @@ import com.aydindemir.health.claims.application.exception.ClaimsBillingStateConf
 import com.aydindemir.health.claims.application.exception.DuplicateClaimException;
 import com.aydindemir.health.claims.application.exception.InvoiceNotFoundException;
 import com.aydindemir.health.claims.application.exception.InvoiceNumberConflictException;
+import com.aydindemir.health.claims.application.event.ClaimSearchProjection;
 import com.aydindemir.health.claims.application.mapper.ClaimsBillingResultMapper;
 import com.aydindemir.health.claims.application.port.in.CreateClaimUseCase;
 import com.aydindemir.health.claims.application.port.in.GetClaimsBillingUseCase;
@@ -24,6 +25,7 @@ import com.aydindemir.health.claims.application.port.in.ManageInvoiceUseCase;
 import com.aydindemir.health.claims.application.port.in.ReviewClaimUseCase;
 import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizationPort;
 import com.aydindemir.health.claims.application.port.out.ClaimRepository;
+import com.aydindemir.health.claims.application.port.out.ClaimSearchProjectionOutbox;
 import com.aydindemir.health.claims.application.port.out.IdentifierGenerator;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
 import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
@@ -52,6 +54,7 @@ public final class ClaimsBillingApplicationService implements
     private final ApprovedPreAuthorizationPort preAuthorizations;
     private final IdentifierGenerator identifiers;
     private final ProcessedMessageRepository processedMessages;
+    private final ClaimSearchProjectionOutbox searchOutbox;
     private final Clock clock;
 
     public ClaimsBillingApplicationService(
@@ -60,12 +63,14 @@ public final class ClaimsBillingApplicationService implements
             ApprovedPreAuthorizationPort preAuthorizations,
             IdentifierGenerator identifiers,
             ProcessedMessageRepository processedMessages,
+            ClaimSearchProjectionOutbox searchOutbox,
             Clock clock) {
         this.claims = Objects.requireNonNull(claims);
         this.invoices = Objects.requireNonNull(invoices);
         this.preAuthorizations = Objects.requireNonNull(preAuthorizations);
         this.identifiers = Objects.requireNonNull(identifiers);
         this.processedMessages = Objects.requireNonNull(processedMessages);
+        this.searchOutbox = Objects.requireNonNull(searchOutbox);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -85,8 +90,7 @@ public final class ClaimsBillingApplicationService implements
             Invoice invoice = Invoice.issue(
                     identifiers.generate(), claimId, command.providerId(),
                     "AUTO-" + command.preAuthorizationId(), amount, clock);
-            claims.save(claim);
-            invoices.save(invoice);
+            appendProjection(claims.save(claim), invoices.save(invoice));
         }
         processedMessages.markProcessed(
                 command.messageId(), APPROVAL_CONSUMER, clock.instant());
@@ -125,7 +129,10 @@ public final class ClaimsBillingApplicationService implements
         Invoice invoice = Invoice.issue(
                 identifiers.generate(), claimId, providerId,
                 command.invoiceNumber(), invoicedAmount, clock);
-        return result(claims.save(claim), invoices.save(invoice));
+        Claim savedClaim = claims.save(claim);
+        Invoice savedInvoice = invoices.save(invoice);
+        appendProjection(savedClaim, savedInvoice);
+        return result(savedClaim, savedInvoice);
     }
 
     @Override
@@ -135,7 +142,9 @@ public final class ClaimsBillingApplicationService implements
             requireRole(command.actor(), ApplicationRole.CLAIM_APPROVER);
             Claim claim = findClaim(command.claimId());
             claim.startReview(clock);
-            return ClaimsBillingResultMapper.toResult(claims.save(claim));
+            Claim savedClaim = claims.save(claim);
+            appendProjection(savedClaim, findInvoiceByClaimId(savedClaim.id()));
+            return ClaimsBillingResultMapper.toResult(savedClaim);
         });
     }
 
@@ -148,7 +157,10 @@ public final class ClaimsBillingApplicationService implements
             Invoice invoice = findInvoiceByClaimId(claim.id());
             claim.approve(Money.positive(command.approvedAmount(), command.currency()), clock);
             invoice.reconcile(claim.approvedAmount(), clock);
-            return result(claims.save(claim), invoices.save(invoice));
+            Claim savedClaim = claims.save(claim);
+            Invoice savedInvoice = invoices.save(invoice);
+            appendProjection(savedClaim, savedInvoice);
+            return result(savedClaim, savedInvoice);
         });
     }
 
@@ -161,7 +173,10 @@ public final class ClaimsBillingApplicationService implements
             Invoice invoice = findInvoiceByClaimId(claim.id());
             claim.reject(command.reason(), clock);
             invoice.voidDueToRejectedClaim();
-            return result(claims.save(claim), invoices.save(invoice));
+            Claim savedClaim = claims.save(claim);
+            Invoice savedInvoice = invoices.save(invoice);
+            appendProjection(savedClaim, savedInvoice);
+            return result(savedClaim, savedInvoice);
         });
     }
 
@@ -173,7 +188,9 @@ public final class ClaimsBillingApplicationService implements
             Invoice invoice = findInvoice(command.invoiceId());
             invoice.resolveDispute(
                     Money.positive(command.agreedPayableAmount(), command.currency()), clock);
-            return ClaimsBillingResultMapper.toResult(invoices.save(invoice));
+            Invoice savedInvoice = invoices.save(invoice);
+            appendProjection(findClaim(savedInvoice.claimId()), savedInvoice);
+            return ClaimsBillingResultMapper.toResult(savedInvoice);
         });
     }
 
@@ -185,7 +202,9 @@ public final class ClaimsBillingApplicationService implements
             Invoice invoice = findInvoice(command.invoiceId());
             invoice.recordPayment(
                     command.paymentReference(), Money.positive(command.amount(), command.currency()), clock);
-            return ClaimsBillingResultMapper.toResult(invoices.save(invoice));
+            Invoice savedInvoice = invoices.save(invoice);
+            appendProjection(findClaim(savedInvoice.claimId()), savedInvoice);
+            return ClaimsBillingResultMapper.toResult(savedInvoice);
         });
     }
 
@@ -224,6 +243,18 @@ public final class ClaimsBillingApplicationService implements
         return new ClaimInvoiceResult(
                 ClaimsBillingResultMapper.toResult(claim),
                 ClaimsBillingResultMapper.toResult(invoice));
+    }
+
+    private void appendProjection(Claim claim, Invoice invoice) {
+        var claimResult = ClaimsBillingResultMapper.toResult(claim);
+        var invoiceResult = ClaimsBillingResultMapper.toResult(invoice);
+        searchOutbox.append(new ClaimSearchProjection(
+                claimResult.id(), invoiceResult.id(), claimResult.preAuthorizationId(),
+                claimResult.memberId(), claimResult.providerId(), claimResult.policyNumber(),
+                claimResult.serviceCode(), claimResult.claimedAmount(), claimResult.approvedAmount(),
+                invoiceResult.payableAmount(), invoiceResult.paidAmount(), claimResult.currency(),
+                claimResult.status(), invoiceResult.status(), invoiceResult.invoiceNumber(),
+                clock.instant()));
     }
 
     private Claim findClaim(UUID id) {

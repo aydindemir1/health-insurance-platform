@@ -21,6 +21,11 @@ spring:
         acknowledge-mode: manual
         default-requeue-rejected: false
 
+logging:
+  structured:
+    format:
+      console: ${CONSOLE_LOG_FORMAT:ecs}
+
 app:
   messaging:
     rabbit-listener:

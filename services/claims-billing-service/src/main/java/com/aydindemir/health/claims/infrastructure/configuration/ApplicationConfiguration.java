@@ -2,6 +2,7 @@ package com.aydindemir.health.claims.infrastructure.configuration;
 
 import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizationPort;
 import com.aydindemir.health.claims.application.port.out.ClaimRepository;
+import com.aydindemir.health.claims.application.port.out.ClaimSearchProjectionOutbox;
 import com.aydindemir.health.claims.application.port.out.IdentifierGenerator;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
 import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
@@ -31,9 +32,11 @@ public class ApplicationConfiguration {
             ApprovedPreAuthorizationPort preAuthorizations,
             IdentifierGenerator identifiers,
             ProcessedMessageRepository processedMessages,
+            ClaimSearchProjectionOutbox searchOutbox,
             Clock clock) {
         return new TransactionalClaimsBillingUseCases(
                 new ClaimsBillingApplicationService(
-                        claims, invoices, preAuthorizations, identifiers, processedMessages, clock));
+                        claims, invoices, preAuthorizations, identifiers, processedMessages,
+                        searchOutbox, clock));
     }
 }

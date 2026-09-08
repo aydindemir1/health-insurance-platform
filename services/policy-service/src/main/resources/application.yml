@@ -27,6 +27,11 @@ spring:
 server:
   port: 8082
 
+logging:
+  structured:
+    format:
+      console: ${CONSOLE_LOG_FORMAT:ecs}
+
 app:
   cache:
     coverage:

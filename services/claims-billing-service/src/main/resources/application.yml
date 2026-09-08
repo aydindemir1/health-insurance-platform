@@ -1,6 +1,11 @@
 server:
   port: 8083
 
+logging:
+  structured:
+    format:
+      console: ${CONSOLE_LOG_FORMAT:ecs}
+
 spring:
   application:
     name: claims-billing-service
@@ -52,3 +57,8 @@ app:
       enabled: ${KAFKA_CONSUMER_ENABLED:true}
       retry-delay: ${KAFKA_RETRY_DELAY:1s}
       max-attempts: ${KAFKA_MAX_ATTEMPTS:3}
+    search-outbox:
+      enabled: ${CLAIM_SEARCH_OUTBOX_ENABLED:false}
+      fixed-delay: ${CLAIM_SEARCH_OUTBOX_FIXED_DELAY:1s}
+      batch-size: ${CLAIM_SEARCH_OUTBOX_BATCH_SIZE:50}
+      send-timeout: ${CLAIM_SEARCH_OUTBOX_SEND_TIMEOUT:5s}

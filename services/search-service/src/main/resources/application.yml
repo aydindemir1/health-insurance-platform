@@ -1,0 +1,46 @@
+server:
+  port: 8084
+
+logging:
+  structured:
+    format:
+      console: ${CONSOLE_LOG_FORMAT:ecs}
+
+spring:
+  application:
+    name: search-service
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+    connection-timeout: ${ELASTICSEARCH_CONNECT_TIMEOUT:2s}
+    socket-timeout: ${ELASTICSEARCH_SOCKET_TIMEOUT:5s}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/health-insurance}
+          jwk-set-uri: ${KEYCLOAK_JWK_SET_URI:http://localhost:8080/realms/health-insurance/protocol/openid-connect/certs}
+
+app:
+  messaging:
+    consumer:
+      enabled: ${SEARCH_KAFKA_CONSUMER_ENABLED:false}
+      max-attempts: ${SEARCH_KAFKA_MAX_ATTEMPTS:3}
+      retry-delay: ${SEARCH_KAFKA_RETRY_DELAY:1s}
+  search:
+    index-name: ${SEARCH_INDEX_NAME:healthcare-operations-v1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true

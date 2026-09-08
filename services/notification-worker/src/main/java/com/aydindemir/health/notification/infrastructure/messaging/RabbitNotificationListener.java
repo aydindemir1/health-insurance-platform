@@ -4,6 +4,7 @@ import com.aydindemir.health.notification.application.port.in.DeliverNotificatio
 import com.rabbitmq.client.Channel;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -34,6 +35,10 @@ public class RabbitNotificationListener {
             @Payload NotificationTaskMessage task,
             Channel channel,
             @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
+        String correlationId = task.causationId() != null ? task.causationId().toString()
+                : task.taskId() != null ? task.taskId().toString() : java.util.UUID.randomUUID().toString();
+        MDC.put("correlationId", correlationId);
+        MDC.put("taskId", String.valueOf(task.taskId()));
         try {
             var command = task.toCommand();
             deliveryRetry.execute(context -> {
@@ -49,6 +54,9 @@ public class RabbitNotificationListener {
                     exception.getClass().getSimpleName());
             channel.basicNack(deliveryTag, false, false);
             return;
+        } finally {
+            MDC.remove("taskId");
+            MDC.remove("correlationId");
         }
         channel.basicAck(deliveryTag, false);
     }

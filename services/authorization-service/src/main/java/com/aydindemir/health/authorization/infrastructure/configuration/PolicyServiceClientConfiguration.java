@@ -5,6 +5,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+import org.slf4j.MDC;
+import com.aydindemir.health.authorization.infrastructure.observability.CorrelationIdFilter;
 
 import java.net.http.HttpClient;
 import java.time.Duration;
@@ -24,6 +26,11 @@ public class PolicyServiceClientConfiguration {
         return RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(requestFactory)
+                .requestInterceptor((request, body, execution) -> {
+                    String correlationId = MDC.get(CorrelationIdFilter.MDC_KEY);
+                    if (correlationId != null) request.getHeaders().set(CorrelationIdFilter.HEADER, correlationId);
+                    return execution.execute(request, body);
+                })
                 .build();
     }
 }

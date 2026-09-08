@@ -9,9 +9,11 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.util.backoff.FixedBackOff;
 
 @Configuration
+@EnableScheduling
 public class MessagingConfiguration {
     @Bean
     NewTopic preAuthorizationEventsTopic() {
@@ -24,6 +26,14 @@ public class MessagingConfiguration {
     @Bean
     NewTopic preAuthorizationEventsDeadLetterTopic() {
         return TopicBuilder.name("health.authorization.pre-authorization.v1.DLT")
+                .partitions(3)
+                .replicas(1)
+                .build();
+    }
+
+    @Bean
+    NewTopic claimSearchProjectionTopic() {
+        return TopicBuilder.name("health.claims.search-projection.v1")
                 .partitions(3)
                 .replicas(1)
                 .build();
