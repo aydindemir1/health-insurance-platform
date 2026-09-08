@@ -53,6 +53,7 @@ class PreAuthorizationApplicationServiceTest {
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         true, "ELIGIBLE", "Coverage is eligible"),
                 event -> { },
+                task -> { },
                 CLOCK);
     }
 
@@ -72,7 +73,7 @@ class PreAuthorizationApplicationServiceTest {
                 repository, () -> PRE_AUTHORIZATION_ID,
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         true, "ELIGIBLE", "Coverage is eligible"),
-                captured::set, CLOCK);
+                captured::set, task -> { }, CLOCK);
 
         service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
 
@@ -126,6 +127,7 @@ class PreAuthorizationApplicationServiceTest {
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         false, "LIMIT_EXCEEDED", "Policy coverage limit is insufficient"),
                 event -> { },
+                task -> { },
                 CLOCK);
 
         assertThatThrownBy(() -> service.submit(submitCommand(hospitalActor(PROVIDER_ID))))
@@ -201,11 +203,12 @@ class PreAuthorizationApplicationServiceTest {
     @Test
     void appendsApprovedEventAfterDecisionIsPersisted() {
         var captured = new AtomicReference<com.aydindemir.health.authorization.application.event.PreAuthorizationDecisionEvent>();
+        var notification = new AtomicReference<com.aydindemir.health.authorization.application.event.PreAuthorizationNotificationTask>();
         service = new PreAuthorizationApplicationService(
                 repository, () -> PRE_AUTHORIZATION_ID,
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         true, "ELIGIBLE", "Coverage is eligible"),
-                captured::set, CLOCK);
+                captured::set, notification::set, CLOCK);
         service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
 
         service.approve(new DecidePreAuthorizationCommand(
@@ -216,16 +219,24 @@ class PreAuthorizationApplicationServiceTest {
         assertThat(captured.get().preAuthorizationId()).isEqualTo(PRE_AUTHORIZATION_ID);
         assertThat(captured.get().requestedAmount()).isEqualByComparingTo("1250.00");
         assertThat(captured.get().occurredAt()).isEqualTo(CLOCK.instant());
+        assertThat(notification.get().causationId()).isEqualTo(captured.get().eventId());
+        assertThat(notification.get().businessReferenceId()).isEqualTo(PRE_AUTHORIZATION_ID);
+        assertThat(notification.get().recipientReferenceId()).isEqualTo(PROVIDER_ID);
+        assertThat(notification.get().notificationType().name())
+                .isEqualTo("PRE_AUTHORIZATION_APPROVED");
+        assertThat(notification.get().templateKey())
+                .isEqualTo("pre-authorization-approved-v1");
     }
 
     @Test
     void appendsRejectedEventAfterDecisionIsPersisted() {
         var captured = new AtomicReference<com.aydindemir.health.authorization.application.event.PreAuthorizationDecisionEvent>();
+        var notification = new AtomicReference<com.aydindemir.health.authorization.application.event.PreAuthorizationNotificationTask>();
         service = new PreAuthorizationApplicationService(
                 repository, () -> PRE_AUTHORIZATION_ID,
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         true, "ELIGIBLE", "Coverage is eligible"),
-                captured::set, CLOCK);
+                captured::set, notification::set, CLOCK);
         service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
 
         service.reject(new DecidePreAuthorizationCommand(
@@ -234,6 +245,11 @@ class PreAuthorizationApplicationServiceTest {
         assertThat(captured.get().eventType()).isEqualTo("PreAuthorizationRejected");
         assertThat(captured.get().eventVersion()).isEqualTo(1);
         assertThat(captured.get().decision()).isEqualTo("REJECTED");
+        assertThat(notification.get().causationId()).isEqualTo(captured.get().eventId());
+        assertThat(notification.get().notificationType().name())
+                .isEqualTo("PRE_AUTHORIZATION_REJECTED");
+        assertThat(notification.get().templateKey())
+                .isEqualTo("pre-authorization-rejected-v1");
     }
 
     private SearchPreAuthorizationsQuery searchQuery(ActorContext actor) {

@@ -63,7 +63,7 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
 
         repository.save(submitted);
 
-        assertThat(appliedChangeSets).isEqualTo(5);
+        assertThat(appliedChangeSets).isEqualTo(6);
         assertThat(repository.findById(submitted.id()))
                 .hasValueSatisfying(reloaded -> {
                     assertThat(reloaded.memberId()).isEqualTo(submitted.memberId());
@@ -138,6 +138,28 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
         assertThat(result.totalPages()).isEqualTo(2);
         assertThat(result.page()).isZero();
         assertThat(result.size()).isEqualTo(2);
+    }
+
+    @Test
+    void createsMinimalNotificationTaskOutboxSchemaAndIndexes() {
+        var columns = jdbcTemplate.queryForList(
+                "select column_name from information_schema.columns "
+                        + "where table_schema = 'public' and table_name = 'notification_task_outbox'",
+                String.class);
+        var indexes = jdbcTemplate.queryForList(
+                "select indexname from pg_indexes where tablename = 'notification_task_outbox'",
+                String.class);
+
+        assertThat(columns).containsExactlyInAnyOrder(
+                "task_id", "causation_id", "task_version", "notification_type",
+                "business_reference_id", "recipient_kind", "recipient_reference_id",
+                "template_key", "occurred_at", "published_at", "publish_attempts", "last_error");
+        assertThat(columns).doesNotContain(
+                "member_id", "policy_number", "diagnosis_code", "email", "phone", "token");
+        assertThat(indexes).contains(
+                "notification_task_outbox_pkey",
+                "uk_notification_task_causation",
+                "idx_notification_task_unpublished");
     }
 
     private PreAuthorization newPreAuthorization() {

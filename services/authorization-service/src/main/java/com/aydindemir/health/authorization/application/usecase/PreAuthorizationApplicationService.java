@@ -9,6 +9,7 @@ import com.aydindemir.health.authorization.application.exception.CoverageDeniedE
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationNotFoundException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationStateConflictException;
 import com.aydindemir.health.authorization.application.event.PreAuthorizationDecisionEvent;
+import com.aydindemir.health.authorization.application.event.PreAuthorizationNotificationTask;
 import com.aydindemir.health.authorization.application.mapper.PreAuthorizationResultMapper;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizationUseCase;
@@ -18,6 +19,7 @@ import com.aydindemir.health.authorization.application.port.out.PreAuthorization
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
 import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
 import com.aydindemir.health.authorization.application.port.out.IntegrationEventOutbox;
+import com.aydindemir.health.authorization.application.port.out.NotificationTaskOutbox;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
 import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
 import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
@@ -41,6 +43,7 @@ public final class PreAuthorizationApplicationService implements
     private final PreAuthorizationIdGenerator idGenerator;
     private final CoverageVerificationPort coverageVerification;
     private final IntegrationEventOutbox eventOutbox;
+    private final NotificationTaskOutbox notificationTaskOutbox;
     private final Clock clock;
 
     public PreAuthorizationApplicationService(
@@ -48,11 +51,13 @@ public final class PreAuthorizationApplicationService implements
             PreAuthorizationIdGenerator idGenerator,
             CoverageVerificationPort coverageVerification,
             IntegrationEventOutbox eventOutbox,
+            NotificationTaskOutbox notificationTaskOutbox,
             Clock clock) {
         this.repository = Objects.requireNonNull(repository);
         this.idGenerator = Objects.requireNonNull(idGenerator);
         this.coverageVerification = Objects.requireNonNull(coverageVerification);
         this.eventOutbox = Objects.requireNonNull(eventOutbox);
+        this.notificationTaskOutbox = Objects.requireNonNull(notificationTaskOutbox);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -110,8 +115,14 @@ public final class PreAuthorizationApplicationService implements
             throw new PreAuthorizationStateConflictException(exception.getMessage(), exception);
         }
         PreAuthorization saved = repository.save(preAuthorization);
-        eventOutbox.append(decisionEvent(saved));
+        appendDecisionOutputs(saved);
         return PreAuthorizationResultMapper.toResult(saved);
+    }
+
+    private void appendDecisionOutputs(PreAuthorization preAuthorization) {
+        var event = decisionEvent(preAuthorization);
+        eventOutbox.append(event);
+        notificationTaskOutbox.append(notificationTask(preAuthorization, event));
     }
 
     private PreAuthorizationDecisionEvent decisionEvent(PreAuthorization preAuthorization) {
@@ -128,6 +139,24 @@ public final class PreAuthorizationApplicationService implements
         return "APPROVED".equals(decision) ? "Approved" : "Rejected";
     }
 
+    private PreAuthorizationNotificationTask notificationTask(
+            PreAuthorization preAuthorization,
+            PreAuthorizationDecisionEvent causation) {
+        boolean approved = "APPROVED".equals(preAuthorization.status().name());
+        return new PreAuthorizationNotificationTask(
+                UUID.randomUUID(), causation.eventId(), 1,
+                approved
+                        ? PreAuthorizationNotificationTask.NotificationType.PRE_AUTHORIZATION_APPROVED
+                        : PreAuthorizationNotificationTask.NotificationType.PRE_AUTHORIZATION_REJECTED,
+                preAuthorization.id(),
+                PreAuthorizationNotificationTask.RecipientKind.PROVIDER,
+                preAuthorization.providerId(),
+                approved
+                        ? "pre-authorization-approved-v1"
+                        : "pre-authorization-rejected-v1",
+                preAuthorization.decidedAt());
+    }
+
     @Override
     public PreAuthorizationResult reject(DecidePreAuthorizationCommand command) {
         requireSpecialist(command);
@@ -138,7 +167,7 @@ public final class PreAuthorizationApplicationService implements
             throw new PreAuthorizationStateConflictException(exception.getMessage(), exception);
         }
         PreAuthorization saved = repository.save(preAuthorization);
-        eventOutbox.append(decisionEvent(saved));
+        appendDecisionOutputs(saved);
         return PreAuthorizationResultMapper.toResult(saved);
     }
 

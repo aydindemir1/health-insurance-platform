@@ -1,6 +1,7 @@
 package com.aydindemir.health.authorization.infrastructure.configuration;
 
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
+import com.aydindemir.health.authorization.application.command.DecidePreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.dto.PageResult;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizationUseCase;
@@ -9,6 +10,7 @@ import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthoriz
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
 import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
 import com.aydindemir.health.authorization.application.port.out.IntegrationEventOutbox;
+import com.aydindemir.health.authorization.application.port.out.NotificationTaskOutbox;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
 import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
 import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
@@ -81,10 +83,15 @@ class ApplicationConfigurationTest {
             get.get(new GetPreAuthorizationQuery(submitted.id(), actor));
             search.search(SearchPreAuthorizationsQuery.fromRequest(
                     actor, null, null, null, 0, 20, "createdAt", "desc"));
+            var specialist = new ActorContext(
+                    "specialist", null, Set.of(ApplicationRole.INSURANCE_SPECIALIST));
+            context.getBean(DecidePreAuthorizationUseCase.class).approve(
+                    new DecidePreAuthorizationCommand(
+                            submitted.id(), "Coverage verified", specialist));
 
             assertThat(transactionManager.readOnlyTransactions())
-                    .containsExactly(false, true, true);
-            assertThat(transactionManager.committedTransactions()).isEqualTo(3);
+                    .containsExactly(false, true, true, false);
+            assertThat(transactionManager.committedTransactions()).isEqualTo(4);
         });
     }
 
@@ -106,6 +113,11 @@ class ApplicationConfigurationTest {
         @Bean
         IntegrationEventOutbox integrationEventOutbox() {
             return event -> { };
+        }
+
+        @Bean
+        NotificationTaskOutbox notificationTaskOutbox() {
+            return task -> { };
         }
 
         @Bean

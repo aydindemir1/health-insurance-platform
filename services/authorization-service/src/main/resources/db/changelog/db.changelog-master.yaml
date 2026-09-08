@@ -9,3 +9,5 @@ databaseChangeLog:
       file: db/changelog/changes/004-add-service-code.yaml
   - include:
       file: db/changelog/changes/005-create-outbox.yaml
+  - include:
+      file: db/changelog/changes/006-create-notification-task-outbox.yaml

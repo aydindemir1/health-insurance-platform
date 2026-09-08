@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-create-notification-task-outbox
+      author: aydin-demir
+      changes:
+        - sql:
+            sql: |
+              create table notification_task_outbox (
+                task_id uuid primary key,
+                causation_id uuid not null,
+                task_version integer not null,
+                notification_type varchar(60) not null,
+                business_reference_id uuid not null,
+                recipient_kind varchar(30) not null,
+                recipient_reference_id uuid not null,
+                template_key varchar(120) not null,
+                occurred_at timestamp with time zone not null,
+                published_at timestamp with time zone,
+                publish_attempts integer not null default 0,
+                last_error varchar(1000),
+                constraint ck_notification_task_version check (task_version > 0),
+                constraint ck_notification_task_recipient check (recipient_kind = 'PROVIDER')
+              );
+              create unique index uk_notification_task_causation
+                on notification_task_outbox (causation_id);
+              create index idx_notification_task_unpublished
+                on notification_task_outbox (occurred_at, task_id)
+                where published_at is null;
