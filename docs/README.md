@@ -11,6 +11,7 @@ the end of the project.
 - [Authorization components](architecture/authorization-service.md)
 - [Policy components](architecture/policy-service.md)
 - [Claims and Billing components](architecture/claims-billing-service.md)
+- [Notification Worker components](architecture/notification-worker.md)
 - [Data ownership and ER model](architecture/data-model.md)
 - [Workflow sequence diagrams](architecture/workflow-sequences.md)
 - [Frontend architecture](architecture/frontend-architecture.md)

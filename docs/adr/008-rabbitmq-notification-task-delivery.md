@@ -40,9 +40,9 @@ approved or rejected.
 - Notification Worker can scale horizontally because RabbitMQ distributes tasks.
 - Contact resolution and a real external email/SMS provider remain separate
   security and integration decisions.
-- The first implementation slice establishes the framework-independent worker
-  aggregate, ports, idempotency behavior, and architecture tests. Persistence,
-  AMQP topology, retry/DLQ, and producer outbox wiring follow in later slices of
+- The first two implementation slices establish the framework-independent
+  worker core and its private PostgreSQL/Liquibase persistence adapter. AMQP
+  topology, retry/DLQ, and producer outbox wiring follow in later slices of
   Milestone 6.
 
 ## Alternatives

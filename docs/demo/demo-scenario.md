@@ -1,8 +1,15 @@
-# Demonstration Scenario — Milestones 0–5
+# Demonstration Scenario — Milestones 0–5 and Milestone 6 Checkpoint
 
 This scenario uses only synthetic identifiers and clinical codes. It proves the
 implemented happy path and leaves records in several states for UI and API
 demonstration. It does not require or contain real patient information.
+
+The current Milestone 6 checkpoint adds Notification Worker persistence but not
+RabbitMQ runtime wiring. Therefore the seed script intentionally creates no
+notification delivery row yet. Adding synthetic notification data before a real
+broker-driven flow would make the demo imply a capability that does not exist.
+The existing approved/rejected authorization records will become the source of
+notification tasks in the next slices.
 
 ## Preconditions
 

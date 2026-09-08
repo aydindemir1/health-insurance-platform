@@ -11,6 +11,7 @@ erDiagram
     INVOICE ||--o{ INVOICE_PAYMENT : receives
     CLAIM }o..|| PRE_AUTHORIZATION : "references pre_authorization_id"
     PRE_AUTHORIZATION ||--o{ OUTBOX_MESSAGE : emits
+    PRE_AUTHORIZATION }o..o{ NOTIFICATION_DELIVERY : "business reference"
 
     POLICY {
         uuid id PK
@@ -88,6 +89,18 @@ erDiagram
         varchar consumer_name
         timestamptz processed_at
     }
+    NOTIFICATION_DELIVERY {
+        uuid task_id PK
+        uuid causation_id
+        uuid business_reference_id
+        varchar notification_type
+        varchar recipient_kind
+        uuid recipient_reference_id
+        varchar template_key
+        varchar status
+        timestamptz received_at
+        timestamptz delivered_at
+    }
 ```
 
 | Database owner | Tables | Other services' access |
@@ -95,7 +108,8 @@ erDiagram
 | Policy Service | `policies`, `policy_coverages` | REST coverage evaluation only |
 | Authorization Service | `pre_authorizations`, `outbox_messages` | REST snapshot and Kafka events only |
 | Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages` | No direct database access |
+| Notification Worker | `notification_deliveries` | No direct database access |
 
 Cross-context references intentionally have no foreign keys. Each owner can
 change its schema independently; consistency across services is currently
-checked through explicit synchronous contracts or versioned Kafka events.
+checked through explicit synchronous contracts or versioned broker messages.

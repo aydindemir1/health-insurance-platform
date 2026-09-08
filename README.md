@@ -8,8 +8,9 @@ claim adjudication, invoice reconciliation, payment, and settlement.
 
 > **Current checkpoint:** Milestones 0–5 are implemented. Milestone 6 is in
 > progress: the Notification Worker domain/application core and delivery
-> idempotency contract exist, while RabbitMQ, persistence, and runtime wiring are
-> not implemented yet. Planned technologies are never presented as delivered.
+> idempotency contract now have a PostgreSQL/Liquibase adapter, while RabbitMQ,
+> producer outbox, and runtime wiring are not implemented yet. Planned
+> technologies are never presented as delivered.
 
 ## Why this project exists
 
@@ -119,12 +120,18 @@ domain concern.
 - Sender and repository output ports with `taskId` as the downstream idempotency
   key.
 - Duplicate delivered tasks are application-level no-ops.
+- Reusing a `taskId` for different notification intent is rejected as a contract
+  conflict rather than silently treated as a duplicate.
 - Clean Architecture rules protect the new worker core.
-- The initial Java 21 verification suite has 6 passing domain, application, and
-  architecture tests.
+- Private PostgreSQL persistence with a Liquibase-managed delivery table,
+  database constraints, and operational indexes.
+- A real PostgreSQL 17 Testcontainer proves migration, Hibernate schema
+  validation, and `RECEIVED`/`DELIVERED` round trips.
+- The current Java 21 verification suite has 11 passing domain, application,
+  persistence, and architecture tests.
 
-RabbitMQ topology, the worker database, producer outbox, retry/DLQ behavior, and
-an actual local delivery adapter are the next Milestone 6 slices.
+RabbitMQ topology, producer outbox, retry/DLQ behavior, and an actual local
+delivery adapter are the next Milestone 6 slices.
 
 ## Architecture overview
 

@@ -1,7 +1,7 @@
-# Technical Walkthrough: Milestones 0–5
+# Technical Walkthrough: Milestone 6 in Progress
 
-This document explains the implemented system as of Milestone 5. It is a living
-technical narrative: every completed milestone updates it, the README, the
+This document explains the implemented system through the current Milestone 6
+checkpoint. It is a living technical narrative: every completed milestone updates it, the README, the
 architecture diagrams, the demo, and relevant screenshots.
 
 ## 1. Portfolio story
@@ -109,6 +109,21 @@ Broker errors leave the outbox row pending for a later poll. Consumer failures
 are attempted three times with fixed backoff and then moved to a DLT. A Saga was
 not added because there is no multi-step distributed compensation policy yet.
 
+### Milestone 6 — Notification delivery (in progress)
+
+The Notification Worker now has a framework-independent delivery aggregate,
+application use case, repository/sender ports, and private PostgreSQL schema.
+Its `taskId` is both the database primary key and the future downstream-provider
+idempotency key. Delivered replays are no-ops; received tasks remain retryable;
+reusing a task identifier for different intent is rejected as a contract error.
+
+The persistence adapter stores only technical identifiers, a provider reference,
+notification type, template key, state, and timestamps. It does not store member,
+policy, diagnosis, email, phone, token, or rendered-content data. Liquibase owns
+the schema and database check constraints mirror the aggregate's state/timestamp
+invariants. RabbitMQ topology and producer/runtime wiring are deliberately not
+claimed at this checkpoint.
+
 ## 3. Architecture at runtime
 
 ```mermaid
@@ -123,6 +138,8 @@ flowchart LR
     Auth --> AuthDB[(Authorization PostgreSQL)]
     Policy --> PolicyDB[(Policy PostgreSQL)]
     Claims --> ClaimsDB[(Claims/Billing PostgreSQL)]
+    Worker[Notification Worker core] --> WorkerDB[(Notification PostgreSQL)]
+    Rabbit{{RabbitMQ next slice}} -. notification task .-> Worker
 ```
 
 The current service-to-service calls relay the caller's access token. This
@@ -212,7 +229,10 @@ variables. Logs and errors must not include tokens or health information.
 
 ## 7. Persistence and consistency
 
-Each service has a PostgreSQL 17 database and an independent Liquibase changelog.
+Each state-owning backend component has an independent Liquibase changelog. The
+three current Compose services use PostgreSQL 17 databases; the Notification
+Worker schema is currently proven with PostgreSQL 17 Testcontainers and will be
+added to Compose with its RabbitMQ runtime wiring.
 JPA entities are persistence representations, separate from the domain model.
 This avoids Spring/JPA annotations in the domain and lets mappings evolve at the
 adapter boundary.
@@ -248,6 +268,10 @@ all 6 Vitest tests in 5 files, and the production TypeScript/Vite build. Treat
 these numbers as dated evidence, not a permanent guarantee; the commands in the
 README are the source of truth for a fresh checkout.
 
+The current Notification Worker checkpoint adds 11 passing tests: 3 domain, 3
+application, 3 PostgreSQL persistence, and 2 architecture tests. Its integration
+test uses a real PostgreSQL 17 container rather than an in-memory substitute.
+
 The documentation has its own executable quality gate. It validates local
 Markdown links, parses the Keycloak and demo JSON, parses the PowerShell demo
 scripts, verifies the five expected PNG files, and renders all 21 Mermaid blocks
@@ -264,7 +288,7 @@ Java 21 and Node.
 
 The repository does not yet contain Kubernetes, APISIX, Jenkins, SonarQube,
 Nexus, Harbor, Argo CD, Redis, RabbitMQ, Elasticsearch, Kibana, or Elastic
-APM implementations. Those remain planned milestones and will only be added
+APM runtime implementations. Those remain planned slices and will only be added
 when they solve an explicit operational or domain problem.
 
 ## 11. .NET-to-Java mapping
@@ -285,6 +309,7 @@ when they solve an explicit operational or domain problem.
 | EF concurrency token | JPA `@Version` |
 | EF Core transactional outbox table | JPA outbox adapter + scheduled relay |
 | MassTransit consumer/error transport | Spring Kafka listener + DLT error handler |
+| EF Core persistence adapter | Notification JPA entity + repository adapter |
 
 ## 12. Interview explanation
 
@@ -317,7 +342,7 @@ domain rules, security, architecture, persistence, and concurrency.”
 - How would benefit consumption differ from the current read-only evaluation?
 - Why use Kafka and RabbitMQ for different responsibilities later?
 
-## 13. Known gaps before Milestone 6
+## 13. Known gaps in Milestone 6
 
 - The portal has no policy, claim, invoice, or payment screens yet; those flows
   are demonstrated through the API seed script.
@@ -330,6 +355,7 @@ domain rules, security, architecture, persistence, and concurrency.”
 - Production-grade consent, PHI classification, encryption/key management,
   retention, audit trail, and regulatory controls require explicit design.
 
-Milestone 6 must not begin until it is explicitly authorized. RabbitMQ will be
-reserved for notification/task delivery rather than duplicating Kafka's durable
-integration-event responsibility.
+Notification persistence exists, but no notification task is produced or
+consumed at runtime yet. The next slices add a transactionally recorded producer
+task, RabbitMQ publisher confirms, manual consumer acknowledgement, bounded
+retry/DLQ behavior, and Compose-backed end-to-end proof.
