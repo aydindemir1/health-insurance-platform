@@ -3,3 +3,13 @@ spring:
     name: notification-worker
   main:
     web-application-type: none
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5436/notification_worker}
+    username: ${DB_USERNAME:notification_worker_app}
+    password: ${DB_PASSWORD:local-development-only}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml

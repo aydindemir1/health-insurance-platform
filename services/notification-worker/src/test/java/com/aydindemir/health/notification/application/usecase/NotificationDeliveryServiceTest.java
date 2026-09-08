@@ -2,6 +2,7 @@ package com.aydindemir.health.notification.application.usecase;
 
 import com.aydindemir.health.notification.application.command.DeliverNotificationCommand;
 import com.aydindemir.health.notification.application.dto.NotificationMessage;
+import com.aydindemir.health.notification.application.exception.NotificationTaskConflictException;
 import com.aydindemir.health.notification.application.port.out.NotificationDeliveryRepository;
 import com.aydindemir.health.notification.domain.model.NotificationDelivery;
 import com.aydindemir.health.notification.domain.model.NotificationStatus;
@@ -19,6 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class NotificationDeliveryServiceTest {
     private static final Clock CLOCK = Clock.fixed(
@@ -49,6 +51,21 @@ class NotificationDeliveryServiceTest {
         service.deliver(command);
 
         assertThat(sendCount[0]).isEqualTo(1);
+    }
+
+    @Test
+    void rejectsReuseOfATaskIdentifierForDifferentIntent() {
+        var repository = new InMemoryRepository();
+        var service = new NotificationDeliveryService(repository, message -> { }, CLOCK);
+        var first = command();
+        service.deliver(first);
+        var conflicting = new DeliverNotificationCommand(
+                first.taskId(), first.causationId(), UUID.randomUUID(), first.type(),
+                first.recipient(), first.templateKey());
+
+        assertThatThrownBy(() -> service.deliver(conflicting))
+                .isInstanceOf(NotificationTaskConflictException.class)
+                .hasMessageContaining(first.taskId().toString());
     }
 
     private DeliverNotificationCommand command() {

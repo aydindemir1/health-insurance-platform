@@ -2,6 +2,7 @@ package com.aydindemir.health.notification.application.usecase;
 
 import com.aydindemir.health.notification.application.command.DeliverNotificationCommand;
 import com.aydindemir.health.notification.application.dto.NotificationMessage;
+import com.aydindemir.health.notification.application.exception.NotificationTaskConflictException;
 import com.aydindemir.health.notification.application.port.in.DeliverNotificationUseCase;
 import com.aydindemir.health.notification.application.port.out.NotificationDeliveryRepository;
 import com.aydindemir.health.notification.application.port.out.NotificationSender;
@@ -29,6 +30,12 @@ public final class NotificationDeliveryService implements DeliverNotificationUse
     public void deliver(DeliverNotificationCommand command) {
         Objects.requireNonNull(command);
         var existing = deliveries.findByTaskId(Objects.requireNonNull(command.taskId()));
+        existing.filter(delivery -> !delivery.representsSameIntent(
+                        command.causationId(), command.businessReferenceId(), command.type(),
+                        command.recipient(), command.templateKey()))
+                .ifPresent(delivery -> {
+                    throw new NotificationTaskConflictException(command.taskId());
+                });
         if (existing.filter(delivery -> delivery.status() == NotificationStatus.DELIVERED).isPresent()) {
             return;
         }

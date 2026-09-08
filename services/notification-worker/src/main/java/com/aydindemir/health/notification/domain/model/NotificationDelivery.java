@@ -42,12 +42,43 @@ public final class NotificationDelivery {
                 Objects.requireNonNull(clock).instant(), null);
     }
 
+    public static NotificationDelivery rehydrate(
+            UUID taskId, UUID causationId, UUID businessReferenceId,
+            NotificationType type, Recipient recipient, String templateKey,
+            NotificationStatus status, Instant receivedAt, Instant deliveredAt) {
+        if (status == NotificationStatus.RECEIVED && deliveredAt != null) {
+            throw new IllegalArgumentException("A received notification cannot have a delivery time");
+        }
+        if (status == NotificationStatus.DELIVERED && deliveredAt == null) {
+            throw new IllegalArgumentException("A delivered notification requires a delivery time");
+        }
+        if (deliveredAt != null && deliveredAt.isBefore(receivedAt)) {
+            throw new IllegalArgumentException("Delivery time cannot precede receipt time");
+        }
+        return new NotificationDelivery(
+                taskId, causationId, businessReferenceId, type, recipient,
+                templateKey, status, receivedAt, deliveredAt);
+    }
+
     public void markDelivered(Clock clock) {
         if (status == NotificationStatus.DELIVERED) {
             throw new IllegalStateException("Notification task is already delivered");
         }
         status = NotificationStatus.DELIVERED;
         deliveredAt = Objects.requireNonNull(clock).instant();
+    }
+
+    public boolean representsSameIntent(
+            UUID candidateCausationId,
+            UUID candidateBusinessReferenceId,
+            NotificationType candidateType,
+            Recipient candidateRecipient,
+            String candidateTemplateKey) {
+        return causationId.equals(candidateCausationId)
+                && businessReferenceId.equals(candidateBusinessReferenceId)
+                && type == candidateType
+                && recipient.equals(candidateRecipient)
+                && templateKey.equals(candidateTemplateKey == null ? null : candidateTemplateKey.trim());
     }
 
     private static String requireText(String value, String field) {

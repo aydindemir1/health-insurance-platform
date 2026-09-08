@@ -35,6 +35,18 @@ class NotificationDeliveryTest {
                 .hasMessageContaining("already delivered");
     }
 
+    @Test
+    void rejectsAnInconsistentRehydratedState() {
+        var delivery = delivery();
+
+        assertThatThrownBy(() -> NotificationDelivery.rehydrate(
+                delivery.taskId(), delivery.causationId(), delivery.businessReferenceId(),
+                delivery.type(), delivery.recipient(), delivery.templateKey(),
+                NotificationStatus.DELIVERED, delivery.receivedAt(), null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("A delivered notification requires a delivery time");
+    }
+
     private NotificationDelivery delivery() {
         return NotificationDelivery.receive(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),

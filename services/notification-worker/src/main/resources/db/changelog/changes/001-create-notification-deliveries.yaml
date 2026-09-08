@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-notification-deliveries
+      author: aydin-demir
+      changes:
+        - sql:
+            sql: |
+              create table notification_deliveries (
+                task_id uuid primary key,
+                causation_id uuid not null,
+                business_reference_id uuid not null,
+                notification_type varchar(60) not null,
+                recipient_kind varchar(30) not null,
+                recipient_reference_id uuid not null,
+                template_key varchar(120) not null,
+                status varchar(20) not null,
+                received_at timestamp with time zone not null,
+                delivered_at timestamp with time zone,
+                constraint ck_notification_delivery_status
+                  check ((status = 'RECEIVED' and delivered_at is null)
+                    or (status = 'DELIVERED' and delivered_at is not null)),
+                constraint ck_notification_delivery_time
+                  check (delivered_at is null or delivered_at >= received_at)
+              );
+              create index idx_notification_deliveries_recipient
+                on notification_deliveries (recipient_kind, recipient_reference_id, received_at desc);
+              create index idx_notification_deliveries_status
+                on notification_deliveries (status, received_at);
