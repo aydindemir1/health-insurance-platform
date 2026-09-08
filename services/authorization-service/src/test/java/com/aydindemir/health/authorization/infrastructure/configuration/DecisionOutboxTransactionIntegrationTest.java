@@ -32,7 +32,10 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 @Testcontainers
-@SpringBootTest(properties = "app.messaging.outbox.enabled=false")
+@SpringBootTest(properties = {
+        "app.messaging.outbox.enabled=false",
+        "app.messaging.notification-outbox.enabled=false"
+})
 class DecisionOutboxTransactionIntegrationTest {
     @Container
     @ServiceConnection

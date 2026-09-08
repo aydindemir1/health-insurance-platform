@@ -20,6 +20,13 @@ spring:
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
   security:
     oauth2:
       resourceserver:
@@ -53,3 +60,8 @@ app:
       fixed-delay: ${OUTBOX_FIXED_DELAY:1s}
       batch-size: ${OUTBOX_BATCH_SIZE:50}
       send-timeout: ${OUTBOX_SEND_TIMEOUT:5s}
+    notification-outbox:
+      enabled: ${NOTIFICATION_OUTBOX_ENABLED:false}
+      fixed-delay: ${NOTIFICATION_OUTBOX_FIXED_DELAY:1s}
+      batch-size: ${NOTIFICATION_OUTBOX_BATCH_SIZE:50}
+      confirm-timeout: ${NOTIFICATION_OUTBOX_CONFIRM_TIMEOUT:5s}

@@ -56,4 +56,18 @@ class NotificationTaskOutboxJpaEntity {
         this.templateKey = task.templateKey();
         this.occurredAt = task.occurredAt();
     }
+
+    void markPublished(Instant now) {
+        publishedAt = now;
+        publishAttempts++;
+        lastError = null;
+    }
+
+    void markFailed(Exception exception) {
+        publishAttempts++;
+        String message = exception.getMessage() == null
+                ? exception.getClass().getSimpleName()
+                : exception.getMessage();
+        lastError = message.substring(0, Math.min(message.length(), 1000));
+    }
 }
