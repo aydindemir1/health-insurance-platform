@@ -135,8 +135,11 @@ publisher confirm and checks mandatory publisher returns before setting
 `published_at`; `nack`, timeout, serialization failure, and unroutable results
 remain pending for another poll. Durable direct exchanges, a delivery queue,
 and its dead-letter route are declared in code. These producer behaviors are
-unit-tested, while an actual RabbitMQ runtime and worker listener are deliberately
-not claimed at this checkpoint.
+unit-tested. The worker now converts the v1 JSON contract into a framework-free
+command, invokes a transaction-decorated use case, and manually acknowledges
+only after commit. Invalid versions and processing failures are rejected without
+requeue. A safe log adapter demonstrates the sender port without claiming email
+or SMS. An actual RabbitMQ runtime and bounded retry remain deliberately unclaimed.
 
 ## 3. Architecture at runtime
 
@@ -153,7 +156,8 @@ flowchart LR
     Policy --> PolicyDB[(Policy PostgreSQL)]
     Claims --> ClaimsDB[(Claims/Billing PostgreSQL)]
     Auth -. confirm-aware task relay; runtime pending .-> Rabbit{{RabbitMQ}}
-    Rabbit -. worker listener next slice .-> Worker[Notification Worker core]
+    Rabbit -. Compose runtime pending .-> Listener[Version-aware AMQP listener]
+    Listener --> Worker[Notification Worker core]
     Worker --> WorkerDB[(Notification PostgreSQL)]
 ```
 
@@ -283,9 +287,12 @@ all 6 Vitest tests in 5 files, and the production TypeScript/Vite build. Treat
 these numbers as dated evidence, not a permanent guarantee; the commands in the
 README are the source of truth for a fresh checkout.
 
-The current Notification Worker checkpoint adds 11 passing tests: 3 domain, 3
+The current Notification Worker checkpoint has 16 passing tests: 3 domain, 3
 application, 3 PostgreSQL persistence, and 2 architecture tests. Its integration
 test uses a real PostgreSQL 17 container rather than an in-memory substitute.
+Five adapter/configuration tests cover JSON compatibility, ack/nack decisions,
+unsupported versions, Spring transaction proxy wiring, and commit-before-ack
+ordering.
 Authorization now has 59 passing tests, including two full-context PostgreSQL
 tests for the multi-write decision transaction and five AMQP relay/topology unit
 tests. The latter verify positive/nack/unroutable outcomes, safe persistent
@@ -327,7 +334,7 @@ when they solve an explicit operational or domain problem.
 | `appsettings.json` | `application.yml` and environment variables |
 | EF concurrency token | JPA `@Version` |
 | EF Core transactional outbox table | JPA outbox adapter + scheduled relay |
-| MassTransit consumer/error transport | Spring Kafka listener + DLT error handler |
+| MassTransit consumer/error transport | Spring Kafka listener + DLT or Spring AMQP listener + DLQ |
 | EF Core persistence adapter | Notification JPA entity + repository adapter |
 
 ## 12. Interview explanation
@@ -375,7 +382,6 @@ domain rules, security, architecture, persistence, and concurrency.”
   retention, audit trail, and regulatory controls require explicit design.
 
 Notification persistence, transactionally recorded producer intent, the
-confirm-aware relay, and durable queue/DLQ topology exist, but no notification
-task is published or consumed against a real broker yet. The next slices add the
-worker listener, manual consumer acknowledgement, bounded retry/rejection, and
-Compose-backed end-to-end proof.
+confirm-aware relay, durable queue/DLQ topology, and manual-ack worker listener
+exist, but no notification task is published or consumed against a real broker
+yet. The next slices add bounded retry and Compose-backed end-to-end proof.

@@ -4,8 +4,9 @@ The Notification Worker owns operational delivery attempts. It does not own a
 member, policy, pre-authorization, claim, contact address, or clinical record.
 The current Milestone 6 checkpoint implements the domain/application core,
 PostgreSQL adapter, Authorization producer task outbox, and its confirm-aware
-AMQP relay/topology. The worker listener and actual broker runtime shown with
-dashed lines are the next slice, not a delivered runtime capability.
+AMQP relay/topology. The version-aware worker listener and manual acknowledgement
+are also implemented. Only the actual broker runtime remains dashed; live retry
+and dead-letter behavior are not yet delivered capabilities.
 
 ## Component boundaries
 
@@ -13,25 +14,25 @@ dashed lines are the next slice, not a delivered runtime capability.
 flowchart LR
     Rabbit{{"RabbitMQ task queue<br/>runtime next slice"}}
     Producer[("Authorization<br/>notification_task_outbox")]
-    Listener["AMQP listener adapter<br/>next slice"]
+    Listener["AMQP listener adapter<br/>JSON v1 + manual ack"]
     UseCase["DeliverNotificationUseCase<br/>NotificationDeliveryService"]
     Aggregate["NotificationDelivery aggregate<br/>RECEIVED to DELIVERED"]
     RepositoryPort["NotificationDeliveryRepository<br/>output port"]
     SenderPort["NotificationSender<br/>output port"]
     Jpa["JPA repository adapter"]
-    Sender["Local/external sender adapter<br/>next slice"]
+    Sender["Safe local log sender<br/>external provider future"]
     Database[("Notification PostgreSQL<br/>Liquibase-owned schema")]
 
     Producer --> Relay["Authorization AMQP relay<br/>implemented + unit tested"]
     Relay -. "Compose integration pending" .-> Rabbit
-    Rabbit -.-> Listener
-    Listener -.-> UseCase
+    Rabbit -. "Compose runtime pending" .-> Listener
+    Listener --> UseCase
     UseCase --> Aggregate
     UseCase --> RepositoryPort
     UseCase --> SenderPort
     RepositoryPort --> Jpa
     Jpa --> Database
-    SenderPort -.-> Sender
+    SenderPort --> Sender
 ```
 
 The domain and application packages import neither Spring nor Jakarta. JPA
@@ -73,12 +74,17 @@ consistent even if a future adapter bypasses the aggregate accidentally.
 
 ## Current verification
 
-The worker Java 21 suite has 11 tests. A PostgreSQL 17 Testcontainer applies Liquibase,
+The worker Java 21 suite has 16 tests. A PostgreSQL 17 Testcontainer applies Liquibase,
 lets Hibernate validate the schema, round-trips both delivery states, and checks
 the primary-key and operational indexes. It also invokes the use case twice
 against the persisted row to prove that a delivered replay does not call the
 sender again. Authorization separately has 59 passing tests; five verify the
 relay's positive/nack/unroutable decisions, persistent safe envelope, and
-delivery/DLQ topology. RabbitMQ consumer acknowledgement, bounded retry, and
-live dead-letter behavior are not part of this checkpoint and must not be
-inferred from unit-level topology tests.
+delivery/DLQ topology. Worker tests prove producer JSON conversion, command
+mapping, unsupported-version rejection, transaction commit before `basicAck`,
+and requeue-free `basicNack`. Bounded retry and live broker/dead-letter behavior
+are not part of this checkpoint and must not be inferred from adapter tests.
+
+The local sender logs only the task identifier, notification type, recipient
+kind, and opaque provider reference. It demonstrates the output port and
+idempotency flow but does not claim to send email or SMS.

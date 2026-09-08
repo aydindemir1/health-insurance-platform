@@ -32,6 +32,9 @@ approved or rejected.
   no member, policy, diagnosis, token, email, or phone value.
 - Notification Worker owns delivery records in its own PostgreSQL database.
   `taskId` is the broker-consumer and downstream-provider idempotency key.
+- The worker acknowledges manually only after the transactional application
+  use case returns. Unsupported contracts and failed processing are rejected
+  without requeue so broker dead-letter routing can quarantine them.
 - The sender port must forward that idempotency key to any future email/SMS
   provider. This limits duplicate external side effects if the worker crashes
   after the provider accepts a request but before local commit.
@@ -43,11 +46,12 @@ approved or rejected.
 - Notification Worker can scale horizontally because RabbitMQ distributes tasks.
 - Contact resolution and a real external email/SMS provider remain separate
   security and integration decisions.
-- The first four implementation slices establish the framework-independent
+- The first five implementation slices establish the framework-independent
   worker core, its private PostgreSQL/Liquibase persistence adapter, and the
   Authorization producer outbox with transaction rollback proof, plus the AMQP
-  relay and durable delivery/DLQ topology. Worker acknowledgement, bounded
-  retry/rejection, and Compose-backed runtime proof follow.
+  relay and durable delivery/DLQ topology, plus the version-aware worker listener,
+  transactional decorator, and manual acknowledgement. Bounded retry and
+  Compose-backed runtime proof follow.
 - The relay currently waits for confirms while holding a pessimistic database
   lock. This is deliberately simple and safe for the current workload, but
   asynchronous batching is a future throughput optimization.

@@ -11,8 +11,10 @@ claim adjudication, invoice reconciliation, payment, and settlement.
 > idempotency contract now have a PostgreSQL/Liquibase adapter. Authorization
 > records minimal notification tasks atomically with each decision and now has
 > a confirm-aware RabbitMQ outbox relay plus durable queue/DLQ topology. The
-> worker consumer and Compose-backed RabbitMQ runtime are not implemented yet.
-> Planned technologies are never presented as delivered.
+> worker now has a version-aware JSON listener, transaction-before-ack ordering,
+> manual acknowledgement, and a safe local log sender. Compose-backed RabbitMQ
+> runtime and bounded consumer retry are not implemented yet. Planned
+> technologies are never presented as delivered.
 
 ## Why this project exists
 
@@ -129,7 +131,7 @@ domain concern.
   database constraints, and operational indexes.
 - A real PostgreSQL 17 Testcontainer proves migration, Hibernate schema
   validation, and `RECEIVED`/`DELIVERED` round trips.
-- The current Java 21 verification suite has 11 passing domain, application,
+- The current Java 21 verification suite has 16 passing domain, application,
   persistence, and architecture tests.
 - Authorization stores a minimal, versioned notification task in a dedicated
   outbox in the same transaction as its decision and Kafka integration event.
@@ -143,13 +145,23 @@ domain concern.
 - Durable direct exchange, delivery queue, dead-letter exchange, and DLQ names
   are explicit and covered by topology tests.
 - The relay is feature-gated by `NOTIFICATION_OUTBOX_ENABLED` and remains off in
-  the current Compose stack until RabbitMQ and the worker listener are wired.
+  the current Compose stack until RabbitMQ is wired.
 - The Authorization Java 21 verification suite now has 59 passing tests,
   including positive confirm, negative confirm, unroutable return, safe wire
   payload, and topology checks.
+- The worker maps the v1 JSON envelope into an application command and rejects
+  unsupported contract versions before invoking the use case.
+- A Spring transaction decorator commits delivery persistence before the
+  listener sends manual `basicAck`; a lost acknowledgement can therefore cause
+  only an idempotent redelivery.
+- Application or contract failures are negatively acknowledged without requeue,
+  allowing the declared dead-letter route to quarantine them once runtime is
+  connected.
+- A local log sender demonstrates the output-port boundary without contact data
+  or external provider credentials; it is not presented as email/SMS delivery.
 
-The worker listener, manual acknowledgement, bounded consumer retry/rejection,
-and Compose-backed RabbitMQ integration proof are the next Milestone 6 slices.
+Bounded consumer retry and Compose-backed RabbitMQ integration proof are the
+next Milestone 6 slices.
 
 ## Architecture overview
 
@@ -396,11 +408,14 @@ its production build. Always rerun the commands; these counts are dated
 evidence, not a substitute for verification.
 
 The current Milestone 6 checkpoint separately verifies 59 Authorization tests
-and 11 Notification Worker tests. The new Authorization transaction test uses
+and 16 Notification Worker tests. The new Authorization transaction test uses
 real PostgreSQL and proves commit/rollback across the aggregate, Kafka event
 outbox, and notification task outbox. Five additional unit tests verify AMQP
 publisher confirms/returns, safe persistent message metadata, and durable
 delivery/DLQ topology without requiring a running broker.
+Worker tests additionally prove producer JSON compatibility, v1 mapping,
+success acknowledgement, requeue-free rejection, unsupported-version handling,
+and transaction commit before acknowledgement.
 
 Validate the living portfolio documentation separately. This command checks
 local Markdown links, JSON and PowerShell syntax, the expected screenshot set,

@@ -49,6 +49,6 @@ than replaced with visually identical files. Kafka/outbox evidence is captured
 in executable integration tests and the event-driven architecture diagrams.
 
 The current Milestone 6 persistence/producer-relay checkpoint also has no portal
-surface. Its evidence is the PostgreSQL transaction test, publisher-confirm and
-topology tests, and messaging/component/state/ER diagrams, so the same five UI
-screenshots remain current.
+surface. Its evidence is the PostgreSQL transaction test, publisher-confirm,
+listener/acknowledgement and topology tests, and messaging/component/state/ER
+diagrams, so the same five UI screenshots remain current.
