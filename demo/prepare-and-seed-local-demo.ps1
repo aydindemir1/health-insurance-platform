@@ -5,6 +5,7 @@ param(
     [string]$DemoUserPassword = $env:DEMO_USER_PASSWORD,
     [string]$KeycloakNetworkUrl = "http://127.0.0.1:8080",
     [string]$KeycloakPublicUrl = "http://localhost:8080",
+    [switch]$SkipNotificationVerification,
     [string]$RunId = (Get-Date -Format "yyyyMMddHHmmss")
 )
 
@@ -189,4 +190,5 @@ $claimApproverToken = Get-DemoAccessToken -Username "claim-approver-demo"
     -HospitalToken $hospitalToken `
     -InsuranceToken $insuranceToken `
     -ClaimApproverToken $claimApproverToken `
+    -VerifyNotificationDelivery:(-not $SkipNotificationVerification) `
     -RunId $RunId

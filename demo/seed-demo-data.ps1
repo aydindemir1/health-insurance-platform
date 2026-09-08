@@ -6,6 +6,7 @@ param(
     [string]$PolicyBaseUrl = "http://localhost:8082/api/v1",
     [string]$AuthorizationBaseUrl = "http://localhost:8081/api/v1",
     [string]$ClaimsBaseUrl = "http://localhost:8083/api/v1",
+    [switch]$VerifyNotificationDelivery,
     [string]$RunId = (Get-Date -Format "yyyyMMddHHmmss")
 )
 
@@ -73,6 +74,37 @@ function Wait-EventDrivenClaim {
     throw "Kafka event did not create a claim for pre-authorization $PreAuthorizationId within 20 seconds."
 }
 
+function Wait-NotificationDelivery {
+    param([Parameter(Mandatory)] [string]$PreAuthorizationId)
+
+    if (-not $VerifyNotificationDelivery) {
+        return "NOT_VERIFIED"
+    }
+
+    $composeRoot = Split-Path -Parent $PSScriptRoot
+    $databaseUser = (& docker compose --project-directory $composeRoot `
+        exec -T notification-worker-db printenv POSTGRES_USER).Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($databaseUser)) {
+        throw "Could not resolve the Notification Worker database user from Docker Compose."
+    }
+
+    $deadline = (Get-Date).AddSeconds(30)
+    do {
+        $status = (& docker compose --project-directory $composeRoot `
+            exec -T notification-worker-db psql -U $databaseUser -d notification_worker `
+            -Atc "select status from notification_deliveries where business_reference_id = '$PreAuthorizationId' order by received_at desc limit 1").Trim()
+        if ($LASTEXITCODE -ne 0) {
+            throw "Could not query notification delivery for pre-authorization $PreAuthorizationId."
+        }
+        if ($status -eq "DELIVERED") {
+            return $status
+        }
+        Start-Sleep -Milliseconds 250
+    } while ((Get-Date) -lt $deadline)
+
+    throw "RabbitMQ notification was not delivered for pre-authorization $PreAuthorizationId within 30 seconds."
+}
+
 $policy = Invoke-DemoApi -Method POST -Uri "$PolicyBaseUrl/policies" `
     -Token $InsuranceToken -Body @{
         policyNumber = $policyNumber
@@ -87,11 +119,13 @@ $rejected = New-PreAuthorization $data.preAuthorizations.rejected
 $rejected = Invoke-DemoApi -Method POST `
     -Uri "$AuthorizationBaseUrl/pre-authorizations/$($rejected.id)/rejection" `
     -Token $InsuranceToken -Body @{ reason = "Synthetic demo: supporting document is incomplete" }
+$rejectedNotificationStatus = Wait-NotificationDelivery $rejected.id
 
 $settledAuthorization = New-PreAuthorization $data.preAuthorizations.settledClaim
 $settledAuthorization = Invoke-DemoApi -Method POST `
     -Uri "$AuthorizationBaseUrl/pre-authorizations/$($settledAuthorization.id)/approval" `
     -Token $InsuranceToken -Body @{ reason = "Synthetic demo: policy and medical rules verified" }
+$settledNotificationStatus = Wait-NotificationDelivery $settledAuthorization.id
 $settled = Wait-EventDrivenClaim $settledAuthorization.id
 $null = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims/$($settled.claim.id)/review" `
     -Token $ClaimApproverToken
@@ -119,6 +153,7 @@ $disputedAuthorization = New-PreAuthorization $data.preAuthorizations.disputedCl
 $disputedAuthorization = Invoke-DemoApi -Method POST `
     -Uri "$AuthorizationBaseUrl/pre-authorizations/$($disputedAuthorization.id)/approval" `
     -Token $InsuranceToken -Body @{ reason = "Synthetic demo: approved for claim submission" }
+$disputedNotificationStatus = Wait-NotificationDelivery $disputedAuthorization.id
 $disputed = Wait-EventDrivenClaim $disputedAuthorization.id
 $null = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims/$($disputed.claim.id)/review" `
     -Token $ClaimApproverToken
@@ -131,11 +166,14 @@ $summary = [ordered]@{
     policyNumber = $policy.policyNumber
     pendingPreAuthorizationId = $pending.id
     rejectedPreAuthorizationId = $rejected.id
+    rejectedNotificationStatus = $rejectedNotificationStatus
     settledPreAuthorizationId = $settledAuthorization.id
+    settledNotificationStatus = $settledNotificationStatus
     settledClaimId = $settled.claim.id
     settledInvoiceId = $settled.invoice.id
     settledInvoiceStatus = $settledInvoice.status
     disputedPreAuthorizationId = $disputedAuthorization.id
+    disputedNotificationStatus = $disputedNotificationStatus
     disputedClaimId = $disputed.claim.id
     disputedInvoiceId = $disputed.invoice.id
     disputedInvoiceStatus = $disputed.invoice.status
