@@ -1,12 +1,14 @@
 package com.aydindemir.health.notification.infrastructure.messaging;
 
 import com.aydindemir.health.notification.application.command.DeliverNotificationCommand;
+import com.aydindemir.health.notification.application.exception.TransientNotificationDeliveryException;
 import com.aydindemir.health.notification.application.port.in.DeliverNotificationUseCase;
 import com.aydindemir.health.notification.domain.model.NotificationType;
 import com.aydindemir.health.notification.domain.valueobject.Recipient;
 import com.rabbitmq.client.Channel;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.retry.support.RetryTemplate;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -19,6 +21,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 class RabbitNotificationListenerTest {
@@ -27,7 +30,7 @@ class RabbitNotificationListenerTest {
         var useCase = mock(DeliverNotificationUseCase.class);
         var channel = mock(Channel.class);
         var task = validTask();
-        var listener = new RabbitNotificationListener(useCase);
+        var listener = listener(useCase);
 
         listener.receive(task, channel, 42L);
 
@@ -42,15 +45,16 @@ class RabbitNotificationListenerTest {
     }
 
     @Test
-    void rejectsWithoutRequeueWhenApplicationDeliveryFails() throws IOException {
+    void rejectsPermanentFailureWithoutRetryOrBrokerRequeue() throws IOException {
         var useCase = mock(DeliverNotificationUseCase.class);
         var channel = mock(Channel.class);
         doThrow(new IllegalStateException("sender unavailable"))
                 .when(useCase).deliver(any(DeliverNotificationCommand.class));
-        var listener = new RabbitNotificationListener(useCase);
+        var listener = listener(useCase);
 
         listener.receive(validTask(), channel, 91L);
 
+        verify(useCase).deliver(any(DeliverNotificationCommand.class));
         verify(channel).basicNack(91L, false, false);
         verify(channel, never()).basicAck(anyLong(), anyBoolean());
     }
@@ -64,12 +68,51 @@ class RabbitNotificationListenerTest {
                 valid.taskId(), valid.causationId(), 2, valid.notificationType(),
                 valid.businessReferenceId(), valid.recipientKind(),
                 valid.recipientReferenceId(), valid.templateKey(), valid.occurredAt());
-        var listener = new RabbitNotificationListener(useCase);
+        var listener = listener(useCase);
 
         listener.receive(unsupported, channel, 7L);
 
         verify(useCase, never()).deliver(any());
         verify(channel).basicNack(7L, false, false);
+    }
+
+    @Test
+    void retriesTransientFailureWithinBoundAndAcknowledgesEventualSuccess() throws IOException {
+        var useCase = mock(DeliverNotificationUseCase.class);
+        var channel = mock(Channel.class);
+        doThrow(new TransientNotificationDeliveryException("provider timeout"))
+                .doThrow(new TransientNotificationDeliveryException("provider unavailable"))
+                .doNothing()
+                .when(useCase).deliver(any(DeliverNotificationCommand.class));
+
+        listener(useCase).receive(validTask(), channel, 101L);
+
+        verify(useCase, times(3)).deliver(any(DeliverNotificationCommand.class));
+        verify(channel).basicAck(101L, false);
+        verify(channel, never()).basicNack(anyLong(), anyBoolean(), anyBoolean());
+    }
+
+    @Test
+    void deadLettersTransientFailureAfterRetryBudgetIsExhausted() throws IOException {
+        var useCase = mock(DeliverNotificationUseCase.class);
+        var channel = mock(Channel.class);
+        doThrow(new TransientNotificationDeliveryException("provider unavailable"))
+                .when(useCase).deliver(any(DeliverNotificationCommand.class));
+
+        listener(useCase).receive(validTask(), channel, 102L);
+
+        verify(useCase, times(3)).deliver(any(DeliverNotificationCommand.class));
+        verify(channel).basicNack(102L, false, false);
+        verify(channel, never()).basicAck(anyLong(), anyBoolean());
+    }
+
+    private RabbitNotificationListener listener(DeliverNotificationUseCase useCase) {
+        var retry = RetryTemplate.builder()
+                .maxAttempts(3)
+                .noBackoff()
+                .retryOn(TransientNotificationDeliveryException.class)
+                .build();
+        return new RabbitNotificationListener(useCase, retry);
     }
 
     private NotificationTaskMessage validTask() {

@@ -8,6 +8,7 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.support.AmqpHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.retry.support.RetryTemplate;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -17,9 +18,13 @@ public class RabbitNotificationListener {
     private static final Logger LOGGER = LoggerFactory.getLogger(RabbitNotificationListener.class);
 
     private final DeliverNotificationUseCase deliverNotification;
+    private final RetryTemplate deliveryRetry;
 
-    public RabbitNotificationListener(DeliverNotificationUseCase deliverNotification) {
+    public RabbitNotificationListener(
+            DeliverNotificationUseCase deliverNotification,
+            RetryTemplate deliveryRetry) {
         this.deliverNotification = deliverNotification;
+        this.deliveryRetry = deliveryRetry;
     }
 
     @RabbitListener(
@@ -30,7 +35,11 @@ public class RabbitNotificationListener {
             Channel channel,
             @Header(AmqpHeaders.DELIVERY_TAG) long deliveryTag) throws IOException {
         try {
-            deliverNotification.deliver(task.toCommand());
+            var command = task.toCommand();
+            deliveryRetry.execute(context -> {
+                deliverNotification.deliver(command);
+                return null;
+            });
         } catch (RuntimeException exception) {
             LOGGER.warn(
                     "Notification task rejected: taskId={}, taskVersion={}, notificationType={}, failureType={}",

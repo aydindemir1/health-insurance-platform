@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.MessageBuilder;
 import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.support.converter.JacksonJsonMessageConverter;
+import org.springframework.retry.support.RetryTemplate;
 
 import java.nio.charset.StandardCharsets;
 
@@ -38,5 +39,15 @@ class RabbitListenerConfigurationTest {
             assertThat(task.notificationType()).isEqualTo("PRE_AUTHORIZATION_REJECTED");
             assertThat(task.toCommand().templateKey()).isEqualTo("pre-authorization-rejected-v1");
         });
+    }
+
+    @Test
+    void createsBoundedRetryPolicyFromConfigurationValues() {
+        var configuration = new RabbitListenerConfiguration();
+
+        RetryTemplate retry = configuration.notificationDeliveryRetryTemplate(
+                3, java.time.Duration.ofMillis(1), 2.0, java.time.Duration.ofMillis(5));
+
+        assertThat(retry).isNotNull();
     }
 }

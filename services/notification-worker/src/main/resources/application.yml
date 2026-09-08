@@ -25,6 +25,11 @@ app:
   messaging:
     rabbit-listener:
       enabled: ${NOTIFICATION_LISTENER_ENABLED:false}
+      retry:
+        max-attempts: ${NOTIFICATION_RETRY_MAX_ATTEMPTS:3}
+        initial-interval: ${NOTIFICATION_RETRY_INITIAL_INTERVAL:250ms}
+        multiplier: ${NOTIFICATION_RETRY_MULTIPLIER:2.0}
+        max-interval: ${NOTIFICATION_RETRY_MAX_INTERVAL:2s}
   notification:
     sender:
       mode: ${NOTIFICATION_SENDER_MODE:log}

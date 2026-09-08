@@ -4,10 +4,10 @@ import com.aydindemir.health.notification.application.command.DeliverNotificatio
 import com.aydindemir.health.notification.application.port.in.DeliverNotificationUseCase;
 import org.springframework.transaction.annotation.Transactional;
 
-final class TransactionalDeliverNotificationUseCase implements DeliverNotificationUseCase {
+public class TransactionalDeliverNotificationUseCase implements DeliverNotificationUseCase {
     private final DeliverNotificationUseCase delegate;
 
-    TransactionalDeliverNotificationUseCase(DeliverNotificationUseCase delegate) {
+    public TransactionalDeliverNotificationUseCase(DeliverNotificationUseCase delegate) {
         this.delegate = delegate;
     }
 
