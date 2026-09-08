@@ -15,6 +15,11 @@ spring:
       ddl-auto: validate
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
   security:
     oauth2:
       resourceserver:
@@ -33,12 +38,18 @@ management:
         enabled: true
       show-details: when_authorized
 
-app:
-  cors:
-    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
-
 clients:
   policy-service:
     base-url: ${POLICY_SERVICE_BASE_URL:http://localhost:8082}
     connect-timeout: ${POLICY_SERVICE_CONNECT_TIMEOUT:2s}
     read-timeout: ${POLICY_SERVICE_READ_TIMEOUT:3s}
+
+app:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  messaging:
+    outbox:
+      enabled: ${OUTBOX_ENABLED:true}
+      fixed-delay: ${OUTBOX_FIXED_DELAY:1s}
+      batch-size: ${OUTBOX_BATCH_SIZE:50}
+      send-timeout: ${OUTBOX_SEND_TIMEOUT:5s}

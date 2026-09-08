@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,6 +52,7 @@ class PreAuthorizationApplicationServiceTest {
                 repository, () -> PRE_AUTHORIZATION_ID,
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         true, "ELIGIBLE", "Coverage is eligible"),
+                event -> { },
                 CLOCK);
     }
 
@@ -61,6 +63,20 @@ class PreAuthorizationApplicationServiceTest {
         assertThat(result.id()).isEqualTo(PRE_AUTHORIZATION_ID);
         assertThat(result.providerId()).isEqualTo(PROVIDER_ID);
         assertThat(result.status()).isEqualTo("PENDING");
+    }
+
+    @Test
+    void doesNotAppendDecisionEventWhileRequestIsStillPending() {
+        var captured = new AtomicReference<com.aydindemir.health.authorization.application.event.PreAuthorizationDecisionEvent>();
+        service = new PreAuthorizationApplicationService(
+                repository, () -> PRE_AUTHORIZATION_ID,
+                request -> new CoverageVerificationPort.CoverageVerificationResult(
+                        true, "ELIGIBLE", "Coverage is eligible"),
+                captured::set, CLOCK);
+
+        service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
+
+        assertThat(captured.get()).isNull();
     }
 
     @Test
@@ -109,6 +125,7 @@ class PreAuthorizationApplicationServiceTest {
                 repository, () -> PRE_AUTHORIZATION_ID,
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         false, "LIMIT_EXCEEDED", "Policy coverage limit is insufficient"),
+                event -> { },
                 CLOCK);
 
         assertThatThrownBy(() -> service.submit(submitCommand(hospitalActor(PROVIDER_ID))))
@@ -179,6 +196,44 @@ class PreAuthorizationApplicationServiceTest {
     private ActorContext specialistActor() {
         return new ActorContext(
                 "specialist-user", null, Set.of(ApplicationRole.INSURANCE_SPECIALIST));
+    }
+
+    @Test
+    void appendsApprovedEventAfterDecisionIsPersisted() {
+        var captured = new AtomicReference<com.aydindemir.health.authorization.application.event.PreAuthorizationDecisionEvent>();
+        service = new PreAuthorizationApplicationService(
+                repository, () -> PRE_AUTHORIZATION_ID,
+                request -> new CoverageVerificationPort.CoverageVerificationResult(
+                        true, "ELIGIBLE", "Coverage is eligible"),
+                captured::set, CLOCK);
+        service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
+
+        service.approve(new DecidePreAuthorizationCommand(
+                PRE_AUTHORIZATION_ID, "Coverage verified", specialistActor()));
+
+        assertThat(captured.get().eventType()).isEqualTo("PreAuthorizationApproved");
+        assertThat(captured.get().eventVersion()).isEqualTo(1);
+        assertThat(captured.get().preAuthorizationId()).isEqualTo(PRE_AUTHORIZATION_ID);
+        assertThat(captured.get().requestedAmount()).isEqualByComparingTo("1250.00");
+        assertThat(captured.get().occurredAt()).isEqualTo(CLOCK.instant());
+    }
+
+    @Test
+    void appendsRejectedEventAfterDecisionIsPersisted() {
+        var captured = new AtomicReference<com.aydindemir.health.authorization.application.event.PreAuthorizationDecisionEvent>();
+        service = new PreAuthorizationApplicationService(
+                repository, () -> PRE_AUTHORIZATION_ID,
+                request -> new CoverageVerificationPort.CoverageVerificationResult(
+                        true, "ELIGIBLE", "Coverage is eligible"),
+                captured::set, CLOCK);
+        service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
+
+        service.reject(new DecidePreAuthorizationCommand(
+                PRE_AUTHORIZATION_ID, "Manual review rejected", specialistActor()));
+
+        assertThat(captured.get().eventType()).isEqualTo("PreAuthorizationRejected");
+        assertThat(captured.get().eventVersion()).isEqualTo(1);
+        assertThat(captured.get().decision()).isEqualTo("REJECTED");
     }
 
     private SearchPreAuthorizationsQuery searchQuery(ActorContext actor) {

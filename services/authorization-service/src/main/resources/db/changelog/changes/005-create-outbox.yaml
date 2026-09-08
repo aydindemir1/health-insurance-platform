@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-create-outbox
+      author: aydin-demir
+      changes:
+        - sql:
+            sql: |
+              create table outbox_messages (
+                id uuid primary key,
+                aggregate_type varchar(80) not null,
+                aggregate_id uuid not null,
+                event_type varchar(120) not null,
+                event_version integer not null,
+                occurred_at timestamp with time zone not null,
+                payload text not null,
+                published_at timestamp with time zone,
+                publish_attempts integer not null default 0,
+                last_error varchar(1000)
+              );
+              create index idx_outbox_unpublished
+                on outbox_messages (occurred_at, id)
+                where published_at is null;

@@ -8,6 +8,7 @@ import com.aydindemir.health.authorization.application.exception.ApplicationAcce
 import com.aydindemir.health.authorization.application.exception.CoverageDeniedException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationNotFoundException;
 import com.aydindemir.health.authorization.application.exception.PreAuthorizationStateConflictException;
+import com.aydindemir.health.authorization.application.event.PreAuthorizationDecisionEvent;
 import com.aydindemir.health.authorization.application.mapper.PreAuthorizationResultMapper;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.GetPreAuthorizationUseCase;
@@ -16,6 +17,7 @@ import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthoriz
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationIdGenerator;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
 import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
+import com.aydindemir.health.authorization.application.port.out.IntegrationEventOutbox;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
 import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
 import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
@@ -38,16 +40,19 @@ public final class PreAuthorizationApplicationService implements
     private final PreAuthorizationRepository repository;
     private final PreAuthorizationIdGenerator idGenerator;
     private final CoverageVerificationPort coverageVerification;
+    private final IntegrationEventOutbox eventOutbox;
     private final Clock clock;
 
     public PreAuthorizationApplicationService(
             PreAuthorizationRepository repository,
             PreAuthorizationIdGenerator idGenerator,
             CoverageVerificationPort coverageVerification,
+            IntegrationEventOutbox eventOutbox,
             Clock clock) {
         this.repository = Objects.requireNonNull(repository);
         this.idGenerator = Objects.requireNonNull(idGenerator);
         this.coverageVerification = Objects.requireNonNull(coverageVerification);
+        this.eventOutbox = Objects.requireNonNull(eventOutbox);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -67,7 +72,8 @@ public final class PreAuthorizationApplicationService implements
                 idGenerator.generate(), command.memberId(), providerId,
                 command.policyNumber(), command.serviceCode(), command.diagnosisCode(),
                 command.requestedAmount(), command.currency(), clock);
-        return PreAuthorizationResultMapper.toResult(repository.save(preAuthorization));
+        PreAuthorization saved = repository.save(preAuthorization);
+        return PreAuthorizationResultMapper.toResult(saved);
     }
 
     @Override
@@ -103,7 +109,23 @@ public final class PreAuthorizationApplicationService implements
         } catch (InvalidPreAuthorizationStateException exception) {
             throw new PreAuthorizationStateConflictException(exception.getMessage(), exception);
         }
-        return PreAuthorizationResultMapper.toResult(repository.save(preAuthorization));
+        PreAuthorization saved = repository.save(preAuthorization);
+        eventOutbox.append(decisionEvent(saved));
+        return PreAuthorizationResultMapper.toResult(saved);
+    }
+
+    private PreAuthorizationDecisionEvent decisionEvent(PreAuthorization preAuthorization) {
+        return new PreAuthorizationDecisionEvent(
+                UUID.randomUUID(), "PreAuthorization" + toPastTense(preAuthorization.status().name()), 1,
+                preAuthorization.id(), preAuthorization.memberId(),
+                preAuthorization.providerId(), preAuthorization.policyNumber(),
+                preAuthorization.serviceCode(), preAuthorization.requestedAmount(),
+                preAuthorization.currency().getCurrencyCode(), preAuthorization.status().name(),
+                preAuthorization.decisionReason(), preAuthorization.decidedAt());
+    }
+
+    private String toPastTense(String decision) {
+        return "APPROVED".equals(decision) ? "Approved" : "Rejected";
     }
 
     @Override
@@ -115,7 +137,9 @@ public final class PreAuthorizationApplicationService implements
         } catch (InvalidPreAuthorizationStateException exception) {
             throw new PreAuthorizationStateConflictException(exception.getMessage(), exception);
         }
-        return PreAuthorizationResultMapper.toResult(repository.save(preAuthorization));
+        PreAuthorization saved = repository.save(preAuthorization);
+        eventOutbox.append(decisionEvent(saved));
+        return PreAuthorizationResultMapper.toResult(saved);
     }
 
     private PreAuthorization find(UUID id) {

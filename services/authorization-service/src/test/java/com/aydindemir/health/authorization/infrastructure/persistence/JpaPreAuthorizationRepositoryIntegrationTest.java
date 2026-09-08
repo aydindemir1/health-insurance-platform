@@ -63,7 +63,7 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
 
         repository.save(submitted);
 
-        assertThat(appliedChangeSets).isEqualTo(4);
+        assertThat(appliedChangeSets).isEqualTo(5);
         assertThat(repository.findById(submitted.id()))
                 .hasValueSatisfying(reloaded -> {
                     assertThat(reloaded.memberId()).isEqualTo(submitted.memberId());

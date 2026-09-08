@@ -8,6 +8,7 @@ import com.aydindemir.health.authorization.application.port.in.SearchPreAuthoriz
 import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
 import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
+import com.aydindemir.health.authorization.application.port.out.IntegrationEventOutbox;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
 import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
 import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
@@ -100,6 +101,11 @@ class ApplicationConfigurationTest {
         CoverageVerificationPort coverageVerificationPort() {
             return request -> new CoverageVerificationPort.CoverageVerificationResult(
                     true, "ELIGIBLE", "Coverage is eligible");
+        }
+
+        @Bean
+        IntegrationEventOutbox integrationEventOutbox() {
+            return event -> { };
         }
 
         @Bean

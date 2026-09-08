@@ -3,6 +3,7 @@ package com.aydindemir.health.authorization.infrastructure.configuration;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationIdGenerator;
 import com.aydindemir.health.authorization.application.port.out.PreAuthorizationRepository;
 import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
+import com.aydindemir.health.authorization.application.port.out.IntegrationEventOutbox;
 import com.aydindemir.health.authorization.application.usecase.PreAuthorizationApplicationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,9 +28,10 @@ public class ApplicationConfiguration {
             PreAuthorizationRepository repository,
             PreAuthorizationIdGenerator idGenerator,
             CoverageVerificationPort coverageVerification,
+            IntegrationEventOutbox eventOutbox,
             Clock clock) {
         var applicationService = new PreAuthorizationApplicationService(
-                repository, idGenerator, coverageVerification, clock);
+                repository, idGenerator, coverageVerification, eventOutbox, clock);
         return new TransactionalPreAuthorizationUseCases(applicationService);
     }
 }
