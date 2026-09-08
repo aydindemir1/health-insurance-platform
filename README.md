@@ -6,9 +6,10 @@ provider requests authorization for a member's service, an insurer verifies
 policy coverage and decides the request, and an approved service proceeds to
 claim adjudication, invoice reconciliation, payment, and settlement.
 
-> **Current checkpoint:** Milestones 0–5 are implemented. Milestone 6
-> (RabbitMQ notification delivery) has not started. Planned technologies are
-> listed separately and are never presented as delivered capabilities.
+> **Current checkpoint:** Milestones 0–5 are implemented. Milestone 6 is in
+> progress: the Notification Worker domain/application core and delivery
+> idempotency contract exist, while RabbitMQ, persistence, and runtime wiring are
+> not implemented yet. Planned technologies are never presented as delivered.
 
 ## Why this project exists
 
@@ -110,6 +111,20 @@ domain concern.
   original record is published to the `.DLT` topic.
 - Real PostgreSQL and Apache Kafka Testcontainers tests verify duplicate delivery
   and poison-message routing.
+
+### Milestone 6 — Notification Worker (in progress)
+
+- Framework-independent notification delivery aggregate and use case.
+- Provider-reference recipient model that excludes contact and health data.
+- Sender and repository output ports with `taskId` as the downstream idempotency
+  key.
+- Duplicate delivered tasks are application-level no-ops.
+- Clean Architecture rules protect the new worker core.
+- The initial Java 21 verification suite has 6 passing domain, application, and
+  architecture tests.
+
+RabbitMQ topology, the worker database, producer outbox, retry/DLQ behavior, and
+an actual local delivery adapter are the next Milestone 6 slices.
 
 ## Architecture overview
 
@@ -464,13 +479,13 @@ alternatives, consequences, and rejected options.
 - [x] Milestone 3 — Policy Service and coverage evaluation
 - [x] Milestone 4 — Claims and Billing lifecycle
 - [x] Milestone 5 — Transactional Outbox, Kafka, idempotent consumer, retry/DLQ
-- [ ] Milestone 6 — RabbitMQ notification worker
+- [ ] Milestone 6 — RabbitMQ notification worker (core in progress)
 - [ ] Milestone 7 — Redis, Elasticsearch, Kibana, Elastic APM, correlation IDs
 - [ ] Milestone 8 — APISIX gateway and completed security policies
 - [ ] Milestone 9 — Kubernetes and extended CI/CD toolchain
 - [ ] Milestone 10 — Final portfolio and interview package
 
-Milestone 6 begins only after explicit approval. At every later milestone, the
+Milestone 6 is being implemented incrementally. At every later milestone, the
 README, diagrams, ADRs, synthetic demo, scenario, screenshots, technical
 walkthrough, test evidence, limitations, and roadmap are part of the definition
 of done—not end-of-project cleanup.

@@ -32,6 +32,7 @@ the end of the project.
 - [ADR-005: Synchronous policy coverage evaluation](adr/005-synchronous-policy-coverage-evaluation.md)
 - [ADR-006: Claims and Billing ownership and integration](adr/006-claims-billing-ownership-and-integration.md)
 - [ADR-007: Transactional outbox and idempotent Kafka consumer](adr/007-transactional-outbox-and-idempotent-kafka-consumer.md)
+- [ADR-008: RabbitMQ notification task delivery](adr/008-rabbitmq-notification-task-delivery.md)
 
 ## Milestone documentation definition of done
 
