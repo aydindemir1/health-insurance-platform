@@ -9,6 +9,7 @@ import com.aydindemir.health.policy.application.exception.PolicyNumberConflictEx
 import com.aydindemir.health.policy.application.mapper.PolicyResultMapper;
 import com.aydindemir.health.policy.application.port.in.CreatePolicyUseCase;
 import com.aydindemir.health.policy.application.port.in.EvaluateCoverageUseCase;
+import com.aydindemir.health.policy.application.port.out.CoverageEvaluationCache;
 import com.aydindemir.health.policy.application.port.out.PolicyIdGenerator;
 import com.aydindemir.health.policy.application.port.out.PolicyRepository;
 import com.aydindemir.health.policy.application.security.ActorContext;
@@ -24,12 +25,15 @@ import java.util.Objects;
 public final class PolicyApplicationService implements CreatePolicyUseCase, EvaluateCoverageUseCase {
     private final PolicyRepository repository;
     private final PolicyIdGenerator idGenerator;
+    private final CoverageEvaluationCache coverageCache;
 
     public PolicyApplicationService(
             PolicyRepository repository,
-            PolicyIdGenerator idGenerator) {
+            PolicyIdGenerator idGenerator,
+            CoverageEvaluationCache coverageCache) {
         this.repository = Objects.requireNonNull(repository);
         this.idGenerator = Objects.requireNonNull(idGenerator);
+        this.coverageCache = Objects.requireNonNull(coverageCache);
     }
 
     @Override
@@ -48,19 +52,27 @@ public final class PolicyApplicationService implements CreatePolicyUseCase, Eval
         var policy = Policy.issue(
                 idGenerator.generate(), command.policyNumber(), command.memberId(),
                 command.validFrom(), command.validUntil(), coverages);
-        return PolicyResultMapper.toResult(repository.save(policy));
+        Policy saved = repository.save(policy);
+        coverageCache.evictPolicy(saved.policyNumber());
+        return PolicyResultMapper.toResult(saved);
     }
 
     @Override
     public CoverageEvaluationResult evaluate(EvaluateCoverageCommand command) {
         Objects.requireNonNull(command);
         requireOperationsRole(command.actor());
-        return repository.findByPolicyNumber(command.policyNumber())
+        return coverageCache.find(command).orElseGet(() -> evaluateAndCache(command));
+    }
+
+    private CoverageEvaluationResult evaluateAndCache(EvaluateCoverageCommand command) {
+        CoverageEvaluationResult result = repository.findByPolicyNumber(command.policyNumber())
                 .map(policy -> PolicyResultMapper.toResult(policy, policy.evaluate(
                         command.memberId(), new ServiceCode(command.serviceCode()),
                         Money.positive(command.requestedAmount(), command.currency()),
                         command.serviceDate())))
                 .orElseGet(CoverageEvaluationResult::policyNotFound);
+        coverageCache.store(command, result);
+        return result;
     }
 
     private void requirePolicyManager(ActorContext actor) {

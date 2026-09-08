@@ -6,6 +6,7 @@ import com.aydindemir.health.policy.application.dto.CoverageEvaluationResult;
 import com.aydindemir.health.policy.application.exception.ApplicationAccessDeniedException;
 import com.aydindemir.health.policy.application.exception.PolicyNumberConflictException;
 import com.aydindemir.health.policy.application.port.out.PolicyRepository;
+import com.aydindemir.health.policy.application.port.out.CoverageEvaluationCache;
 import com.aydindemir.health.policy.application.security.ActorContext;
 import com.aydindemir.health.policy.application.security.ApplicationRole;
 import com.aydindemir.health.policy.domain.model.Policy;
@@ -34,7 +35,8 @@ class PolicyApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new PolicyApplicationService(new InMemoryPolicyRepository(), () -> POLICY_ID);
+        service = new PolicyApplicationService(
+                new InMemoryPolicyRepository(), () -> POLICY_ID, new InMemoryCoverageCache());
     }
 
     @Test
@@ -74,6 +76,22 @@ class PolicyApplicationServiceTest {
         assertThat(result.code()).isEqualTo("POLICY_NOT_FOUND");
     }
 
+    @Test
+    void reusesCachedCoverageEvaluation() {
+        var repository = new CountingPolicyRepository();
+        var cache = new InMemoryCoverageCache();
+        service = new PolicyApplicationService(repository, () -> POLICY_ID, cache);
+        service.create(createCommand(specialist()));
+        var command = new EvaluateCoverageCommand(
+                hospital(), "POL-100", MEMBER_ID, "IMG-MRI",
+                new BigDecimal("100.00"), TRY, LocalDate.parse("2026-09-03"));
+
+        service.evaluate(command);
+        service.evaluate(command);
+
+        assertThat(repository.findCount).isEqualTo(1);
+    }
+
     private CreatePolicyCommand createCommand(ActorContext actor) {
         return new CreatePolicyCommand(
                 actor, "POL-100", MEMBER_ID,
@@ -91,7 +109,7 @@ class PolicyApplicationServiceTest {
         return new ActorContext("hospital", Set.of(ApplicationRole.HOSPITAL_USER));
     }
 
-    private static final class InMemoryPolicyRepository implements PolicyRepository {
+    private static class InMemoryPolicyRepository implements PolicyRepository {
         private final Map<String, Policy> policies = new HashMap<>();
 
         @Override
@@ -108,6 +126,35 @@ class PolicyApplicationServiceTest {
         @Override
         public boolean existsByPolicyNumber(String policyNumber) {
             return policies.containsKey(policyNumber.toUpperCase());
+        }
+    }
+
+    private static final class CountingPolicyRepository extends InMemoryPolicyRepository {
+        private int findCount;
+
+        @Override
+        public Optional<Policy> findByPolicyNumber(String policyNumber) {
+            findCount++;
+            return super.findByPolicyNumber(policyNumber);
+        }
+    }
+
+    private static final class InMemoryCoverageCache implements CoverageEvaluationCache {
+        private final Map<EvaluateCoverageCommand, CoverageEvaluationResult> values = new HashMap<>();
+
+        @Override
+        public Optional<CoverageEvaluationResult> find(EvaluateCoverageCommand command) {
+            return Optional.ofNullable(values.get(command));
+        }
+
+        @Override
+        public void store(EvaluateCoverageCommand command, CoverageEvaluationResult result) {
+            values.put(command, result);
+        }
+
+        @Override
+        public void evictPolicy(String policyNumber) {
+            values.keySet().removeIf(command -> command.policyNumber().equalsIgnoreCase(policyNumber));
         }
     }
 }

@@ -2,6 +2,7 @@ package com.aydindemir.health.policy.infrastructure.configuration;
 
 import com.aydindemir.health.policy.application.port.out.PolicyIdGenerator;
 import com.aydindemir.health.policy.application.port.out.PolicyRepository;
+import com.aydindemir.health.policy.application.port.out.CoverageEvaluationCache;
 import com.aydindemir.health.policy.application.usecase.PolicyApplicationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,8 +19,9 @@ public class ApplicationConfiguration {
     @Bean
     TransactionalPolicyUseCases policyUseCases(
             PolicyRepository repository,
-            PolicyIdGenerator idGenerator) {
+            PolicyIdGenerator idGenerator,
+            CoverageEvaluationCache coverageCache) {
         return new TransactionalPolicyUseCases(
-                new PolicyApplicationService(repository, idGenerator));
+                new PolicyApplicationService(repository, idGenerator, coverageCache));
     }
 }

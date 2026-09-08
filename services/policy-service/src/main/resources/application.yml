@@ -11,6 +11,12 @@ spring:
     open-in-view: false
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:500ms}
+      timeout: ${REDIS_TIMEOUT:500ms}
   security:
     oauth2:
       resourceserver:
@@ -20,6 +26,11 @@ spring:
 
 server:
   port: 8082
+
+app:
+  cache:
+    coverage:
+      ttl: ${COVERAGE_CACHE_TTL:30s}
 
 management:
   endpoints:

@@ -5,6 +5,9 @@ import com.aydindemir.health.policy.application.command.EvaluateCoverageCommand;
 import com.aydindemir.health.policy.application.port.in.CreatePolicyUseCase;
 import com.aydindemir.health.policy.application.port.in.EvaluateCoverageUseCase;
 import com.aydindemir.health.policy.application.port.out.PolicyRepository;
+import com.aydindemir.health.policy.application.port.out.CoverageEvaluationCache;
+import com.aydindemir.health.policy.application.dto.CoverageEvaluationResult;
+import com.aydindemir.health.policy.application.command.EvaluateCoverageCommand;
 import com.aydindemir.health.policy.application.security.ActorContext;
 import com.aydindemir.health.policy.application.security.ApplicationRole;
 import com.aydindemir.health.policy.domain.model.Policy;
@@ -86,6 +89,24 @@ class ApplicationConfigurationTest {
         @Bean
         RecordingTransactionManager transactionManager() {
             return new RecordingTransactionManager();
+        }
+
+        @Bean
+        CoverageEvaluationCache coverageEvaluationCache() {
+            return new CoverageEvaluationCache() {
+                @Override
+                public Optional<CoverageEvaluationResult> find(EvaluateCoverageCommand command) {
+                    return Optional.empty();
+                }
+
+                @Override
+                public void store(EvaluateCoverageCommand command, CoverageEvaluationResult result) {
+                }
+
+                @Override
+                public void evictPolicy(String policyNumber) {
+                }
+            };
         }
     }
 
