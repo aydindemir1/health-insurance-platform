@@ -11,6 +11,7 @@ flowchart TB
             Auth["Authorization :8081<br/>Temurin 21 JRE, non-root"]
             Policy["Policy :8082<br/>Temurin 21 JRE, non-root"]
             Claims["Claims/Billing :8083<br/>Temurin 21 JRE, non-root"]
+            Kafka{{"Apache Kafka :9092<br/>single-node KRaft"}}
             AuthDb[("PostgreSQL :5433")]
             PolicyDb[("PostgreSQL :5434")]
             ClaimsDb[("PostgreSQL :5435")]
@@ -21,7 +22,9 @@ flowchart TB
     Browser --> Keycloak
     Vite -.->|"Browser-issued REST calls"| Auth
     Auth --> Policy
-    Claims --> Auth
+    Auth --> Kafka
+    Kafka --> Claims
+    Claims -.-> Auth
     Auth --> AuthDb
     Policy --> PolicyDb
     Claims --> ClaimsDb

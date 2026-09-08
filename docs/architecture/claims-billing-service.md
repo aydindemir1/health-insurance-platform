@@ -36,20 +36,20 @@ stateDiagram-v2
     MATCHED --> SETTLED: paid amount equals payable amount
 ```
 
-## Request flow
+## Event-driven creation flow
 
 ```mermaid
 sequenceDiagram
-    actor Hospital
+    participant K as Kafka
     participant C as Claims/Billing API
-    participant A as Authorization API
     participant DB as Claims/Billing PostgreSQL
-    Hospital->>C: POST /api/v1/claims + bearer token
-    C->>A: GET approved pre-authorization + bearer token
-    A-->>C: Provider-scoped snapshot
-    C->>C: Verify APPROVED, owner, currency, amount
-    C->>DB: Save Claim and Invoice in one transaction
-    C-->>Hospital: 201 Claim + Invoice
+    K->>C: PreAuthorizationApproved v1
+    C->>DB: Check processed message ID
+    alt First delivery
+        C->>DB: Save Claim, Invoice and processed marker atomically
+    else Duplicate delivery
+        C-->>K: Successful no-op
+    end
 ```
 
 Application input/output ports keep the use cases framework independent. JPA,
@@ -57,3 +57,7 @@ REST, OAuth/JWT mapping, and transaction annotations live in infrastructure or
 presentation. ArchUnit verifies these dependencies. PostgreSQL uniqueness
 constraints prevent duplicate claims per pre-authorization and duplicate
 invoice/payment references under concurrency; `@Version` protects updates.
+The existing authenticated `POST /claims` path remains available for manual
+submission compatibility and still verifies Authorization synchronously. New
+approvals normally enter through Kafka and can be observed through the
+provider-scoped `/claims/by-pre-authorization/{id}` query.

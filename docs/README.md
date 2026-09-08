@@ -15,6 +15,7 @@ the end of the project.
 - [Workflow sequence diagrams](architecture/workflow-sequences.md)
 - [Frontend architecture](architecture/frontend-architecture.md)
 - [Local deployment](architecture/local-deployment.md)
+- [Event-driven messaging](architecture/event-driven-messaging.md)
 
 ## Learning and demonstration
 
@@ -30,6 +31,7 @@ the end of the project.
 - [ADR-004: Feature-Sliced operations portal](adr/004-feature-sliced-operations-portal.md)
 - [ADR-005: Synchronous policy coverage evaluation](adr/005-synchronous-policy-coverage-evaluation.md)
 - [ADR-006: Claims and Billing ownership and integration](adr/006-claims-billing-ownership-and-integration.md)
+- [ADR-007: Transactional outbox and idempotent Kafka consumer](adr/007-transactional-outbox-and-idempotent-kafka-consumer.md)
 
 ## Milestone documentation definition of done
 

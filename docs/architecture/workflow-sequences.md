@@ -40,16 +40,19 @@ sequenceDiagram
     actor H as Hospital User
     actor C as Claim Approver
     actor F as Insurance Specialist
+    participant O as Authorization Outbox
+    participant K as Kafka
     participant CB as Claims/Billing Service
     participant A as Authorization Service
     participant DB as Claims/Billing DB
 
-    H->>CB: POST /claims with approved pre-authorization ID
-    CB->>A: GET /pre-authorizations/{id} + caller JWT
-    A-->>CB: Provider-scoped APPROVED snapshot
-    CB->>CB: Check owner, currency and authorized amount
-    CB->>DB: Transaction: insert Claim(SUBMITTED) + Invoice(ISSUED)
-    CB-->>H: 201 Claim + Invoice
+    H->>A: Pre-authorization is approved
+    A->>O: Same transaction, append approval event
+    O->>K: Relay versioned event, keyed by authorization ID
+    K->>CB: Deliver at least once
+    CB->>DB: Same transaction, Claim + Invoice + processed message
+    H->>CB: GET /claims/by-pre-authorization/{id}
+    CB-->>H: Event-created Claim + Invoice
 
     C->>CB: POST /claims/{id}/review
     CB->>DB: Claim → UNDER_REVIEW

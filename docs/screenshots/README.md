@@ -8,7 +8,7 @@ The current portal only implements pre-authorization operations. Policy and
 Claims/Billing are demonstrated through the API script until their screens are
 implemented in a later milestone.
 
-Screenshots captured for the Milestone 4 documentation checkpoint:
+Screenshots retained for the Milestone 5 documentation checkpoint:
 
 - `01-dashboard.png` — role-aware landing page and operational summary.
 - `02-pre-authorization-work-queue.png` — filter, sort, and pagination UI.
@@ -42,3 +42,8 @@ npm run screenshots
 The capture script drives the real Keycloak login and real API-backed pages in
 headless Chrome. It fills but does not submit the example form or pending
 decision, so recapturing screenshots does not mutate business data.
+
+Milestone 5 changes backend delivery semantics but introduces no new portal
+surface, so the five images were reviewed and intentionally retained rather
+than replaced with visually identical files. Kafka/outbox evidence is captured
+in executable integration tests and the event-driven architecture diagrams.

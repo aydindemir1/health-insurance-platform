@@ -10,6 +10,7 @@ erDiagram
     CLAIM ||--|| INVOICE : produces
     INVOICE ||--o{ INVOICE_PAYMENT : receives
     CLAIM }o..|| PRE_AUTHORIZATION : "references pre_authorization_id"
+    PRE_AUTHORIZATION ||--o{ OUTBOX_MESSAGE : emits
 
     POLICY {
         uuid id PK
@@ -72,15 +73,29 @@ erDiagram
         decimal amount
         timestamptz paid_at
     }
+    OUTBOX_MESSAGE {
+        uuid id PK
+        uuid aggregate_id
+        varchar event_type
+        integer event_version
+        text payload
+        timestamptz occurred_at
+        timestamptz published_at
+        integer publish_attempts
+    }
+    PROCESSED_MESSAGE {
+        uuid message_id PK
+        varchar consumer_name
+        timestamptz processed_at
+    }
 ```
 
 | Database owner | Tables | Other services' access |
 | --- | --- | --- |
 | Policy Service | `policies`, `policy_coverages` | REST coverage evaluation only |
-| Authorization Service | `pre_authorizations` | REST provider-scoped snapshot only |
-| Claims/Billing Service | `claims`, `invoices`, `invoice_payments` | No external access implemented yet |
+| Authorization Service | `pre_authorizations`, `outbox_messages` | REST snapshot and Kafka events only |
+| Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages` | No direct database access |
 
 Cross-context references intentionally have no foreign keys. Each owner can
 change its schema independently; consistency across services is currently
-checked through synchronous contracts and will gain event reconciliation in a
-future milestone.
+checked through explicit synchronous contracts or versioned Kafka events.

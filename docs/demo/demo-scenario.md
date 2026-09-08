@@ -1,4 +1,4 @@
-# Demonstration Scenario — Milestones 0–4
+# Demonstration Scenario — Milestones 0–5
 
 This scenario uses only synthetic identifiers and clinical codes. It proves the
 implemented happy path and leaves records in several states for UI and API
@@ -58,8 +58,8 @@ The script creates:
 | Policy with MRI and laboratory coverage | `ACTIVE` | Policy validity, coverage and limit demonstration |
 | Laboratory pre-authorization | `PENDING` | Work-queue and decision demonstration |
 | MRI pre-authorization | `REJECTED` | Rejection state and reason |
-| MRI pre-authorization + claim + invoice | `APPROVED` / `APPROVED` / `SETTLED` | Full cross-service financial flow |
-| MRI pre-authorization + claim + invoice | `APPROVED` / `APPROVED` / `DISPUTED` | Outstanding reconciliation work |
+| MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `SETTLED` | Outbox, Kafka, adjudication and payment flow |
+| MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `DISPUTED` | Eventual creation and outstanding reconciliation |
 
 ## Live presentation script
 
@@ -73,13 +73,16 @@ The script creates:
    `422` error. No authorization is created.
 5. Sign in as the insurance specialist, open the pending record, and approve or
    reject it. A repeated decision should return `409 Conflict`.
-6. Through the Claims/Billing API, inspect the settled scenario. Explain the
+6. Explain that approval and an outbox row commit together. The script polls
+   `GET /claims/by-pre-authorization/{id}` until Kafka delivery creates the
+   claim/invoice; duplicate delivery is neutralized by `processed_messages`.
+7. Through the Claims/Billing API, inspect the settled scenario. Explain the
    transitions `SUBMITTED → UNDER_REVIEW → APPROVED` and
    `ISSUED → DISPUTED → MATCHED → SETTLED`.
-7. Inspect the second invoice left in `DISPUTED`; explain why claim adjudication
+8. Inspect the second invoice left in `DISPUTED`; explain why claim adjudication
    and invoice reconciliation are separate aggregate responsibilities.
-8. Finish with the architecture and ER diagrams, highlighting database ownership,
-   transactional decorators, optimistic locking, and database uniqueness guards.
+9. Finish with the event, architecture, and ER diagrams, highlighting outbox
+   at-least-once delivery, retry/DLT, database ownership, and optimistic locking.
 
 ## Expected negative demonstrations
 
@@ -92,6 +95,9 @@ The script creates:
   change the invoice.
 - If Policy or Authorization is unavailable during validation, the caller gets
   `503` and the local aggregate is not persisted.
+- If Kafka is temporarily unavailable, the decision remains committed and its
+  outbox row remains unpublished; restarting Kafka allows the relay to resend.
+- A poison event is retried three total times and then appears on the `.DLT` topic.
 
 ## Reset
 

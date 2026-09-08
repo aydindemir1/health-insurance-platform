@@ -1,9 +1,8 @@
-# Technical Walkthrough: Milestones 0–4
+# Technical Walkthrough: Milestones 0–5
 
-This document explains the implemented system as of Milestone 4. It is a living
-technical narrative: every completed milestone must update it, the README, the
-architecture diagrams, the demo, and relevant screenshots. Milestone 5 and its
-event-driven components are intentionally outside the current implementation.
+This document explains the implemented system as of Milestone 5. It is a living
+technical narrative: every completed milestone updates it, the README, the
+architecture diagrams, the demo, and relevant screenshots.
 
 ## 1. Portfolio story
 
@@ -96,6 +95,20 @@ to `MATCHED`; payments accumulate until `SETTLED`. Rejecting a claim voids an
 unpaid invoice. Unique invoice numbers, pre-authorization references, and
 payment references add database-backed replay protection.
 
+### Milestone 5 — Reliable event-driven claim initiation
+
+Authorization records a versioned decision event in its local outbox in the
+same transaction as the aggregate decision. A scheduled relay publishes the
+event to Kafka and only then marks it delivered. A crash in that small window
+can produce a duplicate, so Claims/Billing treats idempotency as part of the
+application contract: claim, invoice, and `processed_messages` marker commit in
+one transaction. Approval starts the financial process eventually; rejection
+is published as a durable fact but has no Claims/Billing action.
+
+Broker errors leave the outbox row pending for a later poll. Consumer failures
+are attempted three times with fixed backoff and then moved to a DLT. A Saga was
+not added because there is no multi-step distributed compensation policy yet.
+
 ## 3. Architecture at runtime
 
 ```mermaid
@@ -103,8 +116,10 @@ flowchart LR
     Browser[Operations Portal] -->|OIDC Authorization Code + PKCE| KC[Keycloak]
     Browser -->|Bearer token| Auth[Authorization Service]
     Auth -->|Coverage evaluation + bearer token| Policy[Policy Service]
+    Auth -->|Decision events via outbox| Kafka{{Apache Kafka}}
     Browser -. future claims UI .-> Claims[Claims & Billing Service]
-    Claims -->|Approved authorization lookup + bearer token| Auth
+    Kafka -->|Approved event, idempotent| Claims
+    Claims -. manual claim path .-> Auth
     Auth --> AuthDB[(Authorization PostgreSQL)]
     Policy --> PolicyDB[(Policy PostgreSQL)]
     Claims --> ClaimsDB[(Claims/Billing PostgreSQL)]
@@ -204,49 +219,51 @@ adapter boundary.
 
 Transactions are placed around input ports in infrastructure decorators.
 `@Version` protects mutable aggregate rows. Unique constraints protect stable
-business references against duplicate submission. These mechanisms solve local
-ACID consistency only. Atomic event publication across services is deliberately
-deferred to Milestone 5's transactional outbox design.
+business references against duplicate submission. The transactional outbox
+extends the local ACID boundary to durable intent-to-publish without pretending
+PostgreSQL and Kafka share one transaction. Delivery remains at least once; the
+consumer inbox and business-key constraints make replay safe.
 
 ## 8. Error semantics and resilience
 
 APIs use RFC 9457 Problem Details for validation, authentication/authorization,
 not-found, business conflict, and dependency errors. Synchronous validation
-calls are fail-closed and use explicit timeouts. Retry and circuit-breaker
-policies are not yet implemented; blindly retrying non-idempotent commands would
-be unsafe. This is a documented limitation, not an implied capability.
+calls are fail-closed and use explicit timeouts. Kafka consumption has bounded
+retry and DLT recovery; outbox publication retries on later scheduled polls.
+Circuit breakers for synchronous HTTP dependencies are still not implemented.
 
 ## 9. Test strategy and evidence
 
 The backend test portfolio contains framework-free domain/application unit
 tests, MVC/security slice tests, Spring bean-wiring tests, ArchUnit dependency
-tests, and PostgreSQL Testcontainers integration/concurrency tests. The frontend
-uses Vitest, Testing Library, and architecture tests for FSD import direction,
+tests, and PostgreSQL Testcontainers integration/concurrency tests. Kafka tests
+use the official Apache Kafka Testcontainer to prove duplicate delivery and
+poison-message DLT behavior. The frontend uses Vitest, Testing Library, and architecture tests for FSD import direction,
 plus linting and a production TypeScript/Vite build.
 
-On 4 September 2026, the Milestone 4 checkpoint was reverified on Java 21.0.8
-and Docker Desktop 28.5.1. The three Maven suites contained 102 passing tests:
-Authorization 46, Policy 21, and Claims/Billing 35. The portal passed oxlint,
+On 8 September 2026, the Milestone 5 checkpoint was verified on Java 21.0.8
+and Docker Desktop 28.5.1. The three Maven suites contained 109 passing tests:
+Authorization 50, Policy 21, and Claims/Billing 38. The portal passed oxlint,
 all 6 Vitest tests in 5 files, and the production TypeScript/Vite build. Treat
 these numbers as dated evidence, not a permanent guarantee; the commands in the
 README are the source of truth for a fresh checkout.
 
 The documentation has its own executable quality gate. It validates local
 Markdown links, parses the Keycloak and demo JSON, parses the PowerShell demo
-scripts, verifies the five expected PNG files, and renders all 19 Mermaid blocks
+scripts, verifies the five expected PNG files, and renders all 21 Mermaid blocks
 with Mermaid CLI. This prevents a diagram or portfolio link from silently
 rotting while later milestones change the implementation.
 
 ## 10. Delivery and local operations
 
-Docker Compose runs Keycloak, three services, and three private databases.
+Docker Compose runs Keycloak, Kafka, three services, and three private databases.
 Required credentials are supplied from an ignored `.env`, using `.env.example`
 as a safe template. Health checks order database-dependent startup. GitHub
 Actions independently tests backend services and the operations portal using
 Java 21 and Node.
 
 The repository does not yet contain Kubernetes, APISIX, Jenkins, SonarQube,
-Nexus, Harbor, Argo CD, Redis, Kafka, RabbitMQ, Elasticsearch, Kibana, or Elastic
+Nexus, Harbor, Argo CD, Redis, RabbitMQ, Elasticsearch, Kibana, or Elastic
 APM implementations. Those remain planned milestones and will only be added
 when they solve an explicit operational or domain problem.
 
@@ -266,6 +283,8 @@ when they solve an explicit operational or domain problem.
 | React query/service hooks | TanStack Query feature hooks |
 | `appsettings.json` | `application.yml` and environment variables |
 | EF concurrency token | JPA `@Version` |
+| EF Core transactional outbox table | JPA outbox adapter + scheduled relay |
+| MassTransit consumer/error transport | Spring Kafka listener + DLT error handler |
 
 ## 12. Interview explanation
 
@@ -275,10 +294,11 @@ when they solve an explicit operational or domain problem.
 system has Authorization, Policy, and Claims/Billing bounded contexts, each with
 its own PostgreSQL database and Clean Architecture boundaries. Keycloak handles
 authentication, while roles and provider ownership are enforced at both HTTP
-and application levels. Policy eligibility and approved-authorization checks
-are synchronous today because the caller needs an immediate answer. Aggregates
-protect state and money rules, Liquibase versions each schema, and optimistic
-locking prevents concurrent double decisions. A React/TypeScript portal uses
+and application levels. Policy eligibility is synchronous because submission
+needs an immediate answer. Aggregate decisions and outbox events commit together;
+Kafka then starts Claims/Billing through an idempotent consumer with retry/DLT.
+Aggregates protect state and money rules, Liquibase versions each schema, and
+optimistic locking prevents concurrent double decisions. A React/TypeScript portal uses
 Feature-Sliced boundaries and TanStack Query for server state. Tests cover
 domain rules, security, architecture, persistence, and concurrency.”
 
@@ -291,11 +311,13 @@ domain rules, security, architecture, persistence, and concurrency.”
 - What does optimistic locking protect, and what does it not protect?
 - Where is the transaction boundary if the application layer is framework-free?
 - Is this CQRS, and why is there no separate read database?
-- How would an outbox change claim approval in Milestone 5?
+- Why does the outbox provide at-least-once rather than exactly-once delivery?
+- Why is a processed-message table still needed when Kafka stores offsets?
+- What happens after broker acknowledgement but before `published_at` commits?
 - How would benefit consumption differ from the current read-only evaluation?
 - Why use Kafka and RabbitMQ for different responsibilities later?
 
-## 13. Known gaps before Milestone 5
+## 13. Known gaps before Milestone 6
 
 - The portal has no policy, claim, invoice, or payment screens yet; those flows
   are demonstrated through the API seed script.
@@ -303,12 +325,11 @@ domain rules, security, architecture, persistence, and concurrency.”
 - Service-to-service authentication relays the user token and has no workload
   identity or token exchange.
 - Synchronous dependencies do not yet use circuit breakers or controlled retry.
-- There is no transactional outbox, event broker, idempotent consumer, or DLQ.
+- Outbox retention and automated DLT inspection/replay are not operationalized.
 - Demo users must be created locally because credentials are never committed.
 - Production-grade consent, PHI classification, encryption/key management,
   retention, audit trail, and regulatory controls require explicit design.
 
-Milestone 5 must not begin until it is explicitly authorized. Its first design
-decision will define integration-event contracts, outbox ownership, delivery
-semantics, and consumer idempotency without weakening current aggregate and
-database boundaries.
+Milestone 6 must not begin until it is explicitly authorized. RabbitMQ will be
+reserved for notification/task delivery rather than duplicating Kafka's durable
+integration-event responsibility.

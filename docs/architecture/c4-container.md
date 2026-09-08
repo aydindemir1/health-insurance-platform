@@ -10,6 +10,7 @@ flowchart TB
         Auth["Authorization Service :8081<br/>Java 21 / Spring Boot<br/>Owns pre-authorization lifecycle"]
         Policy["Policy Service :8082<br/>Java 21 / Spring Boot<br/>Owns policy and coverage rules"]
         Claims["Claims & Billing Service :8083<br/>Java 21 / Spring Boot<br/>Owns claims, invoices and payments"]
+        Kafka{{"Apache Kafka :9092<br/>Durable integration-event stream"}}
 
         AuthDb[("Authorization PostgreSQL :5433")]
         PolicyDb[("Policy PostgreSQL :5434")]
@@ -20,7 +21,9 @@ flowchart TB
     Portal -->|"Authorization Code + PKCE"| Keycloak
     Portal -->|"REST + bearer JWT"| Auth
     Auth -->|"Synchronous coverage query<br/>REST + relayed bearer JWT"| Policy
-    Claims -->|"Synchronous approved snapshot query<br/>REST + relayed bearer JWT"| Auth
+    Auth -->|"Pre-authorization decisions<br/>at-least-once"| Kafka
+    Kafka -->|"Approved decisions<br/>idempotent consumer"| Claims
+    Claims -.->|"Manual claim compatibility<br/>REST + relayed bearer JWT"| Auth
 
     Auth -->|"JPA/Hibernate + Liquibase"| AuthDb
     Policy -->|"JPA/Hibernate + Liquibase"| PolicyDb
@@ -38,6 +41,8 @@ flowchart TB
 | Portal | Authorization | Work queue, detail, submission and decision | UI error state; no local copy of server state |
 | Authorization | Policy | Coverage eligibility before accepting a request | Fail closed with 503; nothing persisted |
 | Claims/Billing | Authorization | Confirm current approved, provider-owned authorization | Fail closed with 503; no claim or invoice persisted |
+| Authorization | Kafka | Publish committed decisions from the outbox | Row remains unpublished and the next poll retries |
+| Kafka | Claims/Billing | Start claim/invoice from approval | Idempotent no-op on duplicate; three attempts then DLT |
 
-Kafka, RabbitMQ, Redis, Elasticsearch, APISIX and Kubernetes are not shown
+RabbitMQ, Redis, Elasticsearch, APISIX and Kubernetes are not shown
 because they are roadmap items rather than current runtime components.

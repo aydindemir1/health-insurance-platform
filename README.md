@@ -6,8 +6,8 @@ provider requests authorization for a member's service, an insurer verifies
 policy coverage and decides the request, and an approved service proceeds to
 claim adjudication, invoice reconciliation, payment, and settlement.
 
-> **Current checkpoint:** Milestones 0–4 are implemented. Milestone 5
-> (transactional outbox and Kafka) has not started. Planned technologies are
+> **Current checkpoint:** Milestones 0–5 are implemented. Milestone 6
+> (RabbitMQ notification delivery) has not started. Planned technologies are
 > listed separately and are never presented as delivered capabilities.
 
 ## Why this project exists
@@ -95,6 +95,22 @@ domain concern.
 - Database-level uniqueness and optimistic locking for local idempotency and
   concurrent-update protection.
 
+### Milestone 5 — Transactional Outbox and Kafka
+
+- Approval/rejection integration events are inserted into Authorization's
+  PostgreSQL outbox in the same transaction as the decision.
+- A scheduled relay publishes versioned JSON to
+  `health.authorization.pre-authorization.v1` with the aggregate ID as key.
+- Failed broker sends remain unpublished and are retried by the next poll.
+- Claims/Billing consumes approval events and automatically starts a claim and
+  invoice in one local transaction.
+- `processed_messages` and business uniqueness constraints make duplicate
+  delivery a no-op.
+- Consumer failures receive three total fixed-backoff attempts, then the
+  original record is published to the `.DLT` topic.
+- Real PostgreSQL and Apache Kafka Testcontainers tests verify duplicate delivery
+  and poison-message routing.
+
 ## Architecture overview
 
 ```mermaid
@@ -103,7 +119,9 @@ flowchart LR
     Portal -->|OIDC Authorization Code + PKCE| KC[Keycloak]
     Portal -->|Bearer token| Auth[Authorization Service]
     Auth -->|Synchronous coverage evaluation| Policy[Policy Service]
-    Claims[Claims & Billing Service] -->|Approved authorization verification| Auth
+    Auth -->|Decision events via transactional outbox| Kafka{{Apache Kafka}}
+    Kafka -->|Approved event, idempotent consumer| Claims[Claims & Billing Service]
+    Claims -. manual compatibility path .-> Auth
     Auth --> AuthDB[(Authorization DB)]
     Policy --> PolicyDB[(Policy DB)]
     Claims --> ClaimsDB[(Claims/Billing DB)]
@@ -144,9 +162,9 @@ See the complete [documentation index](docs/README.md),
 
 ### Claim, invoice, and payment
 
-1. A hospital user references an approved, provider-owned pre-authorization.
-2. Claims/Billing verifies it through Authorization and atomically creates a
-   submitted claim and issued invoice.
+1. Authorization commits an approval and its outbox event atomically.
+2. The relay publishes the event at least once; Claims/Billing consumes it and
+   atomically creates a submitted claim, issued invoice, and processed marker.
 3. A claim approver starts review, then approves an amount or rejects the claim.
 4. Approval reconciles the invoice: a full match becomes `MATCHED`; a difference
    becomes `DISPUTED` until an insurance specialist agrees the payable amount.
@@ -187,6 +205,7 @@ because Keycloak 26 ignores undeclared custom attributes by default.
 ### Used now
 
 - Java 21, Spring Boot 4.1.1, Spring MVC, Spring Security OAuth2 Resource Server.
+- Spring Kafka 4.1.1 and Apache Kafka 4.1.1.
 - Spring Data JPA/Hibernate, PostgreSQL 17, Liquibase.
 - JUnit, AssertJ, Mockito, ArchUnit, Testcontainers.
 - React 19, TypeScript 6, Vite 8, React Router 8.
@@ -196,7 +215,7 @@ because Keycloak 26 ignores undeclared custom attributes by default.
 
 ### Planned, not implemented
 
-Kafka/outbox, RabbitMQ notification delivery, Redis, Elasticsearch/Kibana,
+RabbitMQ notification delivery, Redis, Elasticsearch/Kibana,
 Elastic APM, APISIX, Kubernetes, Argo CD, Jenkins, SonarQube, Nexus, and Harbor.
 Each will be introduced only with a documented need and trade-off.
 
@@ -246,6 +265,7 @@ docker compose up --build
 | Authorization Service | `http://localhost:8081` |
 | Policy Service | `http://localhost:8082` |
 | Claims and Billing Service | `http://localhost:8083` |
+| Kafka | `localhost:9092` |
 | Authorization PostgreSQL | `localhost:5433` |
 | Policy PostgreSQL | `localhost:5434` |
 | Claims/Billing PostgreSQL | `localhost:5435` |
@@ -327,9 +347,9 @@ Set-Location ../claims-billing-service
 ```
 
 The full suites use Testcontainers for real PostgreSQL persistence and
-concurrency tests, so Docker must be running. On 4 September 2026, the Milestone
-4 checkpoint contained **102 passing tests**: Authorization 46, Policy 21, and
-Claims/Billing 35. The portal also passed oxlint, 6 Vitest tests in 5 files, and
+concurrency tests, so Docker must be running. On 8 September 2026, the Milestone
+5 checkpoint contained **109 passing tests**: Authorization 50, Policy 21, and
+Claims/Billing 38. The portal also passed oxlint, 6 Vitest tests in 5 files, and
 its production build. Always rerun the commands; these counts are dated
 evidence, not a substitute for verification.
 
@@ -370,6 +390,7 @@ All business endpoints require a valid Keycloak bearer token.
 | `POST` | `/api/v1/coverage-evaluations` | Synchronous eligibility check |
 | `POST` | `/api/v1/claims` | Hospital claim creation |
 | `GET` | `/api/v1/claims/{id}` | Authorized claim detail |
+| `GET` | `/api/v1/claims/by-pre-authorization/{id}` | Observe event-created claim/invoice |
 | `POST` | `/api/v1/claims/{id}/review` | Claim approver |
 | `POST` | `/api/v1/claims/{id}/approval` | Claim approver |
 | `POST` | `/api/v1/claims/{id}/rejection` | Claim approver |
@@ -395,6 +416,7 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 - [Clean Architecture](docs/architecture/clean-architecture.md)
 - [Data ownership/ER model](docs/architecture/data-model.md)
 - [Workflow sequences](docs/architecture/workflow-sequences.md)
+- [Event-driven messaging](docs/architecture/event-driven-messaging.md)
 - [Frontend architecture](docs/architecture/frontend-architecture.md)
 - [Local deployment](docs/architecture/local-deployment.md)
 - [Demo scenario](docs/demo/demo-scenario.md)
@@ -415,18 +437,18 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
   cost of a second read store.
 - **End-user token relay:** preserves current provider context across services.
   Workload identity/token exchange is a future production security decision.
-- **No event broker yet:** local ACID behavior is complete before adding eventual
-  consistency. Milestone 5 will define outbox and idempotent delivery semantics.
+- **At-least-once Kafka delivery:** avoids dual writes through a database outbox;
+  duplicates are expected and neutralized by the consumer inbox.
 
-See ADR-001 through ADR-006 in [docs/adr](docs/adr/) for full context,
+See ADR-001 through ADR-007 in [docs/adr](docs/adr/) for full context,
 alternatives, consequences, and rejected options.
 
 ## Current limitations
 
 - Policy benefit consumption and reservation across requests are not modeled.
 - Policy and Claims/Billing do not yet have portal screens.
-- No transactional outbox, integration events, idempotent consumer, retry, or
-  dead-letter queue exists yet.
+- Outbox retention/archival and automated DLT replay/quarantine are not yet
+  operationalized.
 - No production workload identity/token exchange exists between services.
 - No circuit breaker is configured for synchronous dependencies.
 - Audit trail, correlation IDs, structured observability, search, caching,
@@ -441,14 +463,14 @@ alternatives, consequences, and rejected options.
 - [x] Milestone 2 — React/TypeScript operations portal foundation
 - [x] Milestone 3 — Policy Service and coverage evaluation
 - [x] Milestone 4 — Claims and Billing lifecycle
-- [ ] Milestone 5 — Transactional Outbox, Kafka, idempotent consumer, retry/DLQ
+- [x] Milestone 5 — Transactional Outbox, Kafka, idempotent consumer, retry/DLQ
 - [ ] Milestone 6 — RabbitMQ notification worker
 - [ ] Milestone 7 — Redis, Elasticsearch, Kibana, Elastic APM, correlation IDs
 - [ ] Milestone 8 — APISIX gateway and completed security policies
 - [ ] Milestone 9 — Kubernetes and extended CI/CD toolchain
 - [ ] Milestone 10 — Final portfolio and interview package
 
-Milestone 5 begins only after explicit approval. At every later milestone, the
+Milestone 6 begins only after explicit approval. At every later milestone, the
 README, diagrams, ADRs, synthetic demo, scenario, screenshots, technical
 walkthrough, test evidence, limitations, and roadmap are part of the definition
 of done—not end-of-project cleanup.
