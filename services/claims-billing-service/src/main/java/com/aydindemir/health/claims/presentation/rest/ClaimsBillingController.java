@@ -25,6 +25,7 @@ import java.util.Currency;
 import java.util.UUID;
 import com.aydindemir.health.claims.application.query.GetClaimQuery;
 import com.aydindemir.health.claims.application.query.GetInvoiceQuery;
+import com.aydindemir.health.claims.application.query.GetClaimByPreAuthorizationQuery;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -50,6 +51,16 @@ class ClaimsBillingController {
     ClaimsBillingResponses.Claim getClaim(@PathVariable UUID id, JwtAuthenticationToken authentication) {
         return ClaimsBillingResponses.Claim.from(getClaimsBilling.getClaim(
                 new GetClaimQuery(actorMapper.from(authentication), id)));
+    }
+
+    @GetMapping("/claims/by-pre-authorization/{preAuthorizationId}")
+    @PreAuthorize("hasAnyRole('HOSPITAL_USER', 'INSURANCE_SPECIALIST', 'CLAIM_APPROVER', 'SYSTEM_ADMIN')")
+    ClaimsBillingResponses.ClaimInvoice getByPreAuthorization(
+            @PathVariable UUID preAuthorizationId,
+            JwtAuthenticationToken authentication) {
+        return ClaimsBillingResponses.ClaimInvoice.from(getClaimsBilling.getByPreAuthorization(
+                new GetClaimByPreAuthorizationQuery(
+                        actorMapper.from(authentication), preAuthorizationId)));
     }
 
     @GetMapping("/invoices/{id}")

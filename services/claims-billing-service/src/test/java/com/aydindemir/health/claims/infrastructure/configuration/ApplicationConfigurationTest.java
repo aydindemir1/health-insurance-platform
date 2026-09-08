@@ -4,10 +4,12 @@ import com.aydindemir.health.claims.application.command.CreateClaimCommand;
 import com.aydindemir.health.claims.application.port.in.CreateClaimUseCase;
 import com.aydindemir.health.claims.application.port.in.ManageInvoiceUseCase;
 import com.aydindemir.health.claims.application.port.in.GetClaimsBillingUseCase;
+import com.aydindemir.health.claims.application.port.in.HandleApprovedPreAuthorizationUseCase;
 import com.aydindemir.health.claims.application.port.in.ReviewClaimUseCase;
 import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizationPort;
 import com.aydindemir.health.claims.application.port.out.ClaimRepository;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
+import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
 import com.aydindemir.health.claims.application.security.ActorContext;
 import com.aydindemir.health.claims.application.security.ApplicationRole;
 import com.aydindemir.health.claims.domain.model.Claim;
@@ -46,6 +48,7 @@ class ApplicationConfigurationTest {
             assertThat(create).isSameAs(context.getBean(ReviewClaimUseCase.class));
             assertThat(create).isSameAs(context.getBean(ManageInvoiceUseCase.class));
             assertThat(create).isSameAs(context.getBean(GetClaimsBillingUseCase.class));
+            assertThat(create).isSameAs(context.getBean(HandleApprovedPreAuthorizationUseCase.class));
             assertThat(AopUtils.isAopProxy(create)).isTrue();
             assertThat(AopUtils.getTargetClass(create)).isEqualTo(TransactionalClaimsBillingUseCases.class);
         });
@@ -87,6 +90,9 @@ class ApplicationConfigurationTest {
         }
         @Bean ApprovedPreAuthorizationPort approvedPreAuthorizationPort() {
             return mock(ApprovedPreAuthorizationPort.class);
+        }
+        @Bean ProcessedMessageRepository processedMessageRepository() {
+            return mock(ProcessedMessageRepository.class);
         }
         @Bean RecordingTransactionManager transactionManager() { return new RecordingTransactionManager(); }
     }

@@ -65,7 +65,7 @@ class JpaClaimsBillingRepositoryIntegrationTest {
                     assertThat(payment.reference()).isEqualTo("PAY-001"));
         });
         assertThat(jdbc.queryForObject("select count(*) from databasechangelog", Integer.class))
-                .isEqualTo(1);
+                .isEqualTo(2);
     }
 
     @Test

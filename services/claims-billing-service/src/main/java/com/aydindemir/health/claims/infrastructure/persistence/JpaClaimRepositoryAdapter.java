@@ -44,6 +44,11 @@ class JpaClaimRepositoryAdapter implements ClaimRepository {
         return repository.existsByPreAuthorizationId(preAuthorizationId);
     }
 
+    @Override
+    public Optional<Claim> findByPreAuthorizationId(UUID preAuthorizationId) {
+        return repository.findByPreAuthorizationId(preAuthorizationId).map(this::mapToDomain);
+    }
+
     private void mapToEntity(Claim source, ClaimJpaEntity target) {
         target.id = source.id();
         target.preAuthorizationId = source.preAuthorizationId();

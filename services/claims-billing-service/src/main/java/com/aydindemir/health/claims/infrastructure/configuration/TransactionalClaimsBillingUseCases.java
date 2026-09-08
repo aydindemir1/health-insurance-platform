@@ -3,6 +3,7 @@ package com.aydindemir.health.claims.infrastructure.configuration;
 import com.aydindemir.health.claims.application.command.ApproveClaimCommand;
 import com.aydindemir.health.claims.application.command.ClaimActionCommand;
 import com.aydindemir.health.claims.application.command.CreateClaimCommand;
+import com.aydindemir.health.claims.application.command.HandleApprovedPreAuthorizationCommand;
 import com.aydindemir.health.claims.application.command.RecordPaymentCommand;
 import com.aydindemir.health.claims.application.command.ResolveInvoiceDisputeCommand;
 import com.aydindemir.health.claims.application.dto.ClaimInvoiceResult;
@@ -10,15 +11,18 @@ import com.aydindemir.health.claims.application.dto.ClaimResult;
 import com.aydindemir.health.claims.application.dto.InvoiceResult;
 import com.aydindemir.health.claims.application.port.in.CreateClaimUseCase;
 import com.aydindemir.health.claims.application.port.in.GetClaimsBillingUseCase;
+import com.aydindemir.health.claims.application.port.in.HandleApprovedPreAuthorizationUseCase;
 import com.aydindemir.health.claims.application.port.in.ManageInvoiceUseCase;
 import com.aydindemir.health.claims.application.port.in.ReviewClaimUseCase;
 import com.aydindemir.health.claims.application.usecase.ClaimsBillingApplicationService;
 import com.aydindemir.health.claims.application.query.GetClaimQuery;
 import com.aydindemir.health.claims.application.query.GetInvoiceQuery;
+import com.aydindemir.health.claims.application.query.GetClaimByPreAuthorizationQuery;
 import org.springframework.transaction.annotation.Transactional;
 
 public class TransactionalClaimsBillingUseCases implements
-        CreateClaimUseCase, ReviewClaimUseCase, ManageInvoiceUseCase, GetClaimsBillingUseCase {
+        CreateClaimUseCase, ReviewClaimUseCase, ManageInvoiceUseCase,
+        GetClaimsBillingUseCase, HandleApprovedPreAuthorizationUseCase {
     private final ClaimsBillingApplicationService delegate;
 
     TransactionalClaimsBillingUseCases(ClaimsBillingApplicationService delegate) {
@@ -52,4 +56,12 @@ public class TransactionalClaimsBillingUseCases implements
 
     @Override @Transactional(readOnly = true)
     public InvoiceResult getInvoice(GetInvoiceQuery query) { return delegate.getInvoice(query); }
+
+    @Override @Transactional(readOnly = true)
+    public ClaimInvoiceResult getByPreAuthorization(GetClaimByPreAuthorizationQuery query) {
+        return delegate.getByPreAuthorization(query);
+    }
+
+    @Override @Transactional
+    public void handle(HandleApprovedPreAuthorizationCommand command) { delegate.handle(command); }
 }

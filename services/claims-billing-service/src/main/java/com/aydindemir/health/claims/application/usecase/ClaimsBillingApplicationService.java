@@ -3,6 +3,7 @@ package com.aydindemir.health.claims.application.usecase;
 import com.aydindemir.health.claims.application.command.ApproveClaimCommand;
 import com.aydindemir.health.claims.application.command.ClaimActionCommand;
 import com.aydindemir.health.claims.application.command.CreateClaimCommand;
+import com.aydindemir.health.claims.application.command.HandleApprovedPreAuthorizationCommand;
 import com.aydindemir.health.claims.application.command.RecordPaymentCommand;
 import com.aydindemir.health.claims.application.command.ResolveInvoiceDisputeCommand;
 import com.aydindemir.health.claims.application.dto.ClaimInvoiceResult;
@@ -18,15 +19,18 @@ import com.aydindemir.health.claims.application.exception.InvoiceNumberConflictE
 import com.aydindemir.health.claims.application.mapper.ClaimsBillingResultMapper;
 import com.aydindemir.health.claims.application.port.in.CreateClaimUseCase;
 import com.aydindemir.health.claims.application.port.in.GetClaimsBillingUseCase;
+import com.aydindemir.health.claims.application.port.in.HandleApprovedPreAuthorizationUseCase;
 import com.aydindemir.health.claims.application.port.in.ManageInvoiceUseCase;
 import com.aydindemir.health.claims.application.port.in.ReviewClaimUseCase;
 import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizationPort;
 import com.aydindemir.health.claims.application.port.out.ClaimRepository;
 import com.aydindemir.health.claims.application.port.out.IdentifierGenerator;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
+import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
 import com.aydindemir.health.claims.application.security.ActorContext;
 import com.aydindemir.health.claims.application.query.GetClaimQuery;
 import com.aydindemir.health.claims.application.query.GetInvoiceQuery;
+import com.aydindemir.health.claims.application.query.GetClaimByPreAuthorizationQuery;
 import com.aydindemir.health.claims.application.security.ApplicationRole;
 import com.aydindemir.health.claims.domain.model.Claim;
 import com.aydindemir.health.claims.domain.model.Invoice;
@@ -40,11 +44,14 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 public final class ClaimsBillingApplicationService implements
-        CreateClaimUseCase, ReviewClaimUseCase, ManageInvoiceUseCase, GetClaimsBillingUseCase {
+        CreateClaimUseCase, ReviewClaimUseCase, ManageInvoiceUseCase,
+        GetClaimsBillingUseCase, HandleApprovedPreAuthorizationUseCase {
+    private static final String APPROVAL_CONSUMER = "claims-pre-authorization-approved-v1";
     private final ClaimRepository claims;
     private final InvoiceRepository invoices;
     private final ApprovedPreAuthorizationPort preAuthorizations;
     private final IdentifierGenerator identifiers;
+    private final ProcessedMessageRepository processedMessages;
     private final Clock clock;
 
     public ClaimsBillingApplicationService(
@@ -52,12 +59,37 @@ public final class ClaimsBillingApplicationService implements
             InvoiceRepository invoices,
             ApprovedPreAuthorizationPort preAuthorizations,
             IdentifierGenerator identifiers,
+            ProcessedMessageRepository processedMessages,
             Clock clock) {
         this.claims = Objects.requireNonNull(claims);
         this.invoices = Objects.requireNonNull(invoices);
         this.preAuthorizations = Objects.requireNonNull(preAuthorizations);
         this.identifiers = Objects.requireNonNull(identifiers);
+        this.processedMessages = Objects.requireNonNull(processedMessages);
         this.clock = Objects.requireNonNull(clock);
+    }
+
+    @Override
+    public void handle(HandleApprovedPreAuthorizationCommand command) {
+        Objects.requireNonNull(command);
+        if (processedMessages.exists(command.messageId())) {
+            return;
+        }
+        if (!claims.existsByPreAuthorizationId(command.preAuthorizationId())) {
+            UUID claimId = identifiers.generate();
+            Money amount = Money.positive(command.authorizedAmount(), command.currency());
+            Claim claim = Claim.submit(
+                    claimId, command.preAuthorizationId(), command.memberId(),
+                    command.providerId(), command.policyNumber(), command.serviceCode(),
+                    amount, clock);
+            Invoice invoice = Invoice.issue(
+                    identifiers.generate(), claimId, command.providerId(),
+                    "AUTO-" + command.preAuthorizationId(), amount, clock);
+            claims.save(claim);
+            invoices.save(invoice);
+        }
+        processedMessages.markProcessed(
+                command.messageId(), APPROVAL_CONSUMER, clock.instant());
     }
 
     @Override
@@ -169,6 +201,15 @@ public final class ClaimsBillingApplicationService implements
         Invoice invoice = findInvoice(Objects.requireNonNull(query).invoiceId());
         requireReadAccess(query.actor(), invoice.providerId());
         return ClaimsBillingResultMapper.toResult(invoice);
+    }
+
+    @Override
+    public ClaimInvoiceResult getByPreAuthorization(GetClaimByPreAuthorizationQuery query) {
+        Objects.requireNonNull(query);
+        Claim claim = claims.findByPreAuthorizationId(query.preAuthorizationId())
+                .orElseThrow(() -> new ClaimNotFoundException(query.preAuthorizationId()));
+        requireReadAccess(query.actor(), claim.providerId());
+        return result(claim, findInvoiceByClaimId(claim.id()));
     }
 
     private <T> T withStateConflict(Supplier<T> action) {

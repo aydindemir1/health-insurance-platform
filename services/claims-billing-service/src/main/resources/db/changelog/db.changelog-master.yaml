@@ -1,3 +1,5 @@
 databaseChangeLog:
   - include:
       file: db/changelog/changes/001-create-claims-billing.yaml
+  - include:
+      file: db/changelog/changes/002-create-processed-messages.yaml

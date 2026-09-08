@@ -3,6 +3,7 @@ package com.aydindemir.health.claims.application.usecase;
 import com.aydindemir.health.claims.application.command.ApproveClaimCommand;
 import com.aydindemir.health.claims.application.command.ClaimActionCommand;
 import com.aydindemir.health.claims.application.command.CreateClaimCommand;
+import com.aydindemir.health.claims.application.command.HandleApprovedPreAuthorizationCommand;
 import com.aydindemir.health.claims.application.command.RecordPaymentCommand;
 import com.aydindemir.health.claims.application.command.ResolveInvoiceDisputeCommand;
 import com.aydindemir.health.claims.application.exception.ApplicationAccessDeniedException;
@@ -11,6 +12,7 @@ import com.aydindemir.health.claims.application.exception.DuplicateClaimExceptio
 import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizationPort;
 import com.aydindemir.health.claims.application.port.out.ClaimRepository;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
+import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
 import com.aydindemir.health.claims.application.security.ActorContext;
 import com.aydindemir.health.claims.application.security.ApplicationRole;
 import com.aydindemir.health.claims.application.query.GetClaimQuery;
@@ -26,6 +28,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayDeque;
 import java.util.Currency;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
@@ -49,12 +52,29 @@ class ClaimsBillingApplicationServiceTest {
     private InMemoryClaimRepository claims;
     private InMemoryInvoiceRepository invoices;
     private ClaimsBillingApplicationService service;
+    private InMemoryProcessedMessageRepository processedMessages;
 
     @BeforeEach
     void setUp() {
         claims = new InMemoryClaimRepository();
         invoices = new InMemoryInvoiceRepository();
+        processedMessages = new InMemoryProcessedMessageRepository();
         service = serviceWith(snapshot("APPROVED", PROVIDER_ID));
+    }
+
+    @Test
+    void consumesApprovedPreAuthorizationExactlyOnceAtApplicationBoundary() {
+        UUID messageId = UUID.randomUUID();
+        var command = new HandleApprovedPreAuthorizationCommand(
+                messageId, PRE_AUTHORIZATION_ID, MEMBER_ID, PROVIDER_ID,
+                "POL-100", "IMG-MRI", new BigDecimal("1250.00"), TRY, CLOCK.instant());
+
+        service.handle(command);
+        service.handle(command);
+
+        assertThat(claims.entries).hasSize(1);
+        assertThat(invoices.entries).hasSize(1);
+        assertThat(processedMessages.ids).containsExactly(messageId);
     }
 
     @Test
@@ -166,7 +186,7 @@ class ClaimsBillingApplicationServiceTest {
         return new ClaimsBillingApplicationService(
                 claims, invoices,
                 id -> PRE_AUTHORIZATION_ID.equals(id) ? Optional.of(snapshot) : Optional.empty(),
-                ids::remove, CLOCK);
+                ids::remove, processedMessages, CLOCK);
     }
 
     private ApprovedPreAuthorizationPort.PreAuthorizationSnapshot snapshot(
@@ -211,6 +231,13 @@ class ClaimsBillingApplicationServiceTest {
         }
 
         @Override
+        public Optional<Claim> findByPreAuthorizationId(UUID preAuthorizationId) {
+            return entries.values().stream()
+                    .filter(claim -> claim.preAuthorizationId().equals(preAuthorizationId))
+                    .findFirst();
+        }
+
+        @Override
         public boolean existsByPreAuthorizationId(UUID preAuthorizationId) {
             return entries.values().stream()
                     .anyMatch(claim -> claim.preAuthorizationId().equals(preAuthorizationId));
@@ -242,6 +269,16 @@ class ClaimsBillingApplicationServiceTest {
         public boolean existsByInvoiceNumber(String invoiceNumber) {
             return entries.values().stream()
                     .anyMatch(invoice -> invoice.invoiceNumber().equalsIgnoreCase(invoiceNumber));
+        }
+    }
+
+    private static final class InMemoryProcessedMessageRepository
+            implements ProcessedMessageRepository {
+        private final Set<UUID> ids = new HashSet<>();
+
+        @Override public boolean exists(UUID messageId) { return ids.contains(messageId); }
+        @Override public void markProcessed(UUID messageId, String consumerName, Instant processedAt) {
+            ids.add(messageId);
         }
     }
 }

@@ -1,0 +1,14 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-processed-messages
+      author: aydin-demir
+      changes:
+        - sql:
+            sql: |
+              create table processed_messages (
+                message_id uuid primary key,
+                consumer_name varchar(120) not null,
+                processed_at timestamp with time zone not null
+              );
+              create index idx_processed_messages_consumer
+                on processed_messages (consumer_name, processed_at desc);

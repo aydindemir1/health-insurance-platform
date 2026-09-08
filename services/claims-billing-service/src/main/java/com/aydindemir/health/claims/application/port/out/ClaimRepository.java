@@ -10,5 +10,7 @@ public interface ClaimRepository {
 
     Optional<Claim> findById(UUID id);
 
+    Optional<Claim> findByPreAuthorizationId(UUID preAuthorizationId);
+
     boolean existsByPreAuthorizationId(UUID preAuthorizationId);
 }

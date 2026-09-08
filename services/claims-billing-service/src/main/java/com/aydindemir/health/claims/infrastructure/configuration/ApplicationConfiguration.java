@@ -4,6 +4,7 @@ import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizatio
 import com.aydindemir.health.claims.application.port.out.ClaimRepository;
 import com.aydindemir.health.claims.application.port.out.IdentifierGenerator;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
+import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
 import com.aydindemir.health.claims.application.usecase.ClaimsBillingApplicationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,9 +30,10 @@ public class ApplicationConfiguration {
             InvoiceRepository invoices,
             ApprovedPreAuthorizationPort preAuthorizations,
             IdentifierGenerator identifiers,
+            ProcessedMessageRepository processedMessages,
             Clock clock) {
         return new TransactionalClaimsBillingUseCases(
                 new ClaimsBillingApplicationService(
-                        claims, invoices, preAuthorizations, identifiers, clock));
+                        claims, invoices, preAuthorizations, identifiers, processedMessages, clock));
     }
 }
