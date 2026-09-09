@@ -82,10 +82,10 @@ flowchart LR
 | Threat | Required control | Current state / planned Milestone 9 evidence |
 | --- | --- | --- |
 | Provider reads another provider's record | Trusted `provider_id` scope plus use-case authorization | Implemented and tested |
-| Unauthorized audit browsing | `SYSTEM_ADMIN` endpoint and use-case checks, pagination and bounded filters | Planned |
-| Sensitive content copied into audit | Typed audit contract and allowlisted change keys | Planned |
-| Business mutation without audit | Same local transaction, fail-closed persistence | Planned |
-| Audit row changed or deleted | Insert-only port, database protection, integration tests | Planned |
+| Unauthorized audit browsing | `SYSTEM_ADMIN` endpoint and use-case checks, pagination and bounded filters | Planned; no read endpoint exposed yet |
+| Sensitive content copied into audit | Typed audit contract and allowlisted change keys | Implemented for Authorization; remaining services planned |
+| Business mutation without audit | Same local transaction, fail-closed persistence | Implemented for Authorization submission/decision; remaining services planned |
+| Audit row changed or deleted | Insert-only port, database protection, integration tests | Implemented for Authorization |
 | JWT/secret appears in logs | No body/header logging; automated forbidden-field assertions | Partly implemented; tests expanded in M9 |
 | Search/log/message becomes an uncontrolled archive | Retention class, rebuild/delete runbooks and access controls | Design now; operations continue in M10/M15 |
 | Correlation ID mistaken for identity | Store actor subject separately; document correlation as diagnostic only | Design enforced by audit contract |
@@ -117,10 +117,10 @@ of the same disposal analysis.
 - [x] Provider ownership is derived from a trusted token claim, not a request body.
 - [x] Gateway and services reject unauthenticated access.
 - [x] Logs use structured operational identifiers instead of message bodies.
-- [ ] State mutations and audit inserts are one transaction.
-- [ ] Audit storage rejects update and delete operations.
+- [x] Authorization submission/decision and audit inserts are one transaction.
+- [x] Authorization audit storage rejects update, delete, and truncate operations.
 - [ ] Audit read use cases require `SYSTEM_ADMIN`.
-- [ ] Audit payload keys are allowlisted and sensitive fields have negative tests.
+- [x] Authorization audit payload keys are allowlisted and sensitive fields have negative tests.
 - [ ] Log-capture tests reject token, member, policy, diagnosis and contact values.
 - [ ] Retention mappings receive legal/data-controller approval outside the codebase.
 - [ ] Disposal jobs and backup handling are implemented and rehearsed in Milestone 15.
@@ -136,4 +136,3 @@ of the same disposal analysis.
   must add recovery and lifecycle controls without increasing their data scope.
 - UI screenshots are safe only because the demo catalogue is synthetic; visual
   review remains mandatory before publication.
-

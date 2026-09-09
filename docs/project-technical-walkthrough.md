@@ -174,6 +174,30 @@ REST clients forward it, and asynchronous listeners derive it from event/task
 metadata. Spring Boot renders MDC as ECS JSON. Docker attaches the Elastic Java
 agent externally, so tracing concerns do not enter domain or application code.
 
+### Milestone 8 — Gateway security boundary
+
+APISIX is the only host-published business API origin. It validates Keycloak
+tokens at the edge and applies shared traffic, CORS, payload, timeout, header,
+and correlation policies. Each service still validates the token and owns its
+provider/role authorization decisions: gateway authentication does not replace
+application authorization.
+
+### Milestone 9 — Audit and governance (first vertical slice)
+
+The audit design is service-owned and append-only. This avoids coupling every
+business transaction to a central audit service and lets the audit row commit
+atomically with the state it describes. Authorization now records submission,
+approval, and rejection through a framework-free `AuditTrail` output port.
+
+The contract captures a controlled action, actor subject/roles, provider scope,
+correlation ID, timestamp, controlled reason code, status delta, and retention
+class. It intentionally cannot accept business snapshots or free text. A JDBC
+adapter writes the journal, and Liquibase adds database triggers that reject
+update, delete, and truncate. PostgreSQL Testcontainers prove both the positive
+path and fail-closed rollback: if audit persistence fails, the decision and both
+outboxes roll back. Read-side authorization and other service journals remain
+open, so Milestone 9 is not yet complete.
+
 ## 3. Architecture at runtime
 
 ```mermaid
@@ -455,7 +479,7 @@ duplicated business logic.”
 - Why validate the same JWT at both APISIX and Spring Security?
 - Why is a local rate counter insufficient for multiple APISIX replicas?
 
-## 13. Known gaps after Milestone 8
+## 13. Current known gaps
 
 - The portal has no policy, claim, invoice, or payment screens yet; those flows
   are demonstrated through the API seed script.
@@ -470,8 +494,10 @@ duplicated business logic.”
 - ECS logs are emitted to stdout but a production log shipper, redaction policy,
   dashboards, alerts, and retention policy are not yet configured.
 - Demo users must be created locally because credentials are never committed.
-- Production-grade consent, PHI classification, encryption/key management,
-  retention, audit trail, and regulatory controls require explicit design.
+- Data classification, audit minimization, and retention classes are designed;
+  Policy/Claims audit coverage, privileged audit reads, approved retention
+  durations, disposal jobs, encryption/key management, and regulatory sign-off
+  remain incomplete.
 - Local APISIX-to-Keycloak discovery is HTTP; production requires trusted TLS.
 - Rate-limit state is per gateway instance; a scaled topology requires shared
   Redis counters or an explicitly accepted per-instance quota.

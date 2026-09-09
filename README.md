@@ -6,8 +6,10 @@ provider requests authorization for a member's service, an insurer verifies
 policy coverage and decides the request, and an approved service proceeds to
 claim adjudication, invoice reconciliation, payment, and settlement.
 
-> **Current checkpoint:** Milestones 0–8 are implemented and Milestone 9 audit/
-> data-governance design is in progress. Policy uses a resilient
+> **Current checkpoint:** Milestones 0–8 are implemented. Milestone 9 has an
+> approved audit/data-governance design and its first production slice in
+> Authorization Service; cross-service coverage and the secured read model are
+> still in progress. Policy uses a resilient
 > Redis cache-aside adapter; Claims/Billing emits transactionally durable search
 > projections; Search Service builds a provider-scoped Elasticsearch read model.
 > Every Java runtime emits ECS JSON with correlation IDs, and the Compose stack
@@ -215,6 +217,22 @@ domain concern.
 - The portal and synthetic demo use one API origin. A repeatable verification
   script proves missing/invalid token and wrong-audience rejection, authorized routing, correlation,
   CORS, payload limiting and rate limiting.
+
+### Milestone 9 — Audit and data governance (in progress)
+
+- [ADR-011](docs/adr/011-service-owned-append-only-audit.md) defines a local,
+  service-owned audit journal instead of a synchronous central audit dependency.
+- Authorization submission and decision transitions append minimized audit
+  evidence in the same PostgreSQL transaction as the aggregate and outboxes.
+- The typed audit contract contains actor subject/roles, provider scope,
+  correlation ID, controlled action/reason codes and status delta. It excludes
+  member, policy, diagnosis, service, amount, decision text and request bodies.
+- Liquibase creates an insert-only `audit_records` journal. PostgreSQL triggers
+  reject `UPDATE`, `DELETE`, and `TRUNCATE`; a JSON key constraint limits the
+  change document to `fromStatus` and `toStatus`.
+- Integration tests prove fail-closed rollback and database mutation rejection.
+  A privileged paginated read API, Policy/Claims coverage, retention execution,
+  demo UI and screenshot evidence remain open Milestone 9 work.
 
 ## Architecture overview
 
@@ -649,9 +667,11 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
 - [ ] Milestone 15 — Backup, restore, disaster recovery and capacity planning
 - [ ] Milestone 16 — Portfolio and interview finalization
 
-Milestone 8 is complete. Milestone 9 starts with
+Milestone 8 is complete. Milestone 9 is governed by
 [ADR-011](docs/adr/011-service-owned-append-only-audit.md) and the
 [data-governance/KVKK threat model](docs/security/data-governance-and-kvkk.md).
+Its Authorization write-side vertical slice is implemented; the roadmap item
+remains open until the read boundary and remaining service mutations are covered.
 At every later milestone, the
 README, diagrams, ADRs, synthetic demo, scenario, screenshots, technical
 walkthrough, test evidence, limitations, and roadmap are part of the definition

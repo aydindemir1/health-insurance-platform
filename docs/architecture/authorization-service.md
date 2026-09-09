@@ -13,12 +13,14 @@ flowchart LR
     PolicyAdapter[Infrastructure / Policy REST adapter] --> OutputPorts
     EventOutbox[Infrastructure / Kafka event outbox adapter] --> OutputPorts
     TaskOutbox[Infrastructure / notification task outbox adapter] --> OutputPorts
+    AuditAdapter[Infrastructure / insert-only audit adapter] --> OutputPorts
     Relay[Infrastructure / Kafka relay] --> Kafka{{Kafka}}
     NotificationRelay[Infrastructure / confirm-aware AMQP relay] --> Rabbit{{RabbitMQ}}
     Persistence --> Database[(Authorization PostgreSQL)]
     PolicyAdapter --> Policy[Policy Service]
     EventOutbox --> Database
     TaskOutbox --> Database
+    AuditAdapter --> Database
     Relay --> Database
     NotificationRelay --> Database
     Configuration[Infrastructure / transaction configuration] --> InputPorts
@@ -90,6 +92,48 @@ of the same transaction. Separate output ports and tables prevent the Kafka
 relay from accidentally publishing a RabbitMQ command. Broker relays remain
 outside the domain; the application depends only on outbox ports.
 See the [event-driven messaging view](event-driven-messaging.md).
+
+## Transactional audit evidence
+
+Submission, approval, and rejection append a minimized `AuditRecord` through an
+application output port. The application contract is framework-free; an MDC
+context adapter supplies the validated correlation ID and a JDBC adapter writes
+the local journal. The transaction decorator encloses the aggregate save, audit
+append, Kafka outbox append, and notification-task append.
+
+```mermaid
+sequenceDiagram
+    participant API as REST / verified actor
+    participant App as Application use case
+    participant Aggregate as PreAuthorization
+    participant Repo as Aggregate repository
+    participant Audit as AuditTrail port
+    participant Outboxes as Event and task outboxes
+    participant DB as Authorization PostgreSQL
+
+    API->>App: submit or decide + ActorContext
+    App->>Aggregate: enforce role, ownership, state rules
+    App->>Repo: save state
+    Repo->>DB: aggregate mutation
+    App->>Audit: append controlled action and status delta
+    Audit->>DB: INSERT audit_records
+    opt decision transition
+        App->>Outboxes: append Kafka event and notification task
+        Outboxes->>DB: INSERT outbox rows
+    end
+    alt any write fails
+        DB-->>App: rollback aggregate, audit and outboxes
+    else all writes succeed
+        DB-->>App: commit one local transaction
+    end
+```
+
+The journal deliberately omits member/policy identifiers, diagnosis/service
+codes, money, free-text reasons, tokens, and request bodies. PostgreSQL rejects
+row update/delete and table truncation. This is strong application-level
+append-only protection, but not cryptographic immutability against a privileged
+database administrator; that residual control belongs to later backup/WORM and
+operational governance work.
 
 The notification relay uses a pessimistic write lock to keep concurrent service
 instances from selecting the same pending batch. It sends a persistent message

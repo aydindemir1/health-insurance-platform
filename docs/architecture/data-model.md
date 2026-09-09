@@ -13,6 +13,7 @@ erDiagram
     CLAIM ||--o{ CLAIM_SEARCH_OUTBOX : projects
     PRE_AUTHORIZATION ||--o{ OUTBOX_MESSAGE : emits
     PRE_AUTHORIZATION ||--o{ NOTIFICATION_TASK_OUTBOX : schedules
+    PRE_AUTHORIZATION ||--o{ AUDIT_RECORD : records
     NOTIFICATION_TASK_OUTBOX }o..o| NOTIFICATION_DELIVERY : "becomes task_id"
     PRE_AUTHORIZATION }o..o{ NOTIFICATION_DELIVERY : "business reference"
 
@@ -100,6 +101,20 @@ erDiagram
         timestamptz published_at
         integer publish_attempts
     }
+    AUDIT_RECORD {
+        uuid audit_id PK
+        varchar aggregate_type
+        uuid aggregate_id
+        varchar action
+        varchar actor_subject
+        varchar actor_roles
+        uuid provider_id
+        varchar correlation_id
+        timestamptz occurred_at
+        varchar reason_code
+        jsonb changes
+        varchar retention_class
+    }
     PROCESSED_MESSAGE {
         uuid message_id PK
         varchar consumer_name
@@ -131,7 +146,7 @@ erDiagram
 | Database owner | Tables | Other services' access |
 | --- | --- | --- |
 | Policy Service | `policies`, `policy_coverages` | REST coverage evaluation only |
-| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox` | REST snapshots; Kafka events; confirm-aware RabbitMQ task publishing |
+| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox`, `audit_records` | REST snapshots; Kafka events; confirm-aware RabbitMQ task publishing; audit remains private until the secured read API is delivered |
 | Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages`, `claim_search_outbox` | Kafka claim search projections; no direct database access |
 | Notification Worker | `notification_deliveries` | No direct database access |
 | Search Service | Elasticsearch `healthcare-operations-v1` projection | Secured read-only Search API; rebuildable, never authoritative |
