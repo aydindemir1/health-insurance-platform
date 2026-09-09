@@ -6,7 +6,8 @@ provider requests authorization for a member's service, an insurer verifies
 policy coverage and decides the request, and an approved service proceeds to
 claim adjudication, invoice reconciliation, payment, and settlement.
 
-> **Current checkpoint:** Milestones 0–8 are implemented. Policy uses a resilient
+> **Current checkpoint:** Milestones 0–8 are implemented and Milestone 9 audit/
+> data-governance design is in progress. Policy uses a resilient
 > Redis cache-aside adapter; Claims/Billing emits transactionally durable search
 > projections; Search Service builds a provider-scoped Elasticsearch read model.
 > Every Java runtime emits ECS JSON with correlation IDs, and the Compose stack
@@ -639,10 +640,19 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
 - [x] Milestone 6 — RabbitMQ notification worker
 - [x] Milestone 7 — Redis, Elasticsearch, Kibana, Elastic APM, correlation IDs
 - [x] Milestone 8 — APISIX gateway and centralized edge security policies
-- [ ] Milestone 9 — Kubernetes and extended CI/CD toolchain
-- [ ] Milestone 10 — Final portfolio and interview package
+- [ ] Milestone 9 — Append-only audit trail, KVKK and data governance
+- [ ] Milestone 10 — Elasticsearch and messaging recovery operations
+- [ ] Milestone 11 — Notification provider and external-service resilience
+- [ ] Milestone 12 — Load, performance and resilience testing
+- [ ] Milestone 13 — Kubernetes and deployment security
+- [ ] Milestone 14 — CI/CD and software supply chain
+- [ ] Milestone 15 — Backup, restore, disaster recovery and capacity planning
+- [ ] Milestone 16 — Portfolio and interview finalization
 
-Milestone 8 is complete. At every later milestone, the
+Milestone 8 is complete. Milestone 9 starts with
+[ADR-011](docs/adr/011-service-owned-append-only-audit.md) and the
+[data-governance/KVKK threat model](docs/security/data-governance-and-kvkk.md).
+At every later milestone, the
 README, diagrams, ADRs, synthetic demo, scenario, screenshots, technical
 walkthrough, test evidence, limitations, and roadmap are part of the definition
 of done—not end-of-project cleanup.
