@@ -17,6 +17,7 @@ the end of the project.
 - [Frontend architecture](architecture/frontend-architecture.md)
 - [Local deployment](architecture/local-deployment.md)
 - [Local troubleshooting](development/troubleshooting.md)
+- [Search and messaging recovery runbook](operations/search-and-messaging-recovery.md)
 - [Event-driven messaging](architecture/event-driven-messaging.md)
 - [Search, cache, and observability](architecture/search-and-observability.md)
 - [API gateway and security boundary](architecture/api-gateway-and-security.md)

@@ -109,6 +109,7 @@ of JPA entities and HTTP response DTOs.
   "currency": "TRY",
   "decision": "APPROVED",
   "reason": "Coverage verified",
+  "sourceRevision": 2,
   "occurredAt": "2026-09-08T12:00:00Z"
 }
 ```
@@ -120,7 +121,8 @@ message key and the Claims/Billing business uniqueness key. `decision` selects
 whether Claims/Billing starts work; both `PreAuthorizationApproved` and
 `PreAuthorizationRejected` are published. Additive evolution within v1 must
 retain existing meanings, while breaking changes require a new topic/contract
-version.
+version. `sourceRevision` is the owning aggregate's monotonic state revision;
+legacy v1 messages without it map to baseline revision 1.
 
 ## Failure semantics
 
@@ -154,8 +156,9 @@ sequenceDiagram
 
 The relay can publish a duplicate if it crashes after Kafka acknowledgement but
 before committing `published_at`. That window is why the inbox table is required.
-Outbox rows are retained as delivery evidence; retention/archival and DLT replay
-are explicit operational follow-ups.
+Outbox rows are retained as delivery evidence; retention/archival remains an
+operational follow-up. Milestone 10 adds bounded DLT inspection and reviewed
+copy-replay without claiming automatic recovery.
 
 ## Search projection path (Milestone 7)
 
@@ -167,7 +170,7 @@ flowchart LR
     Relay[Scheduled search relay] --> SO
     Relay --> SearchTopic{{health.claims.search-projection.v1}}
     SearchTopic --> Search
-    Search -->|deterministic document ID| ES[(healthcare-operations-v1)]
+    Search -->|deterministic ID + monotonic revision| ES[(healthcare-operations alias)]
 ```
 
 Claim and invoice transitions update their aggregate and append a complete
@@ -175,4 +178,32 @@ operational projection in one local transaction. The relay publishes only after
 commit and marks rows published only after Kafka acknowledgement. Search consumes
 at least once; `CLAIM-{claimId}` and `PRE_AUTHORIZATION-{id}` document IDs turn
 redelivery into replacement. Kafka partition keys preserve claim transition order
-for one aggregate. Elasticsearch remains disposable and rebuildable read state.
+for one aggregate. A conditional Elasticsearch upsert also rejects an older
+`sourceRevision`, so a delayed event cannot regress a newer snapshot during an
+online rebuild. Elasticsearch remains disposable and rebuildable read state.
+
+## Controlled dead-letter recovery (Milestone 10)
+
+```mermaid
+flowchart LR
+    Signal[Outbox age, consumer lag, queue depth] --> Inspect[Inspect bounded metadata and SHA-256]
+    Inspect --> Classify{Reviewed classification}
+    Classify -->|Permanent or unknown| Quarantine[Retain original in DLT or DLQ]
+    Classify -->|Transient and dependency healthy| Confirm[Explicit confirmation + attempt 1..3]
+    Confirm --> Copy[Copy to allowlisted original route]
+    Copy --> Guard[Inbox, uniqueness, taskId or revision guard]
+    Guard --> Verify[Verify state and lag before another record]
+```
+
+Kafka tooling permits only the Authorization decision and Claims search DLT
+topics. RabbitMQ tooling permits only the notification DLQ and delivery route.
+Inspection hashes payloads in memory and prints only safe metadata. Replay is
+limited to ten records, requires `Transient` classification and
+`-ConfirmReplay`, attaches recovery ID/source/attempt metadata, and preserves
+the original dead-letter record. There is deliberately no discard command.
+
+This is an operator-assisted local control, not a production recovery service:
+Kafka access is provided by the tools-only Compose profile, RabbitMQ credentials
+are runtime inputs, and no central audit/workload identity exists yet. Detailed
+commands and stop conditions are in the
+[search and messaging recovery runbook](../operations/search-and-messaging-recovery.md).

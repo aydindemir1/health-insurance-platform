@@ -121,7 +121,8 @@ curl.exe -sS http://localhost:9200/_cluster/health
 If core claim commands succeed but search is stale, inspect unpublished
 `claim_search_outbox` rows and Search consumer logs. Do not repair this by writing
 directly to source-service databases or Elasticsearch. Restore the dependency,
-allow the relay/consumer to catch up, or use a future audited reindex operation.
+allow the relay/consumer to catch up, or follow the bounded
+[search rebuild runbook](../operations/search-and-messaging-recovery.md).
 
 A full Search Testcontainers suite can time out while several large containers
 start concurrently. Run it alone before classifying the failure as a code defect:
@@ -130,6 +131,45 @@ start concurrently. Run it alone before classifying the failure as a code defect
 Set-Location services/search-service
 .\mvnw.cmd --batch-mode --no-transfer-progress test
 ```
+
+## Search rebuild does not activate
+
+- `Candidate count ... does not match expected count` means one or more owner
+  pages/writes did not produce the exact distinct set. The service refreshes the
+  candidate before counting. Leave the current alias untouched and inspect the
+  failed run; never lower the expected count to force activation.
+- `Alias changed concurrently` means another operation moved the stable alias.
+  Stop and inspect `_cat/aliases` and `_cat/indices`; do not retry with a guessed
+  predecessor.
+- A `409` rollback after a Search Service restart is expected because the local
+  run registry is in memory. Both physical indices remain intact; perform a new
+  reviewed recovery rather than editing the alias blindly.
+- A pre-M10 document can omit `sourceRevision`. The reader treats it as baseline
+  revision 1 so search remains available, and the next owner rebuild replaces it.
+
+Use only safe metadata during diagnosis:
+
+```powershell
+curl.exe -sS "http://localhost:9200/_cat/aliases/healthcare-operations?format=json&h=alias,index,is_write_index"
+curl.exe -sS "http://localhost:9200/_cat/indices/healthcare-operations-v*?format=json&h=index,docs.count,status"
+```
+
+## Recovery inspection cannot find Kafka commands
+
+The runtime `apache/kafka-native` image is intentionally small and does not
+contain console administration binaries. Milestone 10 defines a tools-only
+`kafka-cli` Compose profile; use the committed scripts rather than installing
+packages in the broker container:
+
+```powershell
+.\scripts\inspect-recovery-status.ps1 | ConvertTo-Json -Depth 6
+.\scripts\recover-kafka-dlt.ps1 -Action Inspect `
+  -DltTopic health.authorization.pre-authorization.v1.DLT -MaxMessages 1
+```
+
+An empty DLT/DLQ is a healthy result, not a script failure. If replayed data
+immediately returns to dead letter, stop: it was misclassified or its dependency
+is still unhealthy. Do not loop the command or reset Kafka offsets.
 
 ## Correlation or APM data is missing
 

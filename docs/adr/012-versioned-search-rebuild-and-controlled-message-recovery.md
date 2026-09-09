@@ -87,9 +87,11 @@ Recovery is an explicit `inspect -> classify -> replay or quarantine` workflow:
 4. Replay preserves the original message/task ID for downstream idempotency,
    adds a new recovery/correlation ID, records source destination and attempt,
    and enforces a maximum replay count.
-5. Dry-run performs validation and routing checks without publishing.
-6. Replay and discard operations require `SYSTEM_ADMIN` and append minimized
-   operational audit evidence; automatic infinite replay is prohibited.
+5. `Inspect` and `Quarantine` are non-publishing views; quarantine means the
+   original remains retained in its dead-letter destination.
+6. Local replay requires explicit `Transient` classification, a confirmation
+   flag, an allowlisted destination, and an attempt between one and three.
+   Automatic infinite replay and destructive discard are prohibited.
 
 Kafka consumer lag, RabbitMQ queue depth, and outbox backlog are diagnostic
 signals, not business truth. The operational view will report counts, oldest age,
@@ -146,6 +148,12 @@ sequenceDiagram
 - The local orchestrator is intentionally not a durable workflow engine. Very
   large or multi-hour production rebuilds would require workload identity,
   checkpoint persistence, cancellation, and resumable job coordination.
+- Search keeps rebuild/rollback run state in memory. A service restart leaves
+  indices intact but requires manual alias inspection rather than resuming the
+  old run through the API.
+- The local broker tools rely on Docker access and runtime RabbitMQ credentials;
+  a production operations API must add workload identity, approval/audit
+  evidence, and durable case state.
 - Keeping predecessor indices consumes storage and therefore requires an explicit
   later cleanup/retention policy.
 

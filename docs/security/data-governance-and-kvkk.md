@@ -87,7 +87,7 @@ flowchart LR
 | Business mutation without audit | Same local transaction, fail-closed persistence | Implemented for Authorization submission/decision, Policy issuance, and Claims/Billing claim/invoice/payment transitions |
 | Audit row changed or deleted | Insert-only port, database protection, integration tests | Implemented in each owning PostgreSQL database |
 | JWT/secret appears in logs | No body/header logging; automated forbidden-field assertions | Body/header logging is absent and safe structured metadata is used; comprehensive log-capture negative tests remain open |
-| Search/log/message becomes an uncontrolled archive | Retention class, rebuild/delete runbooks and access controls | Design now; operations continue in M10/M15 |
+| Search/log/message becomes an uncontrolled archive | Retention class, rebuild and controlled replay runbooks, bounded access | M10 implements non-destructive search rebuild and digest-only dead-letter inspection; disposal remains M15 |
 | Correlation ID mistaken for identity | Store actor subject separately; document correlation as diagnostic only | Design enforced by audit contract |
 | Privileged database tampering | External immutable backup/signature/WORM control | Out of current local scope; explicit residual risk |
 
@@ -153,7 +153,8 @@ monitoring for audit reads belongs in a separately protected security/SIEM trail
   access management are not yet implemented.
 - Legal/data-controller approval of retention durations and an executable,
   rehearsed disposal process remain outside Milestone 9.
-- Search and event payloads currently contain linkable operational fields; M10
-  must add recovery and lifecycle controls without increasing their data scope.
+- Search and event payloads contain linkable operational fields. M10 recovery
+  preserves their existing minimized contracts, hides payloads during broker
+  inspection, and never copies source databases; lifecycle disposal remains open.
 - UI screenshots are safe only because the demo catalogue is synthetic; visual
   review remains mandatory before publication.

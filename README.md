@@ -6,7 +6,7 @@ provider requests authorization for a member's service, an insurer verifies
 policy coverage and decides the request, and an approved service proceeds to
 claim adjudication, invoice reconciliation, payment, and settlement.
 
-> **Current checkpoint:** Milestones 0–9 are implemented. Authorization,
+> **Current checkpoint:** Milestones 0–10 are implemented. Authorization,
 > Policy, and Claims/Billing own minimized append-only audit journals and expose
 > independently secured, bounded `SYSTEM_ADMIN` read APIs. The Operations
 > Portal provides a service-aware audit view without joining service databases.
@@ -15,7 +15,11 @@ claim adjudication, invoice reconciliation, payment, and settlement.
 > projections; Search Service builds a provider-scoped Elasticsearch read model.
 > Every Java runtime emits ECS JSON with correlation IDs, and the Compose stack
 > includes Elasticsearch, Kibana, APM Server, and externally attached Elastic
-> Java agents. APISIX is the only host-published business API boundary and
+> Java agents. Search projections can now be rebuilt online from bounded,
+> service-owned snapshots through a versioned candidate index and atomic alias
+> swap. Monotonic source revisions reject stale writes, while bounded Kafka DLT
+> and RabbitMQ DLQ tools support explicit inspect/classify/replay workflows.
+> APISIX is the only host-published business API boundary and
 > applies OIDC/JWKS validation, traffic limits, correlation IDs, defensive
 > headers, and RFC 9457 gateway errors. Compose and Testcontainers exercise the
 > real infrastructure paths.
@@ -247,6 +251,40 @@ domain concern.
   surfaces, documents minimization rules and retention classes, and records
   residual risks. Legal retention approval and automated disposal remain later
   operational work; this portfolio does not claim regulatory compliance.
+
+### Milestone 10 — Search and messaging recovery
+
+- [ADR-012](docs/adr/012-versioned-search-rebuild-and-controlled-message-recovery.md)
+  defines service-owned projection export, versioned physical indices, stable
+  alias activation, stale-write protection, rollback, and controlled broker
+  recovery.
+- Authorization and Claims/Billing expose `SYSTEM_ADMIN`-only, page-size-capped
+  snapshot APIs backed exclusively by their own databases. Stable ordering and
+  transport-specific DTOs preserve database-per-service and Clean Architecture
+  boundaries.
+- Every projection carries an owner-defined monotonic `sourceRevision`.
+  Elasticsearch conditional upsert accepts an equal/newer revision and turns an
+  older event into a no-op; pre-M10 documents safely map to baseline revision 1.
+- Search Service creates an isolated versioned candidate, validates bounded
+  ingestion, refreshes and compares the distinct document count, then performs
+  an atomic compare-and-swap of the `healthcare-operations` alias. The prior
+  index is retained for explicit rollback.
+- `demo/rebuild-search-index.ps1` coordinates current snapshots through APISIX
+  with a runtime-only token. It detects duplicate deterministic IDs and never
+  writes projection payloads or credentials to disk.
+- Recovery status reports safe outbox age/attempt counts, Kafka group lag, and
+  RabbitMQ queue depth. DLT/DLQ tools expose only digests and bounded metadata;
+  replay requires a transient classification, an explicit confirmation flag,
+  an allowlisted route, and a maximum recovery attempt.
+- Real PostgreSQL and Elasticsearch integration tests prove owner exports,
+  stale-revision rejection, legacy-document compatibility, count-gated
+  activation, retained predecessor, atomic alias swap, and rollback. A live
+  Compose rehearsal activated a 70-document candidate without deleting the
+  55-document predecessor.
+- The local coordinator is intentionally not a durable production workflow:
+  run state is in memory and broker operations use local operator access. The
+  [recovery runbook](docs/operations/search-and-messaging-recovery.md) records
+  these limits and the safe failure procedure.
 
 ## Architecture overview
 
@@ -552,6 +590,13 @@ RFC 9457 401 with a generated correlation ID. The Compose-backed verification
 script additionally exercises valid routing, CORS, 1 MiB rejection and rate
 limiting using runtime-only tokens.
 
+Milestone 10 was verified on 10 September 2026 with **193 passing backend
+tests**: Authorization 73, Policy 33, Claims/Billing 51, Notification Worker 23,
+and Search Service 13. Search's five real-Elasticsearch integration tests cover
+stale and legacy revisions plus activation/rollback. The portal passed oxlint,
+9 Vitest tests in 8 files, and its production TypeScript/Vite build. These dated
+counts are evidence, never a substitute for rerunning the commands.
+
 Validate the living portfolio documentation separately. This command checks
 local Markdown links, JSON and PowerShell syntax, the expected screenshot set,
 and renders every Mermaid block:
@@ -598,6 +643,13 @@ not published to the host.
 | `GET` | `/api/v1/invoices/{id}` | Authorized invoice detail |
 | `POST` | `/api/v1/invoices/{id}/dispute-resolution` | Insurance reconciliation |
 | `POST` | `/api/v1/invoices/{id}/payments` | Insurance payment recording |
+| `GET` | `/api/v1/search` | Provider-scoped or insurer operations search |
+| `GET` | `/api/v1/admin/search-projections/pre-authorizations` | Bounded Authorization snapshot; system administrator |
+| `GET` | `/api/v1/admin/search-projections/claims` | Bounded Claims/Billing snapshot; system administrator |
+| `POST` | `/api/v1/admin/search-rebuilds` | Create versioned candidate; system administrator |
+| `POST` | `/api/v1/admin/search-rebuilds/{runId}/records` | Ingest 1–200 projections; system administrator |
+| `POST` | `/api/v1/admin/search-rebuilds/{runId}/activation` | Count-gated alias activation; system administrator |
+| `POST` | `/api/v1/admin/search-rebuilds/{runId}/rollback` | Explicit retained-index rollback; system administrator |
 | `GET` | `/actuator/health` | Public liveness/readiness information |
 
 The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
@@ -612,6 +664,8 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 
 ![RabbitMQ notification delivery queue and DLQ](docs/screenshots/06-rabbitmq-notification-queues.png)
 
+![Live versioned search rebuild](docs/screenshots/11-search-rebuild-recovery.png)
+
 - [Engineering documentation index](docs/README.md)
 - [Technical walkthrough and interview guide](docs/project-technical-walkthrough.md)
 - [C4 context](docs/architecture/c4-context.md) and
@@ -623,6 +677,7 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 - [Frontend architecture](docs/architecture/frontend-architecture.md)
 - [Local deployment](docs/architecture/local-deployment.md)
 - [Local troubleshooting](docs/development/troubleshooting.md)
+- [Search and messaging recovery runbook](docs/operations/search-and-messaging-recovery.md)
 - [Demo scenario](docs/demo/demo-scenario.md)
 - [Screenshot catalogue](docs/screenshots/README.md)
 - [ADRs](docs/adr/)
@@ -656,8 +711,9 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
 
 - Policy benefit consumption and reservation across requests are not modeled.
 - Policy and Claims/Billing do not yet have portal screens.
-- Outbox retention/archival and automated DLT replay/quarantine are not yet
-  operationalized.
+- Outbox retention/archival and a durable, audited recovery control plane are
+  not implemented. Local bounded DLT/DLQ inspect/classify/copy-replay tools are
+  available; no automatic or destructive replay exists.
 - No production workload identity/token exchange exists between services.
 - No circuit breaker is configured for synchronous dependencies.
 - A real email/SMS provider and contact-resolution boundary, centralized log
@@ -667,6 +723,9 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
   consent, approved retention durations, automated disposal, encryption/key
   management, privileged-access controls, and regulatory sign-off require a
   real data controller and later production work.
+- Search rebuild run state is local/in-memory, so restart-resumable checkpoints,
+  cancellation, workload identity, index lifecycle cleanup, and multi-operator
+  coordination remain production work.
 
 ## Roadmap
 
@@ -680,7 +739,7 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
 - [x] Milestone 7 — Redis, Elasticsearch, Kibana, Elastic APM, correlation IDs
 - [x] Milestone 8 — APISIX gateway and centralized edge security policies
 - [x] Milestone 9 — Append-only audit trail, KVKK and data governance
-- [ ] Milestone 10 — Elasticsearch and messaging recovery operations
+- [x] Milestone 10 — Elasticsearch and messaging recovery operations
 - [ ] Milestone 11 — Notification provider and external-service resilience
 - [ ] Milestone 12 — Load, performance and resilience testing
 - [ ] Milestone 13 — Kubernetes and deployment security
@@ -688,10 +747,10 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
 - [ ] Milestone 15 — Backup, restore, disaster recovery and capacity planning
 - [ ] Milestone 16 — Portfolio and interview finalization
 
-Milestone 9 is complete. Its implementation is governed by
-[ADR-011](docs/adr/011-service-owned-append-only-audit.md) and the
-[data-governance/KVKK threat model](docs/security/data-governance-and-kvkk.md).
-The next implementation milestone is Milestone 10; it has not started. At every
+Milestone 10 is complete. Its implementation is governed by
+[ADR-012](docs/adr/012-versioned-search-rebuild-and-controlled-message-recovery.md)
+and the [recovery runbook](docs/operations/search-and-messaging-recovery.md).
+The next implementation milestone is Milestone 11; it has not started. At every
 later milestone, the
 README, diagrams, ADRs, synthetic demo, scenario, screenshots, technical
 walkthrough, test evidence, limitations, and roadmap are part of the definition

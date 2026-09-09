@@ -62,21 +62,24 @@ try {
     }
     Write-Host "JSON syntax: OK ($($jsonFiles.Count) files)"
 
-    $demoScripts = @(Get-ChildItem 'demo' -File -Filter '*.ps1')
-    foreach ($demoScript in $demoScripts) {
+    $powerShellScripts = @(
+        Get-ChildItem 'demo', 'scripts' -File -Filter '*.ps1' |
+            Sort-Object FullName
+    )
+    foreach ($powerShellScript in $powerShellScripts) {
         $tokens = $null
         $parseErrors = $null
         [System.Management.Automation.Language.Parser]::ParseFile(
-            $demoScript.FullName,
+            $powerShellScript.FullName,
             [ref]$tokens,
             [ref]$parseErrors
         ) | Out-Null
         Assert-Condition ($parseErrors.Count -eq 0) (
-            "PowerShell syntax errors in $($demoScript.Name):`n" +
+            "PowerShell syntax errors in $($powerShellScript.Name):`n" +
             (($parseErrors | ForEach-Object Message) -join "`n")
         )
     }
-    Write-Host "Demo PowerShell syntax: OK ($($demoScripts.Count) files)"
+    Write-Host "PowerShell syntax: OK ($($powerShellScripts.Count) files)"
 
     $expectedScreenshots = @(
         'docs/screenshots/01-dashboard.png',
@@ -88,7 +91,8 @@ try {
         'docs/screenshots/07-healthcare-search.png',
         'docs/screenshots/08-kibana-apm-services.png',
         'docs/screenshots/09-apisix-gateway-problem-details.png',
-        'docs/screenshots/10-audit-trail.png'
+        'docs/screenshots/10-audit-trail.png',
+        'docs/screenshots/11-search-rebuild-recovery.png'
     )
     foreach ($screenshot in $expectedScreenshots) {
         Assert-Condition (Test-Path -LiteralPath $screenshot -PathType Leaf) "Missing screenshot: $screenshot"

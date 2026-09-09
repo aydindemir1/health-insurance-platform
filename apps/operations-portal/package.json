@@ -12,6 +12,7 @@
     "screenshots:rabbitmq": "node scripts/capture-rabbitmq-screenshot.mjs",
     "screenshots:kibana": "node scripts/capture-kibana-apm-screenshot.mjs",
     "screenshots:gateway": "node scripts/capture-apisix-gateway-screenshot.mjs",
+    "screenshots:recovery": "node scripts/capture-search-recovery-screenshot.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -38,7 +38,7 @@ flowchart TB
     Auth -->|"Pre-authorization decisions<br/>at-least-once"| Kafka
     Auth -->|"Persistent notification tasks<br/>confirm-aware outbox relay"| Rabbit
     Kafka -->|"Approved decisions<br/>idempotent consumer"| Claims
-    Kafka -->|"Decision and claim projections<br/>deterministic document IDs"| Search
+    Kafka -->|"Decision and claim projections<br/>deterministic IDs + source revisions"| Search
     Rabbit -->|"Competing consumer<br/>bounded retry + DLQ"| Notification
     Claims -.->|"Manual claim compatibility<br/>REST + relayed bearer JWT"| Auth
 

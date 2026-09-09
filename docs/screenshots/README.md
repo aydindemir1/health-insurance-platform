@@ -9,7 +9,7 @@ privileged service-owned audit view. Policy and Claims/Billing command workflows
 are demonstrated through the API script until their operational screens are
 implemented in a later milestone.
 
-Screenshots retained through the Milestone 9 documentation checkpoint:
+Screenshots retained through the Milestone 10 documentation checkpoint:
 
 - `01-dashboard.png` — role-aware landing page and operational summary.
 - `02-pre-authorization-work-queue.png` — filter, sort, and pagination UI.
@@ -27,6 +27,8 @@ Screenshots retained through the Milestone 9 documentation checkpoint:
   demo separately verifies the non-visual wrong-audience rejection.
 - `10-audit-trail.png` — `SYSTEM_ADMIN`-only service selector, bounded filters,
   paginated minimized state-change evidence, actor context, and correlation ID.
+- `11-search-rebuild-recovery.png` — live stable alias target, current document
+  count, and retained predecessor after a source-owned versioned rebuild.
 
 ## Preview
 
@@ -49,6 +51,8 @@ Screenshots retained through the Milestone 9 documentation checkpoint:
 ![APISIX Problem Details](09-apisix-gateway-problem-details.png)
 
 ![Service-owned audit trail](10-audit-trail.png)
+
+![Versioned search rebuild and retained predecessor](11-search-rebuild-recovery.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
@@ -104,6 +108,18 @@ Capture the gateway-native error contract without any credentials:
 Set-Location apps/operations-portal
 npm run screenshots:gateway
 ```
+
+Capture the token-free search recovery evidence only after a successful rebuild:
+
+```powershell
+Set-Location apps/operations-portal
+npm run screenshots:recovery
+```
+
+The capture reads only Elasticsearch alias, index name/status, document count,
+and storage-size metadata. It validates exactly one writable stable alias and a
+retained `healthcare-operations-v1` predecessor before writing the PNG; it does
+not query or render document payloads.
 
 The local Compose stack disables Elastic security for developer convenience and
 binds Elastic ports to loopback. That setting is not a production security model.

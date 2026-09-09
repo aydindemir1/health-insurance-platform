@@ -15,6 +15,7 @@ flowchart TB
             Search["Search Service :8084<br/>Temurin 21 JRE, non-root"]
             Worker["Notification Worker<br/>Temurin 21 JRE, non-root"]
             Kafka{{"Apache Kafka :9092<br/>single-node KRaft"}}
+            KafkaCli["Kafka CLI<br/>tools profile, run-on-demand"]
             Rabbit{{"RabbitMQ :5672 / :15672<br/>delivery queue + DLQ"}}
             Redis[("Redis :6379")]
             Elastic[("Elasticsearch :9200")]
@@ -40,6 +41,7 @@ flowchart TB
     Auth --> Rabbit
     Kafka --> Claims
     Kafka --> Search
+    KafkaCli -.->|"bounded lag and DLT inspection"| Kafka
     Rabbit --> Worker
     Claims -.-> Auth
     Auth --> AuthDb
@@ -74,3 +76,10 @@ business API; its observable outputs are broker acknowledgement/dead-lettering,
 safe structured task metadata in logs, and its private delivery table. Elastic
 ports bind to localhost for development only. Production deployments must enable
 TLS, authentication, authorization, retention, and secret management.
+
+The runtime `apache/kafka-native` image does not carry administrative binaries.
+The `kafka-cli` service belongs to a `tools` profile and starts only through
+`docker compose run`; it is not another broker or long-running production
+container. Recovery scripts use it for bounded group-lag and DLT inspection.
+Elasticsearch reads/writes target the `healthcare-operations` alias; versioned
+physical indices and retained predecessors are local derived data.

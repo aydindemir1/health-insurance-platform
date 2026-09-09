@@ -176,10 +176,10 @@ erDiagram
 | Database owner | Tables | Other services' access |
 | --- | --- | --- |
 | Policy Service | `policies`, `policy_coverages`, `audit_records` | REST coverage evaluation; secured service-owned audit API |
-| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox`, `audit_records` | REST snapshots; Kafka events; confirm-aware RabbitMQ task publishing; secured service-owned audit API |
-| Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages`, `claim_search_outbox`, `audit_records` | Kafka claim search projections; secured service-owned audit API; no direct database access |
+| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox`, `audit_records` | Bounded search-rebuild snapshots; Kafka events; confirm-aware RabbitMQ task publishing; secured service-owned audit API |
+| Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages`, `claim_search_outbox`, `audit_records` | Bounded joined search-rebuild snapshots; Kafka claim search projections; secured service-owned audit API; no direct database access |
 | Notification Worker | `notification_deliveries` | No direct database access |
-| Search Service | Elasticsearch `healthcare-operations-v1` projection | Secured read-only Search API; rebuildable, never authoritative |
+| Search Service | Elasticsearch `healthcare-operations` alias over versioned projections | Secured Search and rebuild APIs; atomic alias rollback; never authoritative |
 
 Cross-context references intentionally have no foreign keys. Each owner can
 change its schema independently; consistency across services is currently

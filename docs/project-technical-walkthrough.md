@@ -212,6 +212,39 @@ Retention classes describe handling intent rather than inventing legal periods.
 Lawful basis, approved durations, disposal jobs, backup erasure, encryption/key
 management, and regulatory sign-off remain explicit production responsibilities.
 
+### Milestone 10 — Search and messaging recovery
+
+Elasticsearch is explicitly derived state, so “rebuildable” now means an
+executable owner-driven process rather than a promise. Authorization and
+Claims/Billing each expose a narrow, stable, `SYSTEM_ADMIN` projection-export
+use case over only their own database. The local orchestrator pages both APIs
+through APISIX and sends the current snapshots to Search; neither Search nor the
+script receives database credentials or JPA entities.
+
+Search creates a versioned physical candidate while reads and normal event
+writes continue through the `healthcare-operations` alias. Ingestion validates
+the same domain record used by event consumers. Activation refreshes the
+candidate, compares its count to the orchestrator's distinct deterministic ID
+count, and atomically moves the alias only if it still targets the recorded
+predecessor. The predecessor is retained, so rollback is another alias
+compare-and-swap rather than a restore from backup.
+
+Deterministic IDs alone cannot stop a delayed event from overwriting a newer
+snapshot. The event and export contracts therefore carry an owner-defined
+monotonic `sourceRevision`; Elasticsearch uses a scripted conditional upsert.
+Authorization derives it from its aggregate version, while Claims/Billing
+combines Claim and Invoice versions because both contribute to one search
+document. Legacy documents/messages without the additive field map to revision
+1, which preserves compatibility until the rebuild replaces them.
+
+Messaging recovery is deliberately operator-assisted. A status script reports
+outbox age/attempts, Kafka group lag, and RabbitMQ depth without payloads. The
+Kafka DLT and RabbitMQ DLQ tools inspect SHA-256/size/routing metadata, require a
+transient classification and explicit flag for replay, cap batch/attempts, and
+copy only to allowlisted routes while retaining the original dead letter.
+Idempotent consumers make a valid duplicate safe; they do not repair a permanent
+contract error.
+
 ## 3. Architecture at runtime
 
 ```mermaid
@@ -234,6 +267,9 @@ flowchart LR
     Claims -->|projection outbox| Kafka
     Kafka --> Search[Search Service]
     Browser -->|secured search| Search
+    Admin[SYSTEM_ADMIN recovery tool] -->|owner snapshots via APISIX| Auth
+    Admin -->|owner snapshots via APISIX| Claims
+    Admin -->|candidate ingest and alias swap| Search
     Search --> Elastic[(Elasticsearch)]
     Elastic --> Kibana[Kibana]
     Auth -. traces .-> APM[APM Server]
@@ -383,9 +419,19 @@ tests for the multi-write decision transaction and five AMQP relay/topology unit
 tests. The latter verify positive/nack/unroutable outcomes, safe persistent
 message metadata, and durable dead-letter routing without claiming a live broker.
 
+On 10 September 2026, the Milestone 10 quality gate passed **193 backend tests**:
+Authorization 73, Policy 33, Claims/Billing 51, Notification Worker 23, and
+Search Service 13. The new proof includes real PostgreSQL owner-export queries,
+application authorization/bounds, conditional stale-revision handling,
+legacy-document compatibility, count-gated activation, atomic alias swaps, and
+retained-index rollback against Elasticsearch 9.5.3. The portal passed oxlint,
+9 Vitest tests in 8 files, and a production build. A live Compose rehearsal
+activated 70 distinct current projections while retaining the 55-document v1
+predecessor.
+
 The documentation has its own executable quality gate. It validates local
 Markdown links, parses the Keycloak and demo JSON, parses the PowerShell demo
-scripts, verifies the six expected PNG files, and renders every Mermaid block
+and recovery scripts, verifies the eleven expected PNG files, and renders every Mermaid block
 with Mermaid CLI. This prevents a diagram or portfolio link from silently
 rotting while later milestones change the implementation.
 
@@ -439,6 +485,9 @@ when they solve an explicit operational or domain problem.
 | Serilog ECS + `LogContext` | Spring Boot ECS logging + SLF4J MDC |
 | Application Insights/OpenTelemetry auto-instrumentation | Externally attached Elastic APM Java agent |
 | ASP.NET Core reverse proxy / YARP | APISIX declarative routes and edge plugins |
+| EF Core `RowVersion` carried into a read model | JPA aggregate revision mapped to projection `sourceRevision` |
+| Elasticsearch alias reindex/blue-green read model | Versioned candidate + atomic alias compare-and-swap |
+| MassTransit error queue recovery tool | Bounded Kafka DLT / RabbitMQ DLQ inspect-classify-copy scripts |
 
 ## 12. Interview explanation
 
@@ -459,6 +508,15 @@ provider-scoped Elasticsearch read model. ECS logs, correlation propagation and
 Elastic APM make synchronous and asynchronous paths diagnosable. Tests cover
 domain rules, security, architecture, persistence, concurrency, cache failure,
 and real search infrastructure.”
+
+“Because Elasticsearch is disposable, I added a zero-downtime rebuild path
+from bounded source-owner snapshots instead of reading service databases or
+assuming Kafka retention is complete. A candidate index is count-validated and
+activated through an atomic alias compare-and-swap, with the predecessor kept
+for rollback. Monotonic owner revisions prevent stale events from regressing the
+new snapshot. Dead-letter recovery is similarly explicit and bounded: inspect
+safe metadata, classify, then copy-replay only transient failures while
+idempotency guards duplicates.”
 
 “The portal reaches one APISIX origin instead of four published service ports.
 The gateway validates Keycloak JWTs with JWKS and owns rate, CORS, body-size,
@@ -492,6 +550,13 @@ duplicated business logic.”
 - Which rules belong at the gateway and which belong in application use cases?
 - Why validate the same JWT at both APISIX and Spring Security?
 - Why is a local rate counter insufficient for multiple APISIX replicas?
+- Why is Kafka replay insufficient as the only Elasticsearch rebuild source?
+- Why use an alias and retained predecessor instead of rebuilding in place?
+- What race does `sourceRevision` close that deterministic document IDs do not?
+- Why must Elasticsearch be refreshed before the activation count check?
+- How does alias compare-and-swap prevent two operators from losing updates?
+- Why is dead-letter replay manual, classified, bounded, and copy-based?
+- Which parts of the local recovery design must change for production scale?
 
 ## 13. Current known gaps
 
@@ -501,10 +566,13 @@ duplicated business logic.”
 - Service-to-service authentication relays the user token and has no workload
   identity or token exchange.
 - Synchronous dependencies do not yet use circuit breakers or controlled retry.
-- Outbox retention and automated DLT inspection/replay are not operationalized.
+- Outbox retention is not automated. Bounded DLT/DLQ inspection and reviewed
+  copy-replay exist locally, but a durable authorized/audited control plane does not.
 - Authorization search currently projects decisions; pending items use the
   strongly consistent Authorization work queue.
-- Search reindex/rebuild and index lifecycle policies are not automated.
+- Search rebuild is executable; restart-resumable checkpoints, cancellation,
+  index lifecycle cleanup, workload identity, and multi-operator coordination
+  are not implemented.
 - ECS logs are emitted to stdout but a production log shipper, redaction policy,
   dashboards, alerts, and retention policy are not yet configured.
 - Demo users must be created locally because credentials are never committed.

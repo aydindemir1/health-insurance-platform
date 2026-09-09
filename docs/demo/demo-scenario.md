@@ -1,4 +1,4 @@
-# Demonstration Scenario — Milestones 0–9
+# Demonstration Scenario — Milestones 0–10
 
 This scenario uses only synthetic identifiers and clinical codes. It proves the
 implemented happy path and leaves records in several states for UI and API
@@ -26,6 +26,13 @@ and Claims/Billing owner transactions. Each service exposes its own bounded
 `SYSTEM_ADMIN` query, while the portal presents a service selector without
 creating a shared audit database. The seed script verifies expected evidence
 counts after completing the synthetic business flow.
+
+Milestone 10 makes the derived search model recoverable without violating
+database ownership. Owner APIs export bounded current snapshots, Search builds
+an isolated versioned candidate, count and alias compare-and-swap gates protect
+activation, and the predecessor remains available for rollback. Broker recovery
+uses a separate inspect/classify/explicit-copy process with safe digests instead
+of automatic poison-message replay.
 
 ## Preconditions
 
@@ -114,6 +121,7 @@ The script creates and verifies:
 | Policy audit evidence | At least one row for the generated policy | Policy issuance and minimized actor evidence |
 | Claim audit evidence | At least three rows for the settled claim | Submission, review, and approval transitions |
 | Invoice audit evidence | At least five rows for the settled invoice | Issuance, dispute, reconciliation, payment, and settlement-related transitions |
+| Versioned search candidate | `ACTIVE` behind `healthcare-operations` alias | Owner snapshot, revision ordering, count gate, atomic alias swap, and retained rollback index |
 
 ## Live presentation script
 
@@ -150,7 +158,17 @@ The script creates and verifies:
     summary. Explain dual controller/use-case authorization, bounded filters,
     deterministic pages, minimized fields, and why the UI does not imply a
     central audit database.
-13. Finish with the event, architecture, and ER diagrams, highlighting separate
+13. Run the search rebuild with the `SYSTEM_ADMIN` token kept in a process
+    variable. Show that its distinct count matches the stable alias count, then
+    show both the active candidate and retained predecessor in Elasticsearch.
+    Explain that event writes continue through the alias and stale revisions are
+    no-ops. Use `11-search-rebuild-recovery.png` as repeatable visual evidence.
+14. Run `inspect-recovery-status.ps1`, then inspect one Kafka DLT and the RabbitMQ
+    DLQ. Point out that the output contains counts/digests rather than payloads.
+    Explain why replay needs transient classification, bounded attempts, and an
+    explicit confirmation; do not manufacture or replay poison data in the main
+    happy-path demo.
+15. Finish with the event, architecture, and ER diagrams, highlighting separate
     Kafka-event and RabbitMQ-task semantics, at-least-once delivery, idempotency,
     bounded retry, DLT/DLQ, database ownership, and optimistic locking.
 
@@ -194,10 +212,21 @@ The script creates and verifies:
   to an arbitrary database query.
 - Attempting to update, delete, or truncate any service's `audit_records` table
   is rejected by PostgreSQL.
+- A projection export page larger than 200 or a non-`SYSTEM_ADMIN` caller is
+  rejected at the application boundary.
+- Activating a partial candidate with the wrong expected count returns `409` and
+  leaves the stable alias on its predecessor.
+- If another rebuild changes the alias first, compare-and-swap rejects the stale
+  activation or rollback.
+- An event with an older `sourceRevision` cannot overwrite a newer search state.
+- DLT/DLQ replay without `Transient` classification and `-ConfirmReplay` stops
+  before publishing; originals remain quarantined.
 
 ## Reset
 
 Demo data is stored in disposable local Docker volumes. To retain it, stop with
 `docker compose stop`. To remove it, explicitly run `docker compose down -v`
 after confirming that no local data is needed; this deletes all four database
-volumes plus RabbitMQ, Redis, Kafka, and Elasticsearch local state.
+volumes plus RabbitMQ, Redis, Kafka, and every retained Elasticsearch index.
+Candidate/predecessor deletion is deliberately not part of the rebuild or
+rollback scripts.
