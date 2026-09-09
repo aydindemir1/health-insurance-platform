@@ -3,10 +3,10 @@ param(
     [string]$HospitalToken = $env:DEMO_HOSPITAL_TOKEN,
     [string]$InsuranceToken = $env:DEMO_INSURANCE_TOKEN,
     [string]$ClaimApproverToken = $env:DEMO_CLAIM_APPROVER_TOKEN,
-    [string]$PolicyBaseUrl = "http://localhost:8082/api/v1",
-    [string]$AuthorizationBaseUrl = "http://localhost:8081/api/v1",
-    [string]$ClaimsBaseUrl = "http://localhost:8083/api/v1",
-    [string]$SearchBaseUrl = "http://localhost:8084/api/v1",
+    [string]$PolicyBaseUrl = "http://localhost:9080/api/v1",
+    [string]$AuthorizationBaseUrl = "http://localhost:9080/api/v1",
+    [string]$ClaimsBaseUrl = "http://localhost:9080/api/v1",
+    [string]$SearchBaseUrl = "http://localhost:9080/api/v1",
     [switch]$VerifyNotificationDelivery,
     [string]$RunId = (Get-Date -Format "yyyyMMddHHmmss")
 )

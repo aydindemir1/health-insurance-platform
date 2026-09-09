@@ -1,4 +1,31 @@
 services:
+  apisix:
+    image: apache/apisix:3.18.0-debian
+    environment:
+      APISIX_OIDC_CLIENT_SECRET: ${APISIX_OIDC_CLIENT_SECRET:-jwks-validation-compatibility-value}
+    ports:
+      - "9080:9080"
+    volumes:
+      - ./infra/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro
+      - ./infra/apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro
+      - ./infra/apisix/plugins/problem-details.lua:/usr/local/apisix/apisix/plugins/problem-details.lua:ro
+    healthcheck:
+      test: ["CMD-SHELL", "apisix status"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    depends_on:
+      keycloak:
+        condition: service_started
+      authorization-service:
+        condition: service_started
+      policy-service:
+        condition: service_started
+      claims-billing-service:
+        condition: service_started
+      search-service:
+        condition: service_started
+
   redis:
     image: redis:8.2.9-alpine
     ports:
@@ -189,8 +216,8 @@ services:
       ELASTIC_APM_SERVICE_NAME: authorization-service
       ELASTIC_APM_ENVIRONMENT: local
       ELASTIC_APM_APPLICATION_PACKAGES: com.aydindemir.health.authorization
-    ports:
-      - "8081:8081"
+    expose:
+      - "8081"
     depends_on:
       authorization-db:
         condition: service_healthy
@@ -221,8 +248,8 @@ services:
       ELASTIC_APM_SERVICE_NAME: policy-service
       ELASTIC_APM_ENVIRONMENT: local
       ELASTIC_APM_APPLICATION_PACKAGES: com.aydindemir.health.policy
-    ports:
-      - "8082:8082"
+    expose:
+      - "8082"
     depends_on:
       policy-db:
         condition: service_healthy
@@ -249,8 +276,8 @@ services:
       ELASTIC_APM_SERVICE_NAME: claims-billing-service
       ELASTIC_APM_ENVIRONMENT: local
       ELASTIC_APM_APPLICATION_PACKAGES: com.aydindemir.health.claims
-    ports:
-      - "8083:8083"
+    expose:
+      - "8083"
     depends_on:
       claims-billing-db:
         condition: service_healthy
@@ -300,8 +327,8 @@ services:
       ELASTIC_APM_SERVICE_NAME: search-service
       ELASTIC_APM_ENVIRONMENT: local
       ELASTIC_APM_APPLICATION_PACKAGES: com.aydindemir.health.search
-    ports:
-      - "8084:8084"
+    expose:
+      - "8084"
     depends_on:
       elasticsearch:
         condition: service_healthy

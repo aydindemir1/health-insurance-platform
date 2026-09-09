@@ -1,0 +1,60 @@
+name: Gateway CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/apisix/**"
+      - "compose.yaml"
+      - ".github/workflows/gateway-ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/apisix/**"
+      - "compose.yaml"
+      - ".github/workflows/gateway-ci.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  declarative-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Validate Compose model
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+
+      - name: Start isolated APISIX data plane
+        run: |
+          docker run --detach --name health-gateway-ci \
+            --publish 9080:9080 \
+            --env APISIX_OIDC_CLIENT_SECRET=ci-jwks-compatibility-value \
+            --volume "$PWD/infra/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro" \
+            --volume "$PWD/infra/apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro" \
+            --volume "$PWD/infra/apisix/plugins/problem-details.lua:/usr/local/apisix/apisix/plugins/problem-details.lua:ro" \
+            apache/apisix:3.18.0-debian
+
+      - name: Verify gateway-native security response
+        run: |
+          for attempt in $(seq 1 30); do
+            if curl --silent --output problem.json --dump-header headers.txt \
+              http://127.0.0.1:9080/api/v1/pre-authorizations; then
+              break
+            fi
+            sleep 1
+          done
+          grep -q "HTTP/1.1 401" headers.txt
+          grep -qi "Content-Type: application/problem+json" headers.txt
+          grep -qi "X-Correlation-ID:" headers.txt
+          grep -q '"status":401' problem.json
+          grep -q 'gateway-401' problem.json
+
+      - name: Show APISIX logs on failure
+        if: failure()
+        run: docker logs health-gateway-ci
+

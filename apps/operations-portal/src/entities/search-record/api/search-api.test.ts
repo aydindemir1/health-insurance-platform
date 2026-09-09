@@ -16,7 +16,7 @@ describe('searchApi.search', () => {
     })
 
     const url = new URL(fetchMock.mock.calls[0][0] as string)
-    expect(url.origin).toBe('http://localhost:8084')
+    expect(url.origin).toBe('http://localhost:9080')
     expect(url.pathname).toBe('/api/v1/search')
     expect(Object.fromEntries(url.searchParams)).toEqual({
       page: '1', size: '10', q: 'POL-100', type: 'CLAIM', status: 'UNDER_REVIEW',

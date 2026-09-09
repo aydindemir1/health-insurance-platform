@@ -12,6 +12,15 @@
   },
   "clients": [
     {
+      "clientId": "health-insurance-api",
+      "name": "Health Insurance API Audience",
+      "enabled": true,
+      "bearerOnly": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false
+    },
+    {
       "clientId": "health-insurance-web",
       "name": "Health Insurance Web Application",
       "enabled": true,
@@ -34,6 +43,18 @@
             "id.token.claim": "true",
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
+          }
+        },
+        {
+          "name": "health-insurance-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "health-insurance-api",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
           }
         }
       ],

@@ -6,6 +6,7 @@ param(
     [string]$KeycloakNetworkUrl = "http://127.0.0.1:8080",
     [string]$KeycloakPublicUrl = "http://localhost:8080",
     [switch]$SkipNotificationVerification,
+    [switch]$SkipGatewayVerification,
     [string]$RunId = (Get-Date -Format "yyyyMMddHHmmss")
 )
 
@@ -37,6 +38,7 @@ $adminHeaders = @{
     Host = $hostHeader
 }
 $adminBaseUrl = "$KeycloakNetworkUrl/admin/realms/health-insurance"
+$apiAudienceClientId = "health-insurance-api"
 $seederClientId = "health-insurance-demo-seeder"
 
 function Invoke-KeycloakAdmin {
@@ -61,6 +63,34 @@ function Invoke-KeycloakAdmin {
     }
 }
 
+$apiClientConfiguration = @{
+    clientId = $apiAudienceClientId
+    name = "Health Insurance API Audience"
+    enabled = $true
+    bearerOnly = $true
+    publicClient = $false
+    standardFlowEnabled = $false
+    directAccessGrantsEnabled = $false
+    serviceAccountsEnabled = $false
+}
+[array]$apiClients = Invoke-KeycloakAdmin -Method GET -Path "clients?clientId=$apiAudienceClientId"
+if ($apiClients.Count -eq 0) {
+    Invoke-KeycloakAdmin -Method POST -Path "clients" -Body $apiClientConfiguration | Out-Null
+}
+
+$apiAudienceMapper = @{
+    name = "health-insurance-api-audience"
+    protocol = "openid-connect"
+    protocolMapper = "oidc-audience-mapper"
+    consentRequired = $false
+    config = @{
+        "included.client.audience" = $apiAudienceClientId
+        "id.token.claim" = "false"
+        "access.token.claim" = "true"
+        "introspection.token.claim" = "true"
+    }
+}
+
 $clientConfiguration = @{
     clientId = $seederClientId
     enabled = $true
@@ -82,7 +112,8 @@ $clientConfiguration = @{
                 "access.token.claim" = "true"
                 "userinfo.token.claim" = "true"
             }
-        }
+        },
+        $apiAudienceMapper
     )
 }
 [array]$clients = Invoke-KeycloakAdmin -Method GET -Path "clients?clientId=$seederClientId"
@@ -98,10 +129,25 @@ Invoke-KeycloakAdmin -Method PUT -Path "clients/$clientInternalId" `
     -Body $clientConfiguration | Out-Null
 [array]$clientMappers = Invoke-KeycloakAdmin -Method GET `
     -Path "clients/$clientInternalId/protocol-mappers/models"
-if (-not ($clientMappers | Where-Object name -eq "provider-id")) {
+foreach ($mapper in $clientConfiguration.protocolMappers) {
+    if (-not ($clientMappers | Where-Object name -eq $mapper.name)) {
+        Invoke-KeycloakAdmin -Method POST `
+            -Path "clients/$clientInternalId/protocol-mappers/models" `
+            -Body $mapper | Out-Null
+    }
+}
+
+[array]$webClients = Invoke-KeycloakAdmin -Method GET -Path "clients?clientId=health-insurance-web"
+$webClientInternalId = ($webClients | Select-Object -First 1).id
+if ([string]::IsNullOrWhiteSpace($webClientInternalId)) {
+    throw "Keycloak did not return an identifier for the web client."
+}
+[array]$webClientMappers = Invoke-KeycloakAdmin -Method GET `
+    -Path "clients/$webClientInternalId/protocol-mappers/models"
+if (-not ($webClientMappers | Where-Object name -eq $apiAudienceMapper.name)) {
     Invoke-KeycloakAdmin -Method POST `
-        -Path "clients/$clientInternalId/protocol-mappers/models" `
-        -Body $clientConfiguration.protocolMappers[0] | Out-Null
+        -Path "clients/$webClientInternalId/protocol-mappers/models" `
+        -Body $apiAudienceMapper | Out-Null
 }
 
 $userProfile = Invoke-KeycloakAdmin -Method GET -Path "users/profile"
@@ -168,13 +214,16 @@ Set-DemoUser -Username "insurance-demo" -Role "INSURANCE_SPECIALIST"
 Set-DemoUser -Username "claim-approver-demo" -Role "CLAIM_APPROVER"
 
 function Get-DemoAccessToken {
-    param([Parameter(Mandatory)] [string]$Username)
+    param(
+        [Parameter(Mandatory)] [string]$Username,
+        [string]$ClientId = $seederClientId
+    )
     $response = Invoke-RestMethod -Method POST `
         -Uri "$KeycloakNetworkUrl/realms/health-insurance/protocol/openid-connect/token" `
         -Headers @{ Host = $hostHeader } `
         -ContentType "application/x-www-form-urlencoded" `
         -Body @{
-            client_id = $seederClientId
+            client_id = $ClientId
             grant_type = "password"
             username = $Username
             password = $DemoUserPassword
@@ -192,3 +241,11 @@ $claimApproverToken = Get-DemoAccessToken -Username "claim-approver-demo"
     -ClaimApproverToken $claimApproverToken `
     -VerifyNotificationDelivery:(-not $SkipNotificationVerification) `
     -RunId $RunId
+
+if (-not $SkipGatewayVerification) {
+    $wrongAudienceToken = Get-DemoAccessToken -Username "insurance-demo" -ClientId "admin-cli"
+    & (Join-Path $PSScriptRoot "verify-api-gateway.ps1") `
+        -HospitalToken $hospitalToken `
+        -InsuranceToken $insuranceToken `
+        -WrongAudienceToken $wrongAudienceToken
+}
