@@ -1,5 +1,7 @@
 package com.aydindemir.health.authorization.application.usecase;
 
+import com.aydindemir.health.authorization.application.audit.AuditAction;
+import com.aydindemir.health.authorization.application.audit.AuditRecord;
 import com.aydindemir.health.authorization.application.command.DecidePreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.dto.PageResult;
@@ -53,7 +55,7 @@ class PreAuthorizationApplicationServiceTest {
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         true, "ELIGIBLE", "Coverage is eligible"),
                 event -> { },
-                task -> { },
+                task -> { }, record -> { }, () -> "test-correlation-id",
                 CLOCK);
     }
 
@@ -67,13 +69,35 @@ class PreAuthorizationApplicationServiceTest {
     }
 
     @Test
+    void appendsMinimizedSubmissionAuditWithoutBusinessSensitiveFields() {
+        var capturedAudit = new AtomicReference<AuditRecord>();
+        service = new PreAuthorizationApplicationService(
+                repository, () -> PRE_AUTHORIZATION_ID,
+                request -> new CoverageVerificationPort.CoverageVerificationResult(
+                        true, "ELIGIBLE", "Coverage is eligible"),
+                event -> { }, task -> { }, capturedAudit::set,
+                () -> "correlation-100", CLOCK);
+
+        service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
+
+        assertThat(capturedAudit.get().action()).isEqualTo(AuditAction.PRE_AUTHORIZATION_SUBMITTED);
+        assertThat(capturedAudit.get().actorSubject()).isEqualTo("hospital-user");
+        assertThat(capturedAudit.get().providerId()).isEqualTo(PROVIDER_ID);
+        assertThat(capturedAudit.get().correlationId()).isEqualTo("correlation-100");
+        assertThat(capturedAudit.get().changes().fromStatus()).isNull();
+        assertThat(capturedAudit.get().changes().toStatus()).isEqualTo("PENDING");
+        assertThat(capturedAudit.toString())
+                .doesNotContain(MEMBER_ID.toString(), "POL-100", "J18.9", "1250.00");
+    }
+
+    @Test
     void doesNotAppendDecisionEventWhileRequestIsStillPending() {
         var captured = new AtomicReference<com.aydindemir.health.authorization.application.event.PreAuthorizationDecisionEvent>();
         service = new PreAuthorizationApplicationService(
                 repository, () -> PRE_AUTHORIZATION_ID,
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         true, "ELIGIBLE", "Coverage is eligible"),
-                captured::set, task -> { }, CLOCK);
+                captured::set, task -> { }, record -> { }, () -> "test-correlation-id", CLOCK);
 
         service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
 
@@ -127,7 +151,7 @@ class PreAuthorizationApplicationServiceTest {
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         false, "LIMIT_EXCEEDED", "Policy coverage limit is insufficient"),
                 event -> { },
-                task -> { },
+                task -> { }, record -> { }, () -> "test-correlation-id",
                 CLOCK);
 
         assertThatThrownBy(() -> service.submit(submitCommand(hospitalActor(PROVIDER_ID))))
@@ -208,7 +232,7 @@ class PreAuthorizationApplicationServiceTest {
                 repository, () -> PRE_AUTHORIZATION_ID,
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         true, "ELIGIBLE", "Coverage is eligible"),
-                captured::set, notification::set, CLOCK);
+                captured::set, notification::set, record -> { }, () -> "test-correlation-id", CLOCK);
         service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
 
         service.approve(new DecidePreAuthorizationCommand(
@@ -236,7 +260,7 @@ class PreAuthorizationApplicationServiceTest {
                 repository, () -> PRE_AUTHORIZATION_ID,
                 request -> new CoverageVerificationPort.CoverageVerificationResult(
                         true, "ELIGIBLE", "Coverage is eligible"),
-                captured::set, notification::set, CLOCK);
+                captured::set, notification::set, record -> { }, () -> "test-correlation-id", CLOCK);
         service.submit(submitCommand(hospitalActor(PROVIDER_ID)));
 
         service.reject(new DecidePreAuthorizationCommand(

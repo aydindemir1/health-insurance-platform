@@ -1,5 +1,6 @@
 package com.aydindemir.health.authorization.application.usecase;
 
+import com.aydindemir.health.authorization.application.audit.AuditRecord;
 import com.aydindemir.health.authorization.application.command.DecidePreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.dto.PageResult;
@@ -20,6 +21,8 @@ import com.aydindemir.health.authorization.application.port.out.PreAuthorization
 import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
 import com.aydindemir.health.authorization.application.port.out.IntegrationEventOutbox;
 import com.aydindemir.health.authorization.application.port.out.NotificationTaskOutbox;
+import com.aydindemir.health.authorization.application.port.out.AuditContextProvider;
+import com.aydindemir.health.authorization.application.port.out.AuditTrail;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
 import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
 import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
@@ -44,6 +47,8 @@ public final class PreAuthorizationApplicationService implements
     private final CoverageVerificationPort coverageVerification;
     private final IntegrationEventOutbox eventOutbox;
     private final NotificationTaskOutbox notificationTaskOutbox;
+    private final AuditTrail auditTrail;
+    private final AuditContextProvider auditContext;
     private final Clock clock;
 
     public PreAuthorizationApplicationService(
@@ -52,12 +57,16 @@ public final class PreAuthorizationApplicationService implements
             CoverageVerificationPort coverageVerification,
             IntegrationEventOutbox eventOutbox,
             NotificationTaskOutbox notificationTaskOutbox,
+            AuditTrail auditTrail,
+            AuditContextProvider auditContext,
             Clock clock) {
         this.repository = Objects.requireNonNull(repository);
         this.idGenerator = Objects.requireNonNull(idGenerator);
         this.coverageVerification = Objects.requireNonNull(coverageVerification);
         this.eventOutbox = Objects.requireNonNull(eventOutbox);
         this.notificationTaskOutbox = Objects.requireNonNull(notificationTaskOutbox);
+        this.auditTrail = Objects.requireNonNull(auditTrail);
+        this.auditContext = Objects.requireNonNull(auditContext);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -78,6 +87,9 @@ public final class PreAuthorizationApplicationService implements
                 command.policyNumber(), command.serviceCode(), command.diagnosisCode(),
                 command.requestedAmount(), command.currency(), clock);
         PreAuthorization saved = repository.save(preAuthorization);
+        auditTrail.append(AuditRecord.submitted(
+                UUID.randomUUID(), saved.id(), command.actor(),
+                auditContext.correlationId(), saved.createdAt()));
         return PreAuthorizationResultMapper.toResult(saved);
     }
 
@@ -115,6 +127,7 @@ public final class PreAuthorizationApplicationService implements
             throw new PreAuthorizationStateConflictException(exception.getMessage(), exception);
         }
         PreAuthorization saved = repository.save(preAuthorization);
+        appendDecisionAudit(saved, command.actor());
         appendDecisionOutputs(saved);
         return PreAuthorizationResultMapper.toResult(saved);
     }
@@ -123,6 +136,12 @@ public final class PreAuthorizationApplicationService implements
         var event = decisionEvent(preAuthorization);
         eventOutbox.append(event);
         notificationTaskOutbox.append(notificationTask(preAuthorization, event));
+    }
+
+    private void appendDecisionAudit(PreAuthorization preAuthorization, ActorContext actor) {
+        auditTrail.append(AuditRecord.decided(
+                UUID.randomUUID(), preAuthorization.id(), preAuthorization.status(), actor,
+                auditContext.correlationId(), preAuthorization.decidedAt()));
     }
 
     private PreAuthorizationDecisionEvent decisionEvent(PreAuthorization preAuthorization) {
@@ -167,6 +186,7 @@ public final class PreAuthorizationApplicationService implements
             throw new PreAuthorizationStateConflictException(exception.getMessage(), exception);
         }
         PreAuthorization saved = repository.save(preAuthorization);
+        appendDecisionAudit(saved, command.actor());
         appendDecisionOutputs(saved);
         return PreAuthorizationResultMapper.toResult(saved);
     }

@@ -11,6 +11,8 @@ import com.aydindemir.health.authorization.application.port.out.PreAuthorization
 import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
 import com.aydindemir.health.authorization.application.port.out.IntegrationEventOutbox;
 import com.aydindemir.health.authorization.application.port.out.NotificationTaskOutbox;
+import com.aydindemir.health.authorization.application.port.out.AuditContextProvider;
+import com.aydindemir.health.authorization.application.port.out.AuditTrail;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
 import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
 import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
@@ -118,6 +120,16 @@ class ApplicationConfigurationTest {
         @Bean
         NotificationTaskOutbox notificationTaskOutbox() {
             return task -> { };
+        }
+
+        @Bean
+        AuditTrail auditTrail() {
+            return record -> { };
+        }
+
+        @Bean
+        AuditContextProvider auditContextProvider() {
+            return () -> "test-correlation-id";
         }
 
         @Bean
