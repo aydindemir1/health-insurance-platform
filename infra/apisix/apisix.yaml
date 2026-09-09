@@ -64,7 +64,9 @@ plugin_configs:
 routes:
   - id: authorization-api
     name: Authorization API
-    uri: /api/v1/pre-authorizations*
+    uris:
+      - /api/v1/pre-authorizations*
+      - /api/v1/audit-records*
     methods: [GET, POST, OPTIONS]
     plugin_config_id: health-api-boundary
     upstream:

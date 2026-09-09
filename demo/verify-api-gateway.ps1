@@ -58,6 +58,12 @@ try {
     Assert-Equal $unauthenticated.Status 401 "Unauthenticated request was not rejected."
     Assert-Equal $unauthenticated.ContentType "application/problem+json" "Gateway error is not RFC 9457 JSON."
 
+    $unauthenticatedAudit = Send-GatewayRequest -Method ([System.Net.Http.HttpMethod]::Get) `
+        -Path "/api/v1/audit-records"
+    Assert-Equal $unauthenticatedAudit.Status 401 "Unauthenticated audit request was not rejected."
+    Assert-Equal $unauthenticatedAudit.ContentType "application/problem+json" `
+        "Audit gateway error is not RFC 9457 JSON."
+
     $invalidToken = Send-GatewayRequest -Method ([System.Net.Http.HttpMethod]::Get) `
         -Path "/api/v1/search" -Token "not-a-valid-jwt"
     Assert-Equal $invalidToken.Status 401 "Invalid bearer token was not rejected."
@@ -107,6 +113,7 @@ try {
 
     [pscustomobject]@{
         unauthenticatedStatus = $unauthenticated.Status
+        unauthenticatedAuditStatus = $unauthenticatedAudit.Status
         invalidTokenStatus = $invalidToken.Status
         wrongAudienceStatus = $wrongAudience.Status
         authorizedRouteStatus = $authorized.Status

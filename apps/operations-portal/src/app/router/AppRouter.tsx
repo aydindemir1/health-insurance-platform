@@ -8,6 +8,7 @@ import { PreAuthorizationDetailPage } from '@/pages/pre-authorizations/PreAuthor
 import { NewPreAuthorizationPage } from '@/pages/pre-authorizations/NewPreAuthorizationPage'
 import { NotFoundPage } from '@/pages/not-found/NotFoundPage'
 import { SearchPage } from '@/pages/search/SearchPage'
+import { AuditPage } from '@/pages/audit/AuditPage'
 
 export function AppRouter() {
   return (
@@ -21,6 +22,7 @@ export function AppRouter() {
           <Route path="pre-authorizations/new" element={<NewPreAuthorizationPage />} />
           <Route path="pre-authorizations/:id" element={<PreAuthorizationDetailPage />} />
           <Route path="search" element={<SearchPage />} />
+          <Route path="audit" element={<AuditPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>
