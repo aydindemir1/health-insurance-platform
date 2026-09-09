@@ -212,6 +212,7 @@ Set-DemoUser -Username "hospital-demo" -Role "HOSPITAL_USER" -Attributes @{
 }
 Set-DemoUser -Username "insurance-demo" -Role "INSURANCE_SPECIALIST"
 Set-DemoUser -Username "claim-approver-demo" -Role "CLAIM_APPROVER"
+Set-DemoUser -Username "system-admin-demo" -Role "SYSTEM_ADMIN"
 
 function Get-DemoAccessToken {
     param(
@@ -234,11 +235,13 @@ function Get-DemoAccessToken {
 $hospitalToken = Get-DemoAccessToken -Username "hospital-demo"
 $insuranceToken = Get-DemoAccessToken -Username "insurance-demo"
 $claimApproverToken = Get-DemoAccessToken -Username "claim-approver-demo"
+$systemAdminToken = Get-DemoAccessToken -Username "system-admin-demo"
 
 & (Join-Path $PSScriptRoot "seed-demo-data.ps1") `
     -HospitalToken $hospitalToken `
     -InsuranceToken $insuranceToken `
     -ClaimApproverToken $claimApproverToken `
+    -SystemAdminToken $systemAdminToken `
     -VerifyNotificationDelivery:(-not $SkipNotificationVerification) `
     -RunId $RunId
 

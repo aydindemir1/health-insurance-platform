@@ -3,6 +3,7 @@ param(
     [string]$HospitalToken = $env:DEMO_HOSPITAL_TOKEN,
     [string]$InsuranceToken = $env:DEMO_INSURANCE_TOKEN,
     [string]$ClaimApproverToken = $env:DEMO_CLAIM_APPROVER_TOKEN,
+    [string]$SystemAdminToken = $env:DEMO_SYSTEM_ADMIN_TOKEN,
     [string]$PolicyBaseUrl = "http://localhost:9080/api/v1",
     [string]$AuthorizationBaseUrl = "http://localhost:9080/api/v1",
     [string]$ClaimsBaseUrl = "http://localhost:9080/api/v1",
@@ -17,6 +18,7 @@ foreach ($required in @{
     HospitalToken = $HospitalToken
     InsuranceToken = $InsuranceToken
     ClaimApproverToken = $ClaimApproverToken
+    SystemAdminToken = $SystemAdminToken
 }.GetEnumerator()) {
     if ([string]::IsNullOrWhiteSpace($required.Value)) {
         throw "$($required.Key) is required. Pass it as a parameter or use the corresponding DEMO_*_TOKEN environment variable."
@@ -184,6 +186,30 @@ $disputed = Invoke-DemoApi -Method POST -Uri "$ClaimsBaseUrl/claims/$($disputed.
 
 $searchResult = Wait-SearchProjection $policyNumber
 
+$authorizationAudit = Invoke-DemoApi -Method GET `
+    -Uri "$AuthorizationBaseUrl/audit-records?aggregateId=$($settledAuthorization.id)&page=0&size=20" `
+    -Token $SystemAdminToken
+$policyAudit = Invoke-DemoApi -Method GET `
+    -Uri "$PolicyBaseUrl/policies/audit-records?aggregateId=$($policy.id)&page=0&size=20" `
+    -Token $SystemAdminToken
+$claimAudit = Invoke-DemoApi -Method GET `
+    -Uri "$ClaimsBaseUrl/claims/audit-records?aggregateId=$($settled.claim.id)&page=0&size=20" `
+    -Token $SystemAdminToken
+$invoiceAudit = Invoke-DemoApi -Method GET `
+    -Uri "$ClaimsBaseUrl/claims/audit-records?aggregateId=$($settled.invoice.id)&page=0&size=20" `
+    -Token $SystemAdminToken
+
+foreach ($auditExpectation in @(
+    @{ Name = "authorization"; Result = $authorizationAudit; Minimum = 2 },
+    @{ Name = "policy"; Result = $policyAudit; Minimum = 1 },
+    @{ Name = "claim"; Result = $claimAudit; Minimum = 3 },
+    @{ Name = "invoice"; Result = $invoiceAudit; Minimum = 5 }
+)) {
+    if ($auditExpectation.Result.totalElements -lt $auditExpectation.Minimum) {
+        throw "Expected at least $($auditExpectation.Minimum) $($auditExpectation.Name) audit records, received $($auditExpectation.Result.totalElements)."
+    }
+}
+
 $summary = [ordered]@{
     dataClassification = $data.dataClassification
     runId = $RunId
@@ -202,6 +228,10 @@ $summary = [ordered]@{
     disputedInvoiceId = $disputed.invoice.id
     disputedInvoiceStatus = $disputed.invoice.status
     indexedOperationsRecords = $searchResult.totalElements
+    authorizationAuditRecords = $authorizationAudit.totalElements
+    policyAuditRecords = $policyAudit.totalElements
+    claimAuditRecords = $claimAudit.totalElements
+    invoiceAuditRecords = $invoiceAudit.totalElements
 }
 
 $summary | ConvertTo-Json
