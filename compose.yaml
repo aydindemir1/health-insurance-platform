@@ -105,6 +105,12 @@ services:
       timeout: 5s
       retries: 20
 
+  kafka-cli:
+    image: apache/kafka:4.1.1
+    profiles: [tools]
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["exit 0"]
+
   rabbitmq:
     image: rabbitmq:4.1-management-alpine
     environment:

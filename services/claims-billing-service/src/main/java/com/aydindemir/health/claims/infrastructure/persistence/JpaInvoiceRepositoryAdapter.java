@@ -84,6 +84,6 @@ class JpaInvoiceRepositoryAdapter implements InvoiceRepository {
                 source.id, source.claimId, source.providerId, source.invoiceNumber,
                 new Money(source.totalAmount, currency), source.status,
                 source.payableAmount == null ? null : new Money(source.payableAmount, currency),
-                payments, source.issuedAt, source.reconciledAt, source.settledAt);
+                payments, source.issuedAt, source.reconciledAt, source.settledAt, source.version);
     }
 }

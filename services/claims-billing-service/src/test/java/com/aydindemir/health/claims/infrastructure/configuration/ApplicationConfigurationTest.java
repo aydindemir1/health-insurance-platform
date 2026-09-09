@@ -15,6 +15,7 @@ import com.aydindemir.health.claims.application.port.out.ProcessedMessageReposit
 import com.aydindemir.health.claims.application.port.out.AuditTrail;
 import com.aydindemir.health.claims.application.port.out.AuditContextProvider;
 import com.aydindemir.health.claims.application.port.out.AuditRecordQuery;
+import com.aydindemir.health.claims.application.port.out.SearchProjectionExportQuery;
 import com.aydindemir.health.claims.application.dto.PageResult;
 import com.aydindemir.health.claims.application.security.ActorContext;
 import com.aydindemir.health.claims.application.security.ApplicationRole;
@@ -111,6 +112,9 @@ class ApplicationConfigurationTest {
         @Bean AuditRecordQuery auditRecordQuery() {
             return criteria -> new PageResult<>(
                     java.util.List.of(), criteria.page(), criteria.size(), 0, 0);
+        }
+        @Bean SearchProjectionExportQuery searchProjectionExportQuery() {
+            return (page, size) -> new PageResult<>(java.util.List.of(), page, size, 0, 0);
         }
         @Bean RecordingTransactionManager transactionManager() { return new RecordingTransactionManager(); }
     }

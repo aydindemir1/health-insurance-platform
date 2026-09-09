@@ -32,7 +32,8 @@ class SearchProjectionListeners {
                 message.providerId(), message.policyNumber(), message.serviceCode(), message.decision(),
                 null, null, message.requestedAmount(),
                 "APPROVED".equals(message.decision()) ? message.requestedAmount() : null,
-                null, message.currency(), message.reason(), message.occurredAt()));
+                null, message.currency(), message.reason(), revision(message.sourceRevision()),
+                message.occurredAt()));
         });
     }
 
@@ -47,7 +48,7 @@ class SearchProjectionListeners {
                 message.policyNumber(), message.serviceCode(), message.claimStatus(),
                 message.invoiceStatus(), message.invoiceNumber(), message.claimedAmount(),
                 message.approvedAmount(), message.paidAmount(), message.currency(), null,
-                message.occurredAt()));
+                revision(message.sourceRevision()), message.occurredAt()));
         });
     }
 
@@ -58,6 +59,10 @@ class SearchProjectionListeners {
 
     private void requireVersion(int version) {
         if (version != 1) throw new IllegalArgumentException("Unsupported search projection version: " + version);
+    }
+
+    private long revision(Long sourceRevision) {
+        return sourceRevision == null ? 1 : sourceRevision;
     }
 
     private void withCorrelation(java.util.UUID eventId, Runnable action) {

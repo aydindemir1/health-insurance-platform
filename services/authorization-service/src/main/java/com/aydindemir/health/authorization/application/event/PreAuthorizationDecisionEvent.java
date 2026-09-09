@@ -17,5 +17,6 @@ public record PreAuthorizationDecisionEvent(
         String currency,
         String decision,
         String reason,
+        long sourceRevision,
         Instant occurredAt) {
 }

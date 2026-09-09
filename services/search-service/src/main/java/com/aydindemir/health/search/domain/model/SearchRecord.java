@@ -10,7 +10,7 @@ public record SearchRecord(
         UUID memberId, UUID providerId, String policyNumber, String serviceCode,
         String status, String invoiceStatus, String invoiceNumber,
         BigDecimal amount, BigDecimal approvedAmount, BigDecimal paidAmount,
-        String currency, String reason, Instant occurredAt) {
+        String currency, String reason, long sourceRevision, Instant occurredAt) {
     public SearchRecord {
         if (id == null || id.isBlank()) throw new IllegalArgumentException("id must not be blank");
         Objects.requireNonNull(type);
@@ -22,6 +22,7 @@ public record SearchRecord(
         if (status == null || status.isBlank()) throw new IllegalArgumentException("status must not be blank");
         Objects.requireNonNull(amount);
         Objects.requireNonNull(currency);
+        if (sourceRevision < 1) throw new IllegalArgumentException("sourceRevision must be positive");
         Objects.requireNonNull(occurredAt);
     }
 }

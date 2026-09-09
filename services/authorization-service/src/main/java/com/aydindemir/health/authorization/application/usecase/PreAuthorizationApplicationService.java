@@ -151,7 +151,8 @@ public final class PreAuthorizationApplicationService implements
                 preAuthorization.providerId(), preAuthorization.policyNumber(),
                 preAuthorization.serviceCode(), preAuthorization.requestedAmount(),
                 preAuthorization.currency().getCurrencyCode(), preAuthorization.status().name(),
-                preAuthorization.decisionReason(), preAuthorization.decidedAt());
+                preAuthorization.decisionReason(), preAuthorization.revision() + 1,
+                preAuthorization.decidedAt());
     }
 
     private String toPastTense(String decision) {

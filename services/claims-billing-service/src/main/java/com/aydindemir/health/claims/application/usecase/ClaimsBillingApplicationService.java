@@ -290,7 +290,7 @@ public final class ClaimsBillingApplicationService implements
                 claimResult.serviceCode(), claimResult.claimedAmount(), claimResult.approvedAmount(),
                 invoiceResult.payableAmount(), invoiceResult.paidAmount(), claimResult.currency(),
                 claimResult.status(), invoiceResult.status(), invoiceResult.invoiceNumber(),
-                clock.instant()));
+                claim.revision() + invoice.revision() + 1, clock.instant()));
     }
 
     private void appendCreationAudit(Claim claim, Invoice invoice, ActorContext actor) {

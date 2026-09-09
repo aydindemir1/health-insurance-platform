@@ -2,6 +2,7 @@ package com.aydindemir.health.claims.infrastructure.persistence;
 
 import com.aydindemir.health.claims.application.port.out.ClaimRepository;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
+import com.aydindemir.health.claims.application.port.out.SearchProjectionExportQuery;
 import com.aydindemir.health.claims.domain.model.Claim;
 import com.aydindemir.health.claims.domain.model.Invoice;
 import com.aydindemir.health.claims.domain.valueobject.Money;
@@ -28,7 +29,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=validate")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@Import({JpaClaimRepositoryAdapter.class, JpaInvoiceRepositoryAdapter.class})
+@Import({JpaClaimRepositoryAdapter.class, JpaInvoiceRepositoryAdapter.class,
+        JpaSearchProjectionExportQuery.class})
 class JpaClaimsBillingRepositoryIntegrationTest {
     @Container @ServiceConnection
     static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
@@ -37,6 +39,7 @@ class JpaClaimsBillingRepositoryIntegrationTest {
 
     @Autowired ClaimRepository claims;
     @Autowired InvoiceRepository invoices;
+    @Autowired SearchProjectionExportQuery projections;
     @Autowired JdbcTemplate jdbc;
 
     @Test
@@ -75,6 +78,27 @@ class JpaClaimsBillingRepositoryIntegrationTest {
                 String.class);
         assertThat(indexes).contains("uk_claims_pre_authorization", "uk_invoices_claim",
                 "uk_invoices_number_lower", "idx_claims_provider_status", "idx_invoices_provider_status");
+    }
+
+    @Test
+    void exportsAJoinedCurrentProjectionWithAStablePositiveRevision() {
+        UUID claimId = UUID.randomUUID();
+        Claim claim = Claim.submit(claimId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                "POL-EXPORT", "IMG-MRI", money("1000.00"), CLOCK);
+        Invoice invoice = Invoice.issue(UUID.randomUUID(), claimId, claim.providerId(),
+                "INV-EXPORT", money("1000.00"), CLOCK);
+        claims.save(claim);
+        invoices.save(invoice);
+
+        var page = projections.findPage(0, 100);
+
+        assertThat(page.content()).filteredOn(value -> value.claimId().equals(claimId))
+                .singleElement()
+                .satisfies(value -> {
+                    assertThat(value.invoiceNumber()).isEqualTo("INV-EXPORT");
+                    assertThat(value.paidAmount()).isEqualByComparingTo("0");
+                    assertThat(value.sourceRevision()).isEqualTo(1);
+                });
     }
 
     private Money money(String amount) { return new Money(new BigDecimal(amount), TRY); }

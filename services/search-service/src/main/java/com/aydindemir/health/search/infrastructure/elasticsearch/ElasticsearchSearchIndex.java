@@ -2,8 +2,11 @@ package com.aydindemir.health.search.infrastructure.elasticsearch;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.SortOrder;
+import co.elastic.clients.json.JsonData;
 import com.aydindemir.health.search.application.dto.SearchPage;
 import com.aydindemir.health.search.application.port.out.SearchIndex;
+import com.aydindemir.health.search.application.port.out.SearchRebuildIndex;
+import com.aydindemir.health.search.application.exception.SearchRecoveryConflictException;
 import com.aydindemir.health.search.domain.model.RecordType;
 import com.aydindemir.health.search.domain.model.SearchRecord;
 import jakarta.annotation.PostConstruct;
@@ -15,7 +18,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 @Component
-public class ElasticsearchSearchIndex implements SearchIndex {
+public class ElasticsearchSearchIndex implements SearchIndex, SearchRebuildIndex {
     private final ElasticsearchClient client;
     private final String aliasName;
     private final String initialIndexName;
@@ -42,9 +45,81 @@ public class ElasticsearchSearchIndex implements SearchIndex {
     public void save(SearchRecord record) {
         try {
             ensureIndex();
-            client.index(request -> request.index(aliasName).id(record.id()).document(toDocument(record)));
+            upsert(aliasName, record);
         } catch (IOException exception) {
             throw new IllegalStateException("Could not index healthcare search record", exception);
+        }
+    }
+
+    @Override
+    public String currentIndex() {
+        try {
+            ensureIndex();
+            var indices = client.indices().getAlias(request -> request.name(aliasName)).aliases().keySet();
+            if (indices.size() != 1) {
+                throw new SearchRecoveryConflictException(
+                        "Search alias must resolve to exactly one index but resolved to " + indices.size());
+            }
+            return indices.iterator().next();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not resolve healthcare search alias", exception);
+        }
+    }
+
+    @Override
+    public void createIndex(String indexName) {
+        try {
+            if (client.indices().exists(request -> request.index(indexName)).value()) {
+                throw new SearchRecoveryConflictException("Candidate index already exists: " + indexName);
+            }
+            createPhysicalIndex(indexName, false);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not create search rebuild candidate", exception);
+        }
+    }
+
+    @Override
+    public void save(String indexName, SearchRecord record) {
+        try {
+            upsert(indexName, record);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not index search rebuild record", exception);
+        }
+    }
+
+    @Override
+    public long count(String indexName) {
+        try {
+            return client.count(request -> request.index(indexName)).count();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not count search rebuild records", exception);
+        }
+    }
+
+    @Override
+    public void refresh(String indexName) {
+        try {
+            client.indices().refresh(request -> request.index(indexName));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not refresh search rebuild candidate", exception);
+        }
+    }
+
+    @Override
+    public synchronized void swapAlias(String expectedCurrentIndex, String targetIndex) {
+        String actual = currentIndex();
+        if (!actual.equals(expectedCurrentIndex)) {
+            throw new SearchRecoveryConflictException(
+                    "Alias changed concurrently; expected " + expectedCurrentIndex + " but found " + actual);
+        }
+        try {
+            client.indices().updateAliases(request -> request
+                    .actions(action -> action.remove(remove -> remove
+                            .index(expectedCurrentIndex).alias(aliasName)))
+                    .actions(action -> action.add(add -> add
+                            .index(targetIndex).alias(aliasName).isWriteIndex(true))));
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not atomically swap healthcare search alias", exception);
         }
     }
 
@@ -98,10 +173,14 @@ public class ElasticsearchSearchIndex implements SearchIndex {
                     .isWriteIndex(true))));
             return;
         }
-        client.indices().create(request -> request
-                .index(initialIndexName)
-                .aliases(aliasName, alias -> alias.isWriteIndex(true))
-                .mappings(mapping -> mapping
+        createPhysicalIndex(initialIndexName, true);
+    }
+
+    private void createPhysicalIndex(String indexName, boolean attachAlias) throws IOException {
+        client.indices().create(request -> {
+            request.index(indexName);
+            if (attachAlias) request.aliases(aliasName, alias -> alias.isWriteIndex(true));
+            return request.mappings(mapping -> mapping
                 .properties("type", property -> property.keyword(keyword -> keyword))
                 .properties("sourceId", property -> property.keyword(keyword -> keyword))
                 .properties("preAuthorizationId", property -> property.keyword(keyword -> keyword))
@@ -117,7 +196,28 @@ public class ElasticsearchSearchIndex implements SearchIndex {
                         .fields("keyword", keyword -> keyword.keyword(value -> value))))
                 .properties("currency", property -> property.keyword(keyword -> keyword))
                 .properties("reason", property -> property.text(text -> text))
-                .properties("occurredAt", property -> property.date(date -> date))));
+                .properties("sourceRevision", property -> property.long_(number -> number))
+                .properties("occurredAt", property -> property.date(date -> date)));
+        });
+    }
+
+    private void upsert(String indexName, SearchRecord record) throws IOException {
+        SearchIndexDocument document = toDocument(record);
+        client.update(request -> request
+                .index(indexName)
+                .id(record.id())
+                .retryOnConflict(3)
+                .scriptedUpsert(true)
+                .script(script -> script
+                        .lang("painless")
+                        .source(source -> source.scriptString(
+                                "if (ctx._source.sourceRevision == null || "
+                                        + "params.sourceRevision >= ctx._source.sourceRevision) "
+                                        + "{ ctx._source = params.document } else { ctx.op = 'noop' }"))
+                        .params("sourceRevision", JsonData.of(record.sourceRevision()))
+                        .params("document", JsonData.of(
+                                document, client._transport().jsonpMapper())))
+                .upsert(document), SearchIndexDocument.class);
     }
 
     private SearchIndexDocument toDocument(SearchRecord value) {
@@ -126,7 +226,7 @@ public class ElasticsearchSearchIndex implements SearchIndex {
                 value.memberId(), value.providerId(), value.policyNumber(), value.serviceCode(),
                 value.status(), value.invoiceStatus(), value.invoiceNumber(), value.amount(),
                 value.approvedAmount(), value.paidAmount(), value.currency(), value.reason(),
-                value.occurredAt());
+                value.sourceRevision(), value.occurredAt());
     }
 
     private SearchRecord toDomain(SearchIndexDocument value) {
@@ -135,6 +235,6 @@ public class ElasticsearchSearchIndex implements SearchIndex {
                 value.memberId(), value.providerId(), value.policyNumber(), value.serviceCode(),
                 value.status(), value.invoiceStatus(), value.invoiceNumber(), value.amount(),
                 value.approvedAmount(), value.paidAmount(), value.currency(), value.reason(),
-                value.occurredAt());
+                value.sourceRevision() == null ? 1L : value.sourceRevision(), value.occurredAt());
     }
 }

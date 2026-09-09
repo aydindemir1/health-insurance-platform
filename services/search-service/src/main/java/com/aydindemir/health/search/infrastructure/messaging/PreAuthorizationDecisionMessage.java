@@ -8,5 +8,5 @@ record PreAuthorizationDecisionMessage(
         UUID eventId, String eventType, int eventVersion, UUID preAuthorizationId,
         UUID memberId, UUID providerId, String policyNumber, String serviceCode,
         BigDecimal requestedAmount, String currency, String decision, String reason,
-        Instant occurredAt) {
+        Long sourceRevision, Instant occurredAt) {
 }

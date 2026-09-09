@@ -12,6 +12,9 @@ import com.aydindemir.health.claims.application.port.out.AuditRecordQuery;
 import com.aydindemir.health.claims.application.port.in.SearchAuditRecordsUseCase;
 import com.aydindemir.health.claims.application.usecase.AuditQueryService;
 import com.aydindemir.health.claims.application.usecase.ClaimsBillingApplicationService;
+import com.aydindemir.health.claims.application.usecase.SearchProjectionExportService;
+import com.aydindemir.health.claims.application.port.in.ExportSearchProjectionsUseCase;
+import com.aydindemir.health.claims.application.port.out.SearchProjectionExportQuery;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -50,5 +53,10 @@ public class ApplicationConfiguration {
     @Bean
     SearchAuditRecordsUseCase claimsAuditQuery(AuditRecordQuery records) {
         return new TransactionalAuditQuery(new AuditQueryService(records));
+    }
+
+    @Bean
+    ExportSearchProjectionsUseCase claimsSearchProjectionExporter(SearchProjectionExportQuery projections) {
+        return new SearchProjectionExportService(projections);
     }
 }

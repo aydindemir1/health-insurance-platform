@@ -11,5 +11,5 @@ record ClaimSearchProjectionMessage(
         BigDecimal claimedAmount, BigDecimal approvedAmount,
         BigDecimal payableAmount, BigDecimal paidAmount,
         String currency, String claimStatus, String invoiceStatus,
-        String invoiceNumber, Instant occurredAt) {
+        String invoiceNumber, Long sourceRevision, Instant occurredAt) {
 }

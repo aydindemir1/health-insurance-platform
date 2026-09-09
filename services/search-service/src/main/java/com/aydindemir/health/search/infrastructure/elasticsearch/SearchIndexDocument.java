@@ -9,5 +9,5 @@ public record SearchIndexDocument(
         UUID memberId, UUID providerId, String policyNumber, String serviceCode,
         String status, String invoiceStatus, String invoiceNumber,
         BigDecimal amount, BigDecimal approvedAmount, BigDecimal paidAmount,
-        String currency, String reason, Instant occurredAt) {
+        String currency, String reason, Long sourceRevision, Instant occurredAt) {
 }

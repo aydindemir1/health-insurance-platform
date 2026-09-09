@@ -1,6 +1,7 @@
 package com.aydindemir.health.search.presentation.rest;
 
 import com.aydindemir.health.search.application.exception.ApplicationAccessDeniedException;
+import com.aydindemir.health.search.application.exception.SearchRecoveryConflictException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -17,6 +18,10 @@ class ApiExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     ProblemDetail invalid(IllegalArgumentException exception) {
         return problem(HttpStatus.BAD_REQUEST, "Invalid request", exception.getMessage());
+    }
+    @ExceptionHandler(SearchRecoveryConflictException.class)
+    ProblemDetail conflict(SearchRecoveryConflictException exception) {
+        return problem(HttpStatus.CONFLICT, "Search recovery conflict", exception.getMessage());
     }
     private ProblemDetail problem(HttpStatus status, String title, String detail) {
         var problem = ProblemDetail.forStatusAndDetail(status, detail);

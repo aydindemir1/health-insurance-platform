@@ -29,7 +29,7 @@ class JpaClaimSearchProjectionOutbox implements ClaimSearchProjectionOutbox {
                 projection.policyNumber(), projection.serviceCode(), projection.claimedAmount(),
                 projection.approvedAmount(), projection.payableAmount(), projection.paidAmount(),
                 projection.currency(), projection.claimStatus(), projection.invoiceStatus(),
-                projection.invoiceNumber(), projection.occurredAt());
+                projection.invoiceNumber(), projection.sourceRevision(), projection.occurredAt());
         try {
             repository.save(new ClaimSearchOutboxJpaEntity(
                     eventId, projection.claimId(), EVENT_TYPE, EVENT_VERSION,

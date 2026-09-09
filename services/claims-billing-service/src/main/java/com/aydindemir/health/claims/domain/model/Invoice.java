@@ -18,6 +18,7 @@ public final class Invoice {
     private final String invoiceNumber;
     private final Money totalAmount;
     private final Instant issuedAt;
+    private final long revision;
     private final List<Payment> payments;
     private InvoiceStatus status;
     private Money payableAmount;
@@ -35,7 +36,8 @@ public final class Invoice {
             List<Payment> payments,
             Instant issuedAt,
             Instant reconciledAt,
-            Instant settledAt) {
+            Instant settledAt,
+            long revision) {
         this.id = Objects.requireNonNull(id);
         this.claimId = Objects.requireNonNull(claimId);
         this.providerId = Objects.requireNonNull(providerId);
@@ -50,6 +52,8 @@ public final class Invoice {
         this.issuedAt = Objects.requireNonNull(issuedAt);
         this.reconciledAt = reconciledAt;
         this.settledAt = settledAt;
+        if (revision < 0) throw new IllegalArgumentException("revision must not be negative");
+        this.revision = revision;
         validatePayments();
     }
 
@@ -62,7 +66,7 @@ public final class Invoice {
             Clock clock) {
         return new Invoice(id, claimId, providerId, invoiceNumber, totalAmount,
                 InvoiceStatus.ISSUED, null, List.of(),
-                Objects.requireNonNull(clock).instant(), null, null);
+                Objects.requireNonNull(clock).instant(), null, null, 0);
     }
 
     public static Invoice rehydrate(
@@ -76,9 +80,10 @@ public final class Invoice {
             List<Payment> payments,
             Instant issuedAt,
             Instant reconciledAt,
-            Instant settledAt) {
+            Instant settledAt,
+            long revision) {
         return new Invoice(id, claimId, providerId, invoiceNumber, totalAmount,
-                status, payableAmount, payments, issuedAt, reconciledAt, settledAt);
+                status, payableAmount, payments, issuedAt, reconciledAt, settledAt, revision);
     }
 
     public void reconcile(Money approvedAmount, Clock clock) {
@@ -184,4 +189,5 @@ public final class Invoice {
     public Instant issuedAt() { return issuedAt; }
     public Instant reconciledAt() { return reconciledAt; }
     public Instant settledAt() { return settledAt; }
+    public long revision() { return revision; }
 }

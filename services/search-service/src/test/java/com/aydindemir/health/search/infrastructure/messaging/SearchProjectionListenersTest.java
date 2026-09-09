@@ -31,6 +31,7 @@ class SearchProjectionListenersTest {
         assertThat(indexed.id()).isEqualTo("PRE_AUTHORIZATION:" + id);
         assertThat(indexed.type()).isEqualTo(RecordType.PRE_AUTHORIZATION);
         assertThat(indexed.status()).isEqualTo("APPROVED");
+        assertThat(indexed.sourceRevision()).isEqualTo(1);
     }
 
     @Test
@@ -41,6 +42,7 @@ class SearchProjectionListenersTest {
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "POL-100", "IMG-MRI",
                 new BigDecimal("1000.00"), new BigDecimal("800.00"), new BigDecimal("800.00"),
                 new BigDecimal("800.00"), "TRY", "APPROVED", "SETTLED", "INV-100",
+                4L,
                 Instant.parse("2026-09-09T00:00:00Z"));
         var mapper = JsonMapper.builder().findAndAddModules().build();
 
@@ -49,5 +51,6 @@ class SearchProjectionListenersTest {
         assertThat(indexed.id()).isEqualTo("CLAIM:" + claimId);
         assertThat(indexed.invoiceStatus()).isEqualTo("SETTLED");
         assertThat(indexed.paidAmount()).isEqualByComparingTo("800.00");
+        assertThat(indexed.sourceRevision()).isEqualTo(4);
     }
 }

@@ -18,6 +18,7 @@ public final class Claim {
     private final String serviceCode;
     private final Money claimedAmount;
     private final Instant submittedAt;
+    private final long revision;
     private ClaimStatus status;
     private Money approvedAmount;
     private String rejectionReason;
@@ -37,7 +38,8 @@ public final class Claim {
             String rejectionReason,
             Instant submittedAt,
             Instant reviewStartedAt,
-            Instant decidedAt) {
+            Instant decidedAt,
+            long revision) {
         this.id = Objects.requireNonNull(id);
         this.preAuthorizationId = Objects.requireNonNull(preAuthorizationId);
         this.memberId = Objects.requireNonNull(memberId);
@@ -54,6 +56,8 @@ public final class Claim {
         this.submittedAt = Objects.requireNonNull(submittedAt);
         this.reviewStartedAt = reviewStartedAt;
         this.decidedAt = decidedAt;
+        if (revision < 0) throw new IllegalArgumentException("revision must not be negative");
+        this.revision = revision;
     }
 
     public static Claim submit(
@@ -67,7 +71,7 @@ public final class Claim {
             Clock clock) {
         return new Claim(id, preAuthorizationId, memberId, providerId,
                 policyNumber, serviceCode, claimedAmount, ClaimStatus.SUBMITTED,
-                null, null, Objects.requireNonNull(clock).instant(), null, null);
+                null, null, Objects.requireNonNull(clock).instant(), null, null, 0);
     }
 
     public static Claim rehydrate(
@@ -83,10 +87,11 @@ public final class Claim {
             String rejectionReason,
             Instant submittedAt,
             Instant reviewStartedAt,
-            Instant decidedAt) {
+            Instant decidedAt,
+            long revision) {
         return new Claim(id, preAuthorizationId, memberId, providerId,
                 policyNumber, serviceCode, claimedAmount, status, approvedAmount,
-                rejectionReason, submittedAt, reviewStartedAt, decidedAt);
+                rejectionReason, submittedAt, reviewStartedAt, decidedAt, revision);
     }
 
     public void startReview(Clock clock) {
@@ -143,4 +148,5 @@ public final class Claim {
     public Instant submittedAt() { return submittedAt; }
     public Instant reviewStartedAt() { return reviewStartedAt; }
     public Instant decidedAt() { return decidedAt; }
+    public long revision() { return revision; }
 }

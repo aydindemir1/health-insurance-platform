@@ -113,6 +113,6 @@ class JpaPreAuthorizationRepositoryAdapter implements PreAuthorizationRepository
                 entity.serviceCode,
                 entity.diagnosisCode, entity.requestedAmount,
                 Currency.getInstance(entity.currency), entity.status,
-                entity.decisionReason, entity.createdAt, entity.decidedAt);
+                entity.decisionReason, entity.createdAt, entity.decidedAt, entity.version);
     }
 }

@@ -20,6 +20,7 @@ public final class PreAuthorization {
     private final BigDecimal requestedAmount;
     private final Currency currency;
     private final Instant createdAt;
+    private final long revision;
     private PreAuthorizationStatus status;
     private String decisionReason;
     private Instant decidedAt;
@@ -36,7 +37,8 @@ public final class PreAuthorization {
             PreAuthorizationStatus status,
             String decisionReason,
             Instant createdAt,
-            Instant decidedAt) {
+            Instant decidedAt,
+            long revision) {
         this.id = Objects.requireNonNull(id);
         this.memberId = Objects.requireNonNull(memberId);
         this.providerId = Objects.requireNonNull(providerId);
@@ -52,6 +54,8 @@ public final class PreAuthorization {
         this.decisionReason = decisionReason;
         this.createdAt = Objects.requireNonNull(createdAt);
         this.decidedAt = decidedAt;
+        if (revision < 0) throw new IllegalArgumentException("revision must not be negative");
+        this.revision = revision;
     }
 
     public static PreAuthorization submit(
@@ -67,7 +71,7 @@ public final class PreAuthorization {
         return new PreAuthorization(
                 id, memberId, providerId, policyNumber, serviceCode, diagnosisCode,
                 requestedAmount, currency, PreAuthorizationStatus.PENDING, null,
-                Objects.requireNonNull(clock).instant(), null);
+                Objects.requireNonNull(clock).instant(), null, 0);
     }
 
     public static PreAuthorization rehydrate(
@@ -82,10 +86,11 @@ public final class PreAuthorization {
             PreAuthorizationStatus status,
             String decisionReason,
             Instant createdAt,
-            Instant decidedAt) {
+            Instant decidedAt,
+            long revision) {
         return new PreAuthorization(
                 id, memberId, providerId, policyNumber, serviceCode, diagnosisCode,
-                requestedAmount, currency, status, decisionReason, createdAt, decidedAt);
+                requestedAmount, currency, status, decisionReason, createdAt, decidedAt, revision);
     }
 
     public void approve(String reason, Clock clock) {
@@ -129,4 +134,5 @@ public final class PreAuthorization {
     public String decisionReason() { return decisionReason; }
     public Instant createdAt() { return createdAt; }
     public Instant decidedAt() { return decidedAt; }
+    public long revision() { return revision; }
 }

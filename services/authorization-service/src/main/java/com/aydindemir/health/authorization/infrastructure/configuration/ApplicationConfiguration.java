@@ -11,6 +11,8 @@ import com.aydindemir.health.authorization.application.port.out.AuditRecordQuery
 import com.aydindemir.health.authorization.application.port.in.SearchAuditRecordsUseCase;
 import com.aydindemir.health.authorization.application.usecase.AuditQueryService;
 import com.aydindemir.health.authorization.application.usecase.PreAuthorizationApplicationService;
+import com.aydindemir.health.authorization.application.usecase.SearchProjectionExportService;
+import com.aydindemir.health.authorization.application.port.in.ExportSearchProjectionsUseCase;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -48,5 +50,10 @@ public class ApplicationConfiguration {
     @Bean
     SearchAuditRecordsUseCase auditQuery(AuditRecordQuery records) {
         return new TransactionalAuditQuery(new AuditQueryService(records));
+    }
+
+    @Bean
+    ExportSearchProjectionsUseCase searchProjectionExporter(PreAuthorizationRepository repository) {
+        return new SearchProjectionExportService(repository);
     }
 }

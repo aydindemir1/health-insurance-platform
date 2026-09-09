@@ -20,5 +20,6 @@ public record ClaimSearchProjection(
         String claimStatus,
         String invoiceStatus,
         String invoiceNumber,
+        long sourceRevision,
         Instant occurredAt) {
 }

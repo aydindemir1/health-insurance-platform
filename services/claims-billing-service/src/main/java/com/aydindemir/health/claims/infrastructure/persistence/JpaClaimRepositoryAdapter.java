@@ -73,6 +73,7 @@ class JpaClaimRepositoryAdapter implements ClaimRepository {
                 source.policyNumber, source.serviceCode,
                 new Money(source.claimedAmount, currency), source.status,
                 source.approvedAmount == null ? null : new Money(source.approvedAmount, currency),
-                source.rejectionReason, source.submittedAt, source.reviewStartedAt, source.decidedAt);
+                source.rejectionReason, source.submittedAt, source.reviewStartedAt,
+                source.decidedAt, source.version);
     }
 }

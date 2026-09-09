@@ -67,6 +67,7 @@ routes:
     uris:
       - /api/v1/pre-authorizations*
       - /api/v1/audit-records*
+      - /api/v1/admin/search-projections/pre-authorizations*
     methods: [GET, POST, OPTIONS]
     plugin_config_id: health-api-boundary
     upstream:
@@ -99,6 +100,7 @@ routes:
     uris:
       - /api/v1/claims*
       - /api/v1/invoices*
+      - /api/v1/admin/search-projections/claims*
     methods: [GET, POST, OPTIONS]
     plugin_config_id: health-api-boundary
     upstream:
@@ -112,8 +114,10 @@ routes:
 
   - id: healthcare-search-api
     name: Healthcare Operations Search API
-    uri: /api/v1/search*
-    methods: [GET, OPTIONS]
+    uris:
+      - /api/v1/search*
+      - /api/v1/admin/search-rebuilds*
+    methods: [GET, POST, OPTIONS]
     plugin_config_id: health-api-boundary
     upstream:
       type: roundrobin
