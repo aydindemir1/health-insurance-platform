@@ -81,6 +81,13 @@ Its final JSON must report `DELIVERED` for rejected, settled, and disputed
 pre-authorization notifications. Use `-SkipNotificationVerification` only when
 intentionally running the business seed without the RabbitMQ/worker runtime.
 
+Gateway verification intentionally consumes the local per-IP rate quota until
+it proves `429`. When taking portal screenshots immediately after seeding, run
+the preparation script with `-SkipGatewayVerification`, capture the pages, and
+execute gateway verification in a separate run (or wait for the one-minute
+quota window to reset). This keeps two individually valid checks from interfering
+with each other.
+
 The direct-grant client exists only in the running local Keycloak database; it
 is not part of the imported realm or a production authentication design. The
 script does not print or persist passwords/tokens. Browser login continues to

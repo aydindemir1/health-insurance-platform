@@ -48,9 +48,7 @@ Screenshots retained through the Milestone 9 documentation checkpoint:
 
 ![APISIX Problem Details](09-apisix-gateway-problem-details.png)
 
-When captured with runtime-only demo credentials, the Milestone 9 audit view is
-stored as `10-audit-trail.png`. Its absence means the authenticated capture has
-not yet been rerun; it must not be replaced with fabricated runtime evidence.
+![Service-owned audit trail](10-audit-trail.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
@@ -62,6 +60,12 @@ $env:DEMO_POLICY_NUMBER = "<policy-number-reported-by-the-seed-script>"
 Set-Location apps/operations-portal
 npm run screenshots
 ```
+
+The gateway verification deliberately drives the per-IP quota until it receives
+`429`. Therefore, either wait for the one-minute quota window to reset before
+capturing, or prepare a capture run with `-SkipGatewayVerification` and execute
+the gateway verification separately. Otherwise the first portal collection
+request can correctly receive `429` and the capture will time out.
 
 The capture script drives real Keycloak logins and real API-backed pages,
 including `system-admin-demo` for the audit view, in headless Chrome. It fills
