@@ -7,6 +7,9 @@ import com.aydindemir.health.authorization.application.port.out.IntegrationEvent
 import com.aydindemir.health.authorization.application.port.out.NotificationTaskOutbox;
 import com.aydindemir.health.authorization.application.port.out.AuditContextProvider;
 import com.aydindemir.health.authorization.application.port.out.AuditTrail;
+import com.aydindemir.health.authorization.application.port.out.AuditRecordQuery;
+import com.aydindemir.health.authorization.application.port.in.SearchAuditRecordsUseCase;
+import com.aydindemir.health.authorization.application.usecase.AuditQueryService;
 import com.aydindemir.health.authorization.application.usecase.PreAuthorizationApplicationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,5 +43,10 @@ public class ApplicationConfiguration {
                 repository, idGenerator, coverageVerification, eventOutbox,
                 notificationTaskOutbox, auditTrail, auditContext, clock);
         return new TransactionalPreAuthorizationUseCases(applicationService);
+    }
+
+    @Bean
+    SearchAuditRecordsUseCase auditQuery(AuditRecordQuery records) {
+        return new TransactionalAuditQuery(new AuditQueryService(records));
     }
 }

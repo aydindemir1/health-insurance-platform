@@ -13,6 +13,9 @@ import com.aydindemir.health.authorization.application.port.out.IntegrationEvent
 import com.aydindemir.health.authorization.application.port.out.NotificationTaskOutbox;
 import com.aydindemir.health.authorization.application.port.out.AuditContextProvider;
 import com.aydindemir.health.authorization.application.port.out.AuditTrail;
+import com.aydindemir.health.authorization.application.port.out.AuditRecordQuery;
+import com.aydindemir.health.authorization.application.port.in.SearchAuditRecordsUseCase;
+import com.aydindemir.health.authorization.application.query.SearchAuditRecordsQuery;
 import com.aydindemir.health.authorization.application.query.GetPreAuthorizationQuery;
 import com.aydindemir.health.authorization.application.query.PreAuthorizationSearchCriteria;
 import com.aydindemir.health.authorization.application.query.SearchPreAuthorizationsQuery;
@@ -55,11 +58,14 @@ class ApplicationConfigurationTest {
             Object get = context.getBean(GetPreAuthorizationUseCase.class);
             Object search = context.getBean(SearchPreAuthorizationsUseCase.class);
             Object decide = context.getBean(DecidePreAuthorizationUseCase.class);
+            Object audit = context.getBean(SearchAuditRecordsUseCase.class);
 
             assertThat(submit).isSameAs(get).isSameAs(search).isSameAs(decide);
             assertThat(AopUtils.isAopProxy(submit)).isTrue();
             assertThat(AopUtils.getTargetClass(submit))
                     .isEqualTo(TransactionalPreAuthorizationUseCases.class);
+            assertThat(AopUtils.isAopProxy(audit)).isTrue();
+            assertThat(AopUtils.getTargetClass(audit)).isEqualTo(TransactionalAuditQuery.class);
         });
     }
 
@@ -90,10 +96,15 @@ class ApplicationConfigurationTest {
             context.getBean(DecidePreAuthorizationUseCase.class).approve(
                     new DecidePreAuthorizationCommand(
                             submitted.id(), "Coverage verified", specialist));
+            var administrator = new ActorContext(
+                    "administrator", null, Set.of(ApplicationRole.SYSTEM_ADMIN));
+            context.getBean(SearchAuditRecordsUseCase.class).search(
+                    SearchAuditRecordsQuery.fromRequest(
+                            administrator, null, null, 0, 20));
 
             assertThat(transactionManager.readOnlyTransactions())
-                    .containsExactly(false, true, true, false);
-            assertThat(transactionManager.committedTransactions()).isEqualTo(4);
+                    .containsExactly(false, true, true, false, true);
+            assertThat(transactionManager.committedTransactions()).isEqualTo(5);
         });
     }
 
@@ -130,6 +141,12 @@ class ApplicationConfigurationTest {
         @Bean
         AuditContextProvider auditContextProvider() {
             return () -> "test-correlation-id";
+        }
+
+        @Bean
+        AuditRecordQuery auditRecordQuery() {
+            return criteria -> new PageResult<>(
+                    List.of(), criteria.page(), criteria.size(), 0, 0);
         }
 
         @Bean

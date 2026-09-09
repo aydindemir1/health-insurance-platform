@@ -4,11 +4,14 @@ import com.aydindemir.health.authorization.application.command.DecidePreAuthoriz
 import com.aydindemir.health.authorization.application.command.SubmitPreAuthorizationCommand;
 import com.aydindemir.health.authorization.application.port.in.DecidePreAuthorizationUseCase;
 import com.aydindemir.health.authorization.application.port.in.SubmitPreAuthorizationUseCase;
+import com.aydindemir.health.authorization.application.port.in.SearchAuditRecordsUseCase;
 import com.aydindemir.health.authorization.application.port.out.CoverageVerificationPort;
 import com.aydindemir.health.authorization.application.port.out.NotificationTaskOutbox;
 import com.aydindemir.health.authorization.application.port.out.AuditTrail;
 import com.aydindemir.health.authorization.application.security.ActorContext;
 import com.aydindemir.health.authorization.application.security.ApplicationRole;
+import com.aydindemir.health.authorization.application.query.SearchAuditRecordsQuery;
+import com.aydindemir.health.authorization.application.audit.AuditAction;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -46,6 +49,7 @@ class DecisionOutboxTransactionIntegrationTest {
     @Autowired SubmitPreAuthorizationUseCase submit;
     @Autowired DecidePreAuthorizationUseCase decide;
     @Autowired JdbcTemplate jdbc;
+    @Autowired SearchAuditRecordsUseCase searchAuditRecords;
 
     @MockitoBean CoverageVerificationPort coverageVerification;
     @MockitoSpyBean NotificationTaskOutbox notificationTaskOutbox;
@@ -165,6 +169,25 @@ class DecisionOutboxTransactionIntegrationTest {
                 .hasMessageContaining("append-only");
         assertThatThrownBy(() -> jdbc.execute("truncate table audit_records"))
                 .hasMessageContaining("append-only");
+    }
+
+    @Test
+    void readsFilteredAuditPageThroughTheApplicationBoundary() {
+        UUID id = submitPending();
+        decide.approve(new DecidePreAuthorizationCommand(
+                id, "Coverage verified", specialist()));
+
+        var result = searchAuditRecords.search(SearchAuditRecordsQuery.fromRequest(
+                new ActorContext("administrator", null, Set.of(ApplicationRole.SYSTEM_ADMIN)),
+                id, AuditAction.PRE_AUTHORIZATION_APPROVED.name(), 0, 10));
+
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.content()).singleElement().satisfies(record -> {
+            assertThat(record.aggregateId()).isEqualTo(id);
+            assertThat(record.action()).isEqualTo(AuditAction.PRE_AUTHORIZATION_APPROVED);
+            assertThat(record.changes().fromStatus()).isEqualTo("PENDING");
+            assertThat(record.changes().toStatus()).isEqualTo("APPROVED");
+        });
     }
 
     private UUID submitPending() {
