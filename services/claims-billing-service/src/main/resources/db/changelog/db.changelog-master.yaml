@@ -5,3 +5,5 @@ databaseChangeLog:
       file: db/changelog/changes/002-create-processed-messages.yaml
   - include:
       file: db/changelog/changes/003-create-claim-search-outbox.yaml
+  - include:
+      file: db/changelog/changes/004-create-append-only-audit.yaml

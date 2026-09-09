@@ -11,6 +11,8 @@ import com.aydindemir.health.claims.application.port.out.ClaimRepository;
 import com.aydindemir.health.claims.application.port.out.ClaimSearchProjectionOutbox;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
 import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
+import com.aydindemir.health.claims.application.port.out.AuditTrail;
+import com.aydindemir.health.claims.application.port.out.AuditContextProvider;
 import com.aydindemir.health.claims.application.security.ActorContext;
 import com.aydindemir.health.claims.application.security.ApplicationRole;
 import com.aydindemir.health.claims.domain.model.Claim;
@@ -98,6 +100,8 @@ class ApplicationConfigurationTest {
         @Bean ClaimSearchProjectionOutbox claimSearchProjectionOutbox() {
             return mock(ClaimSearchProjectionOutbox.class);
         }
+        @Bean AuditTrail auditTrail() { return record -> { }; }
+        @Bean AuditContextProvider auditContextProvider() { return () -> "test-correlation-id"; }
         @Bean RecordingTransactionManager transactionManager() { return new RecordingTransactionManager(); }
     }
 

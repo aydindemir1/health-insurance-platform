@@ -1,5 +1,6 @@
 package com.aydindemir.health.claims.application.usecase;
 
+import com.aydindemir.health.claims.application.audit.AuditRecord;
 import com.aydindemir.health.claims.application.command.ApproveClaimCommand;
 import com.aydindemir.health.claims.application.command.ClaimActionCommand;
 import com.aydindemir.health.claims.application.command.CreateClaimCommand;
@@ -29,6 +30,8 @@ import com.aydindemir.health.claims.application.port.out.ClaimSearchProjectionOu
 import com.aydindemir.health.claims.application.port.out.IdentifierGenerator;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
 import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
+import com.aydindemir.health.claims.application.port.out.AuditTrail;
+import com.aydindemir.health.claims.application.port.out.AuditContextProvider;
 import com.aydindemir.health.claims.application.security.ActorContext;
 import com.aydindemir.health.claims.application.query.GetClaimQuery;
 import com.aydindemir.health.claims.application.query.GetInvoiceQuery;
@@ -55,6 +58,8 @@ public final class ClaimsBillingApplicationService implements
     private final IdentifierGenerator identifiers;
     private final ProcessedMessageRepository processedMessages;
     private final ClaimSearchProjectionOutbox searchOutbox;
+    private final AuditTrail auditTrail;
+    private final AuditContextProvider auditContext;
     private final Clock clock;
 
     public ClaimsBillingApplicationService(
@@ -64,6 +69,8 @@ public final class ClaimsBillingApplicationService implements
             IdentifierGenerator identifiers,
             ProcessedMessageRepository processedMessages,
             ClaimSearchProjectionOutbox searchOutbox,
+            AuditTrail auditTrail,
+            AuditContextProvider auditContext,
             Clock clock) {
         this.claims = Objects.requireNonNull(claims);
         this.invoices = Objects.requireNonNull(invoices);
@@ -71,6 +78,8 @@ public final class ClaimsBillingApplicationService implements
         this.identifiers = Objects.requireNonNull(identifiers);
         this.processedMessages = Objects.requireNonNull(processedMessages);
         this.searchOutbox = Objects.requireNonNull(searchOutbox);
+        this.auditTrail = Objects.requireNonNull(auditTrail);
+        this.auditContext = Objects.requireNonNull(auditContext);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -90,7 +99,10 @@ public final class ClaimsBillingApplicationService implements
             Invoice invoice = Invoice.issue(
                     identifiers.generate(), claimId, command.providerId(),
                     "AUTO-" + command.preAuthorizationId(), amount, clock);
-            appendProjection(claims.save(claim), invoices.save(invoice));
+            Claim savedClaim = claims.save(claim);
+            Invoice savedInvoice = invoices.save(invoice);
+            appendSystemAudit(savedClaim, savedInvoice);
+            appendProjection(savedClaim, savedInvoice);
         }
         processedMessages.markProcessed(
                 command.messageId(), APPROVAL_CONSUMER, clock.instant());
@@ -131,6 +143,7 @@ public final class ClaimsBillingApplicationService implements
                 command.invoiceNumber(), invoicedAmount, clock);
         Claim savedClaim = claims.save(claim);
         Invoice savedInvoice = invoices.save(invoice);
+        appendCreationAudit(savedClaim, savedInvoice, command.actor());
         appendProjection(savedClaim, savedInvoice);
         return result(savedClaim, savedInvoice);
     }
@@ -141,8 +154,11 @@ public final class ClaimsBillingApplicationService implements
             Objects.requireNonNull(command);
             requireRole(command.actor(), ApplicationRole.CLAIM_APPROVER);
             Claim claim = findClaim(command.claimId());
+            String fromStatus = claim.status().name();
             claim.startReview(clock);
             Claim savedClaim = claims.save(claim);
+            appendAudit("CLAIM", savedClaim.id(), "CLAIM_REVIEW_STARTED", command.actor(),
+                    savedClaim.providerId(), "CLAIM_REVIEW", fromStatus, savedClaim.status().name());
             appendProjection(savedClaim, findInvoiceByClaimId(savedClaim.id()));
             return ClaimsBillingResultMapper.toResult(savedClaim);
         });
@@ -155,10 +171,16 @@ public final class ClaimsBillingApplicationService implements
             requireRole(command.actor(), ApplicationRole.CLAIM_APPROVER);
             Claim claim = findClaim(command.claimId());
             Invoice invoice = findInvoiceByClaimId(claim.id());
+            String claimFrom = claim.status().name();
+            String invoiceFrom = invoice.status().name();
             claim.approve(Money.positive(command.approvedAmount(), command.currency()), clock);
             invoice.reconcile(claim.approvedAmount(), clock);
             Claim savedClaim = claims.save(claim);
             Invoice savedInvoice = invoices.save(invoice);
+            appendAudit("CLAIM", savedClaim.id(), "CLAIM_APPROVED", command.actor(),
+                    savedClaim.providerId(), "CLAIM_DECISION", claimFrom, savedClaim.status().name());
+            appendAudit("INVOICE", savedInvoice.id(), "INVOICE_RECONCILED", command.actor(),
+                    savedInvoice.providerId(), "CLAIM_DECISION", invoiceFrom, savedInvoice.status().name());
             appendProjection(savedClaim, savedInvoice);
             return result(savedClaim, savedInvoice);
         });
@@ -171,10 +193,16 @@ public final class ClaimsBillingApplicationService implements
             requireRole(command.actor(), ApplicationRole.CLAIM_APPROVER);
             Claim claim = findClaim(command.claimId());
             Invoice invoice = findInvoiceByClaimId(claim.id());
+            String claimFrom = claim.status().name();
+            String invoiceFrom = invoice.status().name();
             claim.reject(command.reason(), clock);
             invoice.voidDueToRejectedClaim();
             Claim savedClaim = claims.save(claim);
             Invoice savedInvoice = invoices.save(invoice);
+            appendAudit("CLAIM", savedClaim.id(), "CLAIM_REJECTED", command.actor(),
+                    savedClaim.providerId(), "CLAIM_DECISION", claimFrom, savedClaim.status().name());
+            appendAudit("INVOICE", savedInvoice.id(), "INVOICE_VOIDED", command.actor(),
+                    savedInvoice.providerId(), "CLAIM_DECISION", invoiceFrom, savedInvoice.status().name());
             appendProjection(savedClaim, savedInvoice);
             return result(savedClaim, savedInvoice);
         });
@@ -186,9 +214,13 @@ public final class ClaimsBillingApplicationService implements
             Objects.requireNonNull(command);
             requireFinancialRole(command.actor());
             Invoice invoice = findInvoice(command.invoiceId());
+            String fromStatus = invoice.status().name();
             invoice.resolveDispute(
                     Money.positive(command.agreedPayableAmount(), command.currency()), clock);
             Invoice savedInvoice = invoices.save(invoice);
+            appendAudit("INVOICE", savedInvoice.id(), "INVOICE_DISPUTE_RESOLVED", command.actor(),
+                    savedInvoice.providerId(), "FINANCIAL_RECONCILIATION",
+                    fromStatus, savedInvoice.status().name());
             appendProjection(findClaim(savedInvoice.claimId()), savedInvoice);
             return ClaimsBillingResultMapper.toResult(savedInvoice);
         });
@@ -200,9 +232,13 @@ public final class ClaimsBillingApplicationService implements
             Objects.requireNonNull(command);
             requireFinancialRole(command.actor());
             Invoice invoice = findInvoice(command.invoiceId());
+            String fromStatus = invoice.status().name();
             invoice.recordPayment(
                     command.paymentReference(), Money.positive(command.amount(), command.currency()), clock);
             Invoice savedInvoice = invoices.save(invoice);
+            appendAudit("INVOICE", savedInvoice.id(), "PAYMENT_RECORDED", command.actor(),
+                    savedInvoice.providerId(), "PAYMENT_PROCESSING",
+                    fromStatus, savedInvoice.status().name());
             appendProjection(findClaim(savedInvoice.claimId()), savedInvoice);
             return ClaimsBillingResultMapper.toResult(savedInvoice);
         });
@@ -255,6 +291,30 @@ public final class ClaimsBillingApplicationService implements
                 invoiceResult.payableAmount(), invoiceResult.paidAmount(), claimResult.currency(),
                 claimResult.status(), invoiceResult.status(), invoiceResult.invoiceNumber(),
                 clock.instant()));
+    }
+
+    private void appendCreationAudit(Claim claim, Invoice invoice, ActorContext actor) {
+        appendAudit("CLAIM", claim.id(), "CLAIM_SUBMITTED", actor, claim.providerId(),
+                "USER_CREATION", null, claim.status().name());
+        appendAudit("INVOICE", invoice.id(), "INVOICE_ISSUED", actor, invoice.providerId(),
+                "USER_CREATION", null, invoice.status().name());
+    }
+
+    private void appendSystemAudit(Claim claim, Invoice invoice) {
+        auditTrail.append(AuditRecord.bySystemEvent(
+                UUID.randomUUID(), "CLAIM", claim.id(), "CLAIM_SUBMITTED", claim.providerId(),
+                auditContext.correlationId(), clock.instant(), null, claim.status().name()));
+        auditTrail.append(AuditRecord.bySystemEvent(
+                UUID.randomUUID(), "INVOICE", invoice.id(), "INVOICE_ISSUED", invoice.providerId(),
+                auditContext.correlationId(), clock.instant(), null, invoice.status().name()));
+    }
+
+    private void appendAudit(
+            String aggregateType, UUID aggregateId, String action, ActorContext actor,
+            UUID providerId, String reason, String fromStatus, String toStatus) {
+        auditTrail.append(AuditRecord.byActor(
+                UUID.randomUUID(), aggregateType, aggregateId, action, actor, providerId,
+                auditContext.correlationId(), clock.instant(), reason, fromStatus, toStatus));
     }
 
     private Claim findClaim(UUID id) {

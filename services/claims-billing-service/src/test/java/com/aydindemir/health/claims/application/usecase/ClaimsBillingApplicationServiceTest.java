@@ -1,6 +1,7 @@
 package com.aydindemir.health.claims.application.usecase;
 
 import com.aydindemir.health.claims.application.command.ApproveClaimCommand;
+import com.aydindemir.health.claims.application.audit.AuditRecord;
 import com.aydindemir.health.claims.application.command.ClaimActionCommand;
 import com.aydindemir.health.claims.application.command.CreateClaimCommand;
 import com.aydindemir.health.claims.application.command.HandleApprovedPreAuthorizationCommand;
@@ -28,6 +29,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Currency;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -56,6 +58,7 @@ class ClaimsBillingApplicationServiceTest {
     private ClaimsBillingApplicationService service;
     private InMemoryProcessedMessageRepository processedMessages;
     private InMemorySearchOutbox searchOutbox;
+    private java.util.List<AuditRecord> audits;
 
     @BeforeEach
     void setUp() {
@@ -63,6 +66,7 @@ class ClaimsBillingApplicationServiceTest {
         invoices = new InMemoryInvoiceRepository();
         processedMessages = new InMemoryProcessedMessageRepository();
         searchOutbox = new InMemorySearchOutbox();
+        audits = new ArrayList<>();
         service = serviceWith(snapshot("APPROVED", PROVIDER_ID));
     }
 
@@ -80,6 +84,11 @@ class ClaimsBillingApplicationServiceTest {
         assertThat(invoices.entries).hasSize(1);
         assertThat(processedMessages.ids).containsExactly(messageId);
         assertThat(searchOutbox.projections).hasSize(1);
+        assertThat(audits).hasSize(2).allSatisfy(audit -> {
+            assertThat(audit.actorSubject()).isEqualTo("kafka:authorization-service");
+            assertThat(audit.actorRoles()).containsExactly("SYSTEM_EVENT");
+            assertThat(audit.reasonCode()).isEqualTo("INTEGRATION_EVENT");
+        });
     }
 
     @Test
@@ -92,6 +101,10 @@ class ClaimsBillingApplicationServiceTest {
         assertThat(result.invoice().id()).isEqualTo(INVOICE_ID);
         assertThat(result.invoice().claimId()).isEqualTo(CLAIM_ID);
         assertThat(result.invoice().status()).isEqualTo("ISSUED");
+        assertThat(audits).extracting(AuditRecord::action)
+                .containsExactly("CLAIM_SUBMITTED", "INVOICE_ISSUED");
+        assertThat(audits).allSatisfy(audit -> assertThat(audit.toString()).doesNotContain(
+                "POL-100", MEMBER_ID.toString(), "IMG-MRI", "1000.00", "INV-100"));
     }
 
     @Test
@@ -181,6 +194,10 @@ class ClaimsBillingApplicationServiceTest {
 
         assertThat(result.status()).isEqualTo("SETTLED");
         assertThat(result.paidAmount()).isEqualByComparingTo("800.00");
+        assertThat(audits).extracting(AuditRecord::action).containsExactly(
+                "CLAIM_SUBMITTED", "INVOICE_ISSUED", "CLAIM_REVIEW_STARTED",
+                "CLAIM_APPROVED", "INVOICE_RECONCILED",
+                "INVOICE_DISPUTE_RESOLVED", "PAYMENT_RECORDED");
     }
 
     private ClaimsBillingApplicationService serviceWith(
@@ -191,7 +208,8 @@ class ClaimsBillingApplicationServiceTest {
         return new ClaimsBillingApplicationService(
                 claims, invoices,
                 id -> PRE_AUTHORIZATION_ID.equals(id) ? Optional.of(snapshot) : Optional.empty(),
-                ids::remove, processedMessages, searchOutbox, CLOCK);
+                ids::remove, processedMessages, searchOutbox, audits::add,
+                () -> "correlation-id", CLOCK);
     }
 
     private ApprovedPreAuthorizationPort.PreAuthorizationSnapshot snapshot(

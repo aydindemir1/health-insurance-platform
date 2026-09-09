@@ -6,6 +6,8 @@ import com.aydindemir.health.claims.application.port.out.ClaimSearchProjectionOu
 import com.aydindemir.health.claims.application.port.out.IdentifierGenerator;
 import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
 import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
+import com.aydindemir.health.claims.application.port.out.AuditTrail;
+import com.aydindemir.health.claims.application.port.out.AuditContextProvider;
 import com.aydindemir.health.claims.application.usecase.ClaimsBillingApplicationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,10 +35,12 @@ public class ApplicationConfiguration {
             IdentifierGenerator identifiers,
             ProcessedMessageRepository processedMessages,
             ClaimSearchProjectionOutbox searchOutbox,
+            AuditTrail auditTrail,
+            AuditContextProvider auditContext,
             Clock clock) {
         return new TransactionalClaimsBillingUseCases(
                 new ClaimsBillingApplicationService(
                         claims, invoices, preAuthorizations, identifiers, processedMessages,
-                        searchOutbox, clock));
+                        searchOutbox, auditTrail, auditContext, clock));
     }
 }

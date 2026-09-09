@@ -4,6 +4,7 @@ import com.aydindemir.health.claims.application.command.CreateClaimCommand;
 import com.aydindemir.health.claims.application.port.in.CreateClaimUseCase;
 import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizationPort;
 import com.aydindemir.health.claims.application.port.out.ClaimSearchProjectionOutbox;
+import com.aydindemir.health.claims.application.port.out.AuditTrail;
 import com.aydindemir.health.claims.application.security.ActorContext;
 import com.aydindemir.health.claims.application.security.ApplicationRole;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataAccessException;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Container;
@@ -43,6 +45,7 @@ class ClaimSearchOutboxTransactionIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @MockitoBean ApprovedPreAuthorizationPort preAuthorizations;
     @MockitoSpyBean ClaimSearchProjectionOutbox searchOutbox;
+    @MockitoSpyBean AuditTrail auditTrail;
 
     private UUID preAuthorizationId;
     private UUID providerId;
@@ -63,10 +66,18 @@ class ClaimSearchOutboxTransactionIntegrationTest {
 
     @Test
     void commitsClaimInvoiceAndSearchProjectionTogether() {
-        createClaim.create(command());
+        var result = createClaim.create(command());
         assertThat(count("claims")).isEqualTo(1);
         assertThat(count("invoices")).isEqualTo(1);
         assertThat(count("claim_search_outbox")).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from audit_records where aggregate_id in (?, ?)",
+                Integer.class, result.claim().id(), result.invoice().id())).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "select string_agg(action, ',' order by action) from audit_records "
+                        + "where aggregate_id in (?, ?)",
+                String.class, result.claim().id(), result.invoice().id()))
+                .isEqualTo("CLAIM_SUBMITTED,INVOICE_ISSUED");
     }
 
     @Test
@@ -78,12 +89,46 @@ class ClaimSearchOutboxTransactionIntegrationTest {
         assertThat(count("claims")).isZero();
         assertThat(count("invoices")).isZero();
         assertThat(count("claim_search_outbox")).isZero();
+        assertThat(jdbc.queryForObject(
+                "select count(*) from audit_records where actor_subject = ?",
+                Integer.class, actorSubject())).isZero();
+    }
+
+    @Test
+    void rollsBackBusinessDataAndProjectionWhenAuditCannotBeStored() {
+        doThrow(new IllegalStateException("simulated audit failure"))
+                .when(auditTrail).append(any());
+
+        assertThatThrownBy(() -> createClaim.create(command()))
+                .isInstanceOf(DataAccessException.class)
+                .hasRootCauseInstanceOf(IllegalStateException.class);
+        assertThat(count("claims")).isZero();
+        assertThat(count("invoices")).isZero();
+        assertThat(count("claim_search_outbox")).isZero();
+    }
+
+    @Test
+    void databaseRejectsAuditMutation() {
+        var result = createClaim.create(command());
+
+        assertThatThrownBy(() -> jdbc.update(
+                "update audit_records set actor_subject = 'tampered' where aggregate_id = ?",
+                result.claim().id())).hasMessageContaining("append-only");
+        assertThatThrownBy(() -> jdbc.update(
+                "delete from audit_records where aggregate_id = ?", result.claim().id()))
+                .hasMessageContaining("append-only");
+        assertThatThrownBy(() -> jdbc.execute("truncate table audit_records"))
+                .hasMessageContaining("append-only");
     }
 
     private CreateClaimCommand command() {
         return new CreateClaimCommand(
-                new ActorContext("hospital", providerId, Set.of(ApplicationRole.HOSPITAL_USER)),
+                new ActorContext(actorSubject(), providerId, Set.of(ApplicationRole.HOSPITAL_USER)),
                 preAuthorizationId, "INV-TX-SEARCH", new BigDecimal("900.00"), Currency.getInstance("TRY"));
+    }
+
+    private String actorSubject() {
+        return "hospital-" + preAuthorizationId;
     }
 
     private int count(String table) {
