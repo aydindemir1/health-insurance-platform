@@ -1,6 +1,7 @@
 package com.aydindemir.health.policy.application.usecase;
 
 import com.aydindemir.health.policy.application.command.CreatePolicyCommand;
+import com.aydindemir.health.policy.application.audit.AuditRecord;
 import com.aydindemir.health.policy.application.command.EvaluateCoverageCommand;
 import com.aydindemir.health.policy.application.dto.CoverageEvaluationResult;
 import com.aydindemir.health.policy.application.dto.PolicyResult;
@@ -12,6 +13,8 @@ import com.aydindemir.health.policy.application.port.in.EvaluateCoverageUseCase;
 import com.aydindemir.health.policy.application.port.out.CoverageEvaluationCache;
 import com.aydindemir.health.policy.application.port.out.PolicyIdGenerator;
 import com.aydindemir.health.policy.application.port.out.PolicyRepository;
+import com.aydindemir.health.policy.application.port.out.AuditTrail;
+import com.aydindemir.health.policy.application.port.out.AuditContextProvider;
 import com.aydindemir.health.policy.application.security.ActorContext;
 import com.aydindemir.health.policy.application.security.ApplicationRole;
 import com.aydindemir.health.policy.domain.model.Coverage;
@@ -20,20 +23,31 @@ import com.aydindemir.health.policy.domain.valueobject.Money;
 import com.aydindemir.health.policy.domain.valueobject.ServiceCode;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.util.Objects;
+import java.util.UUID;
 
 public final class PolicyApplicationService implements CreatePolicyUseCase, EvaluateCoverageUseCase {
     private final PolicyRepository repository;
     private final PolicyIdGenerator idGenerator;
     private final CoverageEvaluationCache coverageCache;
+    private final AuditTrail auditTrail;
+    private final AuditContextProvider auditContext;
+    private final Clock clock;
 
     public PolicyApplicationService(
             PolicyRepository repository,
             PolicyIdGenerator idGenerator,
-            CoverageEvaluationCache coverageCache) {
+            CoverageEvaluationCache coverageCache,
+            AuditTrail auditTrail,
+            AuditContextProvider auditContext,
+            Clock clock) {
         this.repository = Objects.requireNonNull(repository);
         this.idGenerator = Objects.requireNonNull(idGenerator);
         this.coverageCache = Objects.requireNonNull(coverageCache);
+        this.auditTrail = Objects.requireNonNull(auditTrail);
+        this.auditContext = Objects.requireNonNull(auditContext);
+        this.clock = Objects.requireNonNull(clock);
     }
 
     @Override
@@ -53,6 +67,9 @@ public final class PolicyApplicationService implements CreatePolicyUseCase, Eval
                 idGenerator.generate(), command.policyNumber(), command.memberId(),
                 command.validFrom(), command.validUntil(), coverages);
         Policy saved = repository.save(policy);
+        auditTrail.append(AuditRecord.policyIssued(
+                UUID.randomUUID(), saved.id(), command.actor(),
+                auditContext.correlationId(), clock.instant()));
         coverageCache.evictPolicy(saved.policyNumber());
         return PolicyResultMapper.toResult(saved);
     }

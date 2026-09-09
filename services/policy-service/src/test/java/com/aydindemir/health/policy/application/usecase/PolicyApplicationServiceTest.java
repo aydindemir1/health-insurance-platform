@@ -1,6 +1,7 @@
 package com.aydindemir.health.policy.application.usecase;
 
 import com.aydindemir.health.policy.application.command.CreatePolicyCommand;
+import com.aydindemir.health.policy.application.audit.AuditRecord;
 import com.aydindemir.health.policy.application.command.EvaluateCoverageCommand;
 import com.aydindemir.health.policy.application.dto.CoverageEvaluationResult;
 import com.aydindemir.health.policy.application.exception.ApplicationAccessDeniedException;
@@ -15,6 +16,10 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Currency;
 import java.util.HashMap;
 import java.util.List;
@@ -30,13 +35,18 @@ class PolicyApplicationServiceTest {
     private static final UUID POLICY_ID = UUID.fromString("10000000-0000-0000-0000-000000000001");
     private static final UUID MEMBER_ID = UUID.fromString("20000000-0000-0000-0000-000000000001");
     private static final Currency TRY = Currency.getInstance("TRY");
+    private static final Clock CLOCK = Clock.fixed(
+            Instant.parse("2026-09-09T12:00:00Z"), ZoneOffset.UTC);
 
     private PolicyApplicationService service;
+    private List<AuditRecord> audits;
 
     @BeforeEach
     void setUp() {
+        audits = new ArrayList<>();
         service = new PolicyApplicationService(
-                new InMemoryPolicyRepository(), () -> POLICY_ID, new InMemoryCoverageCache());
+                new InMemoryPolicyRepository(), () -> POLICY_ID, new InMemoryCoverageCache(),
+                audits::add, () -> "correlation-id", CLOCK);
     }
 
     @Test
@@ -49,6 +59,15 @@ class PolicyApplicationServiceTest {
             assertThat(coverage.serviceCode()).isEqualTo("IMG-MRI");
             assertThat(coverage.used()).isEqualByComparingTo("0");
             assertThat(coverage.remaining()).isEqualByComparingTo("10000.00");
+        });
+        assertThat(audits).singleElement().satisfies(audit -> {
+            assertThat(audit.aggregateId()).isEqualTo(POLICY_ID);
+            assertThat(audit.action()).isEqualTo("POLICY_ISSUED");
+            assertThat(audit.actorSubject()).isEqualTo("specialist");
+            assertThat(audit.fromStatus()).isNull();
+            assertThat(audit.toStatus()).isEqualTo("ACTIVE");
+            assertThat(audit.toString()).doesNotContain(
+                    "POL-100", MEMBER_ID.toString(), "IMG-MRI", "10000.00");
         });
     }
 
@@ -80,7 +99,9 @@ class PolicyApplicationServiceTest {
     void reusesCachedCoverageEvaluation() {
         var repository = new CountingPolicyRepository();
         var cache = new InMemoryCoverageCache();
-        service = new PolicyApplicationService(repository, () -> POLICY_ID, cache);
+        service = new PolicyApplicationService(
+                repository, () -> POLICY_ID, cache, audits::add,
+                () -> "correlation-id", CLOCK);
         service.create(createCommand(specialist()));
         var command = new EvaluateCoverageCommand(
                 hospital(), "POL-100", MEMBER_ID, "IMG-MRI",

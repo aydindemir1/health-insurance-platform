@@ -46,7 +46,7 @@ class JpaPolicyRepositoryIntegrationTest {
         repository.save(policy);
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from databasechangelog", Integer.class)).isEqualTo(1);
+                "select count(*) from databasechangelog", Integer.class)).isEqualTo(2);
         assertThat(repository.findByPolicyNumber("pol-100"))
                 .hasValueSatisfying(reloaded -> {
                     assertThat(reloaded.id()).isEqualTo(policy.id());

@@ -6,6 +6,8 @@ import com.aydindemir.health.policy.application.port.in.CreatePolicyUseCase;
 import com.aydindemir.health.policy.application.port.in.EvaluateCoverageUseCase;
 import com.aydindemir.health.policy.application.port.out.PolicyRepository;
 import com.aydindemir.health.policy.application.port.out.CoverageEvaluationCache;
+import com.aydindemir.health.policy.application.port.out.AuditTrail;
+import com.aydindemir.health.policy.application.port.out.AuditContextProvider;
 import com.aydindemir.health.policy.application.dto.CoverageEvaluationResult;
 import com.aydindemir.health.policy.application.command.EvaluateCoverageCommand;
 import com.aydindemir.health.policy.application.security.ActorContext;
@@ -107,6 +109,16 @@ class ApplicationConfigurationTest {
                 public void evictPolicy(String policyNumber) {
                 }
             };
+        }
+
+        @Bean
+        AuditTrail auditTrail() {
+            return record -> { };
+        }
+
+        @Bean
+        AuditContextProvider auditContextProvider() {
+            return () -> "test-correlation-id";
         }
     }
 
