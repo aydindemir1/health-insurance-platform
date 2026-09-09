@@ -1,4 +1,4 @@
-# Demonstration Scenario — Milestones 0–8
+# Demonstration Scenario — Milestones 0–9
 
 This scenario uses only synthetic identifiers and clinical codes. It proves the
 implemented happy path and leaves records in several states for UI and API
@@ -21,16 +21,23 @@ Search, then automatically verifies gateway authentication, routing,
 correlation, CORS, payload limiting and rate limiting. Spring Security remains
 active behind the gateway.
 
+Milestone 9 adds minimized, append-only evidence to the Authorization, Policy,
+and Claims/Billing owner transactions. Each service exposes its own bounded
+`SYSTEM_ADMIN` query, while the portal presents a service selector without
+creating a shared audit database. The seed script verifies expected evidence
+counts after completing the synthetic business flow.
+
 ## Preconditions
 
 1. Copy `.env.example` to the ignored `.env` and replace placeholders.
 2. Start the current stack with `docker compose up --build`.
-3. In Keycloak, create three temporary local users without committing their
+3. In Keycloak, create four temporary local users without committing their
    credentials:
    - hospital user: `HOSPITAL_USER`, user attribute
      `providerId=30000000-0000-0000-0000-000000000001`
    - insurance user: `INSURANCE_SPECIALIST`
    - claim user: `CLAIM_APPROVER`
+   - governance user: `SYSTEM_ADMIN`
 4. Confirm RabbitMQ Management is available at `http://localhost:15672`; its
    credentials come from the ignored `.env`.
 5. Confirm APISIX, Elasticsearch, APM Server, and Kibana are reachable at ports
@@ -42,6 +49,7 @@ active behind the gateway.
 $env:DEMO_HOSPITAL_TOKEN = "<short-lived-token>"
 $env:DEMO_INSURANCE_TOKEN = "<short-lived-token>"
 $env:DEMO_CLAIM_APPROVER_TOKEN = "<short-lived-token>"
+$env:DEMO_SYSTEM_ADMIN_TOKEN = "<short-lived-token>"
 .\demo\seed-demo-data.ps1
 ```
 
@@ -84,7 +92,7 @@ undeclared custom attributes by default.
 ## Data created
 
 The source definitions live in [demo-data.json](../../demo/demo-data.json).
-The script creates:
+The script creates and verifies:
 
 | Record | Expected final state | Purpose |
 | --- | --- | --- |
@@ -95,6 +103,10 @@ The script creates:
 | MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `DISPUTED` | Eventual creation and outstanding reconciliation |
 | Three provider notification deliveries | `DELIVERED` | Authorization outbox, publisher confirm, RabbitMQ consumption, worker idempotency and commit-before-ack |
 | Claim and decision search documents | Indexed | Transactional projection outbox, Kafka delivery, deterministic idempotency, and Elasticsearch query |
+| Authorization audit evidence | At least two rows for the settled authorization | Submission and approval committed with local business state |
+| Policy audit evidence | At least one row for the generated policy | Policy issuance and minimized actor evidence |
+| Claim audit evidence | At least three rows for the settled claim | Submission, review, and approval transitions |
+| Invoice audit evidence | At least five rows for the settled invoice | Issuance, dispute, reconciliation, payment, and settlement-related transitions |
 
 ## Live presentation script
 
@@ -126,7 +138,12 @@ The script creates:
 11. In Kibana APM, show the Java services and trace navigation. Compare a portal
     `X-Correlation-ID` response header with the same `correlationId` in ECS JSON
     logs. Emphasize that correlation is diagnostic context, not distributed ACID.
-12. Finish with the event, architecture, and ER diagrams, highlighting separate
+12. Sign in as `system-admin-demo`, open Audit Trail, switch among Authorization,
+    Policy, and Claims/Billing, then filter by an aggregate ID from the JSON
+    summary. Explain dual controller/use-case authorization, bounded filters,
+    deterministic pages, minimized fields, and why the UI does not imply a
+    central audit database.
+13. Finish with the event, architecture, and ER diagrams, highlighting separate
     Kafka-event and RabbitMQ-task semantics, at-least-once delivery, idempotency,
     bounded retry, DLT/DLQ, database ownership, and optimistic locking.
 
@@ -165,6 +182,11 @@ The script creates:
   projection outbox intent remains recoverable; search temporarily fails.
 - A hospital user supplying another `providerId` to Search is still scoped to the
   provider in the signed token.
+- A non-administrator cannot invoke any audit API or navigate to Audit Trail.
+- Invalid audit actions and page sizes above 100 are rejected rather than passed
+  to an arbitrary database query.
+- Attempting to update, delete, or truncate any service's `audit_records` table
+  is rejected by PostgreSQL.
 
 ## Reset
 

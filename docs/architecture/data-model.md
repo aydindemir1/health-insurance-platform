@@ -6,6 +6,7 @@ business-key references, not database foreign keys.
 ```mermaid
 erDiagram
     POLICY ||--|{ POLICY_COVERAGE : contains
+    POLICY ||--o{ POLICY_AUDIT_RECORD : records
     PRE_AUTHORIZATION }o..|| POLICY : "references policy_number"
     CLAIM ||--|| INVOICE : produces
     INVOICE ||--o{ INVOICE_PAYMENT : receives
@@ -13,7 +14,9 @@ erDiagram
     CLAIM ||--o{ CLAIM_SEARCH_OUTBOX : projects
     PRE_AUTHORIZATION ||--o{ OUTBOX_MESSAGE : emits
     PRE_AUTHORIZATION ||--o{ NOTIFICATION_TASK_OUTBOX : schedules
-    PRE_AUTHORIZATION ||--o{ AUDIT_RECORD : records
+    PRE_AUTHORIZATION ||--o{ AUTHORIZATION_AUDIT_RECORD : records
+    CLAIM ||--o{ CLAIMS_AUDIT_RECORD : records
+    INVOICE ||--o{ CLAIMS_AUDIT_RECORD : records
     NOTIFICATION_TASK_OUTBOX }o..o| NOTIFICATION_DELIVERY : "becomes task_id"
     PRE_AUTHORIZATION }o..o{ NOTIFICATION_DELIVERY : "business reference"
 
@@ -101,7 +104,34 @@ erDiagram
         timestamptz published_at
         integer publish_attempts
     }
-    AUDIT_RECORD {
+    AUTHORIZATION_AUDIT_RECORD {
+        uuid audit_id PK
+        varchar aggregate_type
+        uuid aggregate_id
+        varchar action
+        varchar actor_subject
+        varchar actor_roles
+        uuid provider_id
+        varchar correlation_id
+        timestamptz occurred_at
+        varchar reason_code
+        jsonb changes
+        varchar retention_class
+    }
+    POLICY_AUDIT_RECORD {
+        uuid audit_id PK
+        varchar aggregate_type
+        uuid aggregate_id
+        varchar action
+        varchar actor_subject
+        varchar actor_roles
+        varchar correlation_id
+        timestamptz occurred_at
+        varchar reason_code
+        jsonb changes
+        varchar retention_class
+    }
+    CLAIMS_AUDIT_RECORD {
         uuid audit_id PK
         varchar aggregate_type
         uuid aggregate_id
@@ -145,12 +175,15 @@ erDiagram
 
 | Database owner | Tables | Other services' access |
 | --- | --- | --- |
-| Policy Service | `policies`, `policy_coverages` | REST coverage evaluation only |
-| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox`, `audit_records` | REST snapshots; Kafka events; confirm-aware RabbitMQ task publishing; audit remains private until the secured read API is delivered |
-| Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages`, `claim_search_outbox` | Kafka claim search projections; no direct database access |
+| Policy Service | `policies`, `policy_coverages`, `audit_records` | REST coverage evaluation; secured service-owned audit API |
+| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox`, `audit_records` | REST snapshots; Kafka events; confirm-aware RabbitMQ task publishing; secured service-owned audit API |
+| Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages`, `claim_search_outbox`, `audit_records` | Kafka claim search projections; secured service-owned audit API; no direct database access |
 | Notification Worker | `notification_deliveries` | No direct database access |
 | Search Service | Elasticsearch `healthcare-operations-v1` projection | Secured read-only Search API; rebuildable, never authoritative |
 
 Cross-context references intentionally have no foreign keys. Each owner can
 change its schema independently; consistency across services is currently
 checked through explicit synchronous contracts or versioned broker messages.
+The three `audit_records` tables intentionally repeat the same minimized logical
+shape inside their owning databases. They are not one shared physical table;
+the portal queries one secured service API at a time.

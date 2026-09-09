@@ -79,14 +79,14 @@ flowchart LR
     Admin[Privileged database administrator] -. tampering risk .-> Audit
 ```
 
-| Threat | Required control | Current state / planned Milestone 9 evidence |
+| Threat | Required control | Current state / evidence |
 | --- | --- | --- |
 | Provider reads another provider's record | Trusted `provider_id` scope plus use-case authorization | Implemented and tested |
-| Unauthorized audit browsing | `SYSTEM_ADMIN` endpoint and use-case checks, pagination and bounded filters | Planned; no read endpoint exposed yet |
-| Sensitive content copied into audit | Typed audit contract and allowlisted change keys | Implemented for Authorization; remaining services planned |
-| Business mutation without audit | Same local transaction, fail-closed persistence | Implemented for Authorization submission/decision; remaining services planned |
-| Audit row changed or deleted | Insert-only port, database protection, integration tests | Implemented for Authorization |
-| JWT/secret appears in logs | No body/header logging; automated forbidden-field assertions | Partly implemented; tests expanded in M9 |
+| Unauthorized audit browsing | `SYSTEM_ADMIN` endpoint and use-case checks, pagination and bounded filters | Implemented independently in Authorization, Policy and Claims/Billing |
+| Sensitive content copied into audit | Typed audit contract and allowlisted change keys | Implemented in all three owning services; contracts have no member, policy, diagnosis, amount or free-text fields |
+| Business mutation without audit | Same local transaction, fail-closed persistence | Implemented for Authorization submission/decision, Policy issuance, and Claims/Billing claim/invoice/payment transitions |
+| Audit row changed or deleted | Insert-only port, database protection, integration tests | Implemented in each owning PostgreSQL database |
+| JWT/secret appears in logs | No body/header logging; automated forbidden-field assertions | Body/header logging is absent and safe structured metadata is used; comprehensive log-capture negative tests remain open |
 | Search/log/message becomes an uncontrolled archive | Retention class, rebuild/delete runbooks and access controls | Design now; operations continue in M10/M15 |
 | Correlation ID mistaken for identity | Store actor subject separately; document correlation as diagnostic only | Design enforced by audit contract |
 | Privileged database tampering | External immutable backup/signature/WORM control | Out of current local scope; explicit residual risk |
@@ -111,16 +111,35 @@ authorized. It must record erasure/anonymization execution without reintroducing
 the erased personal data into its evidence. Backups and derived stores are part
 of the same disposal analysis.
 
+## Audit access boundary
+
+Audit evidence remains owned by the service that owns the business transaction.
+There is no shared audit database and no service reads another service's schema.
+
+| API | Scope | Filters | Ordering |
+| --- | --- | --- | --- |
+| Authorization `GET /api/v1/audit-records` | Authorization submissions and decisions | `aggregateId`, allowlisted `action`, page, size | `occurredAt DESC`, then `auditId DESC` |
+| Policy `GET /api/v1/policies/audit-records` | Policy issuance | `aggregateId`, allowlisted `action`, page, size | `occurredAt DESC`, then `auditId DESC` |
+| Claims/Billing `GET /api/v1/claims/audit-records` | Claim, invoice, reconciliation and payment transitions | `aggregateId`, allowlisted `action`, page, size | `occurredAt DESC`, then `auditId DESC` |
+
+All three paths require `SYSTEM_ADMIN` at both the presentation and application
+boundaries, cap a page at 100 records, and return only the minimized audit
+contract. APISIX routes these APIs but does not replace service authorization.
+The portal selects one service explicitly, so its convenient unified screen does
+not weaken database ownership or pretend there is a globally atomic timeline.
+Audit reads are not recursively written into the same journal; production access
+monitoring for audit reads belongs in a separately protected security/SIEM trail.
+
 ## Engineering checklist
 
 - [x] Repository demo records are explicitly synthetic and secrets are runtime-only.
 - [x] Provider ownership is derived from a trusted token claim, not a request body.
 - [x] Gateway and services reject unauthenticated access.
 - [x] Logs use structured operational identifiers instead of message bodies.
-- [x] Authorization submission/decision and audit inserts are one transaction.
-- [x] Authorization audit storage rejects update, delete, and truncate operations.
-- [ ] Audit read use cases require `SYSTEM_ADMIN`.
-- [x] Authorization audit payload keys are allowlisted and sensitive fields have negative tests.
+- [x] Governed Authorization, Policy, and Claims/Billing mutations append audit evidence in their local transaction.
+- [x] All three audit stores reject update, delete, and truncate operations.
+- [x] All audit read use cases require `SYSTEM_ADMIN` and use bounded pagination/filtering.
+- [x] Audit payload keys are allowlisted and typed contracts exclude sensitive business fields.
 - [ ] Log-capture tests reject token, member, policy, diagnosis and contact values.
 - [ ] Retention mappings receive legal/data-controller approval outside the codebase.
 - [ ] Disposal jobs and backup handling are implemented and rehearsed in Milestone 15.
@@ -132,6 +151,8 @@ of the same disposal analysis.
 - Local Docker volumes and developer access are not production segregation.
 - Database encryption, key rotation, immutable backup, SIEM alerts, and privileged
   access management are not yet implemented.
+- Legal/data-controller approval of retention durations and an executable,
+  rehearsed disposal process remain outside Milestone 9.
 - Search and event payloads currently contain linkable operational fields; M10
   must add recovery and lifecycle controls without increasing their data scope.
 - UI screenshots are safe only because the demo catalogue is synthetic; visual

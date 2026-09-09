@@ -3,7 +3,7 @@
 ```mermaid
 flowchart TB
     User["Operations user"]
-    Portal["Operations Portal<br/>React 19 + TypeScript + Vite<br/>Workflow and operations search"]
+    Portal["Operations Portal<br/>React 19 + TypeScript + Vite<br/>Workflow, search and audit view"]
     Keycloak["Keycloak 26<br/>OIDC, PKCE, realm roles,<br/>provider_id claim"]
 
     subgraph Platform["Health Insurance Platform"]
@@ -20,9 +20,9 @@ flowchart TB
         Kibana["Kibana :5601<br/>Search/APM visualization"]
         APM["APM Server :8200<br/>Telemetry ingestion"]
 
-        AuthDb[("Authorization PostgreSQL :5433")]
-        PolicyDb[("Policy PostgreSQL :5434")]
-        ClaimsDb[("Claims/Billing PostgreSQL :5435")]
+        AuthDb[("Authorization PostgreSQL :5433<br/>Aggregate, outboxes, local audit")]
+        PolicyDb[("Policy PostgreSQL :5434<br/>Aggregate, coverage, local audit")]
+        ClaimsDb[("Claims/Billing PostgreSQL :5435<br/>Aggregates, inbox/outbox, local audit")]
         NotificationDb[("Notification PostgreSQL :5436")]
     end
 
@@ -77,6 +77,7 @@ flowchart TB
 | Policy | Redis | Cache repeated immutable coverage evaluations | Fail open to authoritative PostgreSQL evaluation |
 | Claims/Billing | Kafka/Search | Publish transactionally recorded operational projections | Outbox row remains pending until acknowledged |
 | Portal | Search | Provider-authorized full-text/filter query | Empty/error state; no impact on source transactions |
+| Portal | Authorization/Policy/Claims audit APIs | `SYSTEM_ADMIN` service-local evidence query | Controller and use-case authorization; bounded filters/page; no cross-database join |
 
 Kubernetes remains a roadmap item and is not shown as a current runtime
 component.

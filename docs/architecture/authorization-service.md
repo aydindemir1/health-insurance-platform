@@ -14,6 +14,7 @@ flowchart LR
     EventOutbox[Infrastructure / Kafka event outbox adapter] --> OutputPorts
     TaskOutbox[Infrastructure / notification task outbox adapter] --> OutputPorts
     AuditAdapter[Infrastructure / insert-only audit adapter] --> OutputPorts
+    AuditQueryAdapter[Infrastructure / bounded audit query adapter] --> OutputPorts
     Relay[Infrastructure / Kafka relay] --> Kafka{{Kafka}}
     NotificationRelay[Infrastructure / confirm-aware AMQP relay] --> Rabbit{{RabbitMQ}}
     Persistence --> Database[(Authorization PostgreSQL)]
@@ -21,6 +22,7 @@ flowchart LR
     EventOutbox --> Database
     TaskOutbox --> Database
     AuditAdapter --> Database
+    AuditQueryAdapter --> Database
     Relay --> Database
     NotificationRelay --> Database
     Configuration[Infrastructure / transaction configuration] --> InputPorts
@@ -134,6 +136,36 @@ row update/delete and table truncation. This is strong application-level
 append-only protection, but not cryptographic immutability against a privileged
 database administrator; that residual control belongs to later backup/WORM and
 operational governance work.
+
+## Privileged audit query
+
+`GET /api/v1/audit-records` maps HTTP parameters into the framework-independent
+`SearchAuditRecordsQuery` input port. The controller rejects callers without
+`SYSTEM_ADMIN`, and the application use case repeats that check so alternate
+adapters cannot bypass it. The query adapter accepts only an optional aggregate
+UUID and an allowlisted Authorization action, caps page size at 100, and sorts by
+`occurred_at DESC, audit_id DESC`. It maps rows directly to minimized application
+DTOs; business aggregates and sensitive source columns are never joined.
+
+```mermaid
+sequenceDiagram
+    participant Admin as SYSTEM_ADMIN portal
+    participant Gateway as APISIX
+    participant API as Audit REST controller
+    participant App as Search audit use case
+    participant JDBC as Audit query adapter
+    participant DB as Authorization PostgreSQL
+
+    Admin->>Gateway: GET /api/v1/audit-records + JWT
+    Gateway->>API: Validated bearer request
+    API->>API: Require SYSTEM_ADMIN
+    API->>App: bounded query + ActorContext
+    App->>App: Require SYSTEM_ADMIN again
+    App->>JDBC: service-local criteria
+    JDBC->>DB: deterministic paged SELECT
+    DB-->>JDBC: minimized rows + count
+    JDBC-->>Admin: page through App, API, Gateway
+```
 
 The notification relay uses a pessimistic write lock to keep concurrent service
 instances from selecting the same pending batch. It sends a persistent message

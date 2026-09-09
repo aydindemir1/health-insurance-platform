@@ -68,3 +68,43 @@ transaction. A scheduled relay publishes version 1 to
 `health.claims.search-projection.v1`. Search availability therefore cannot roll
 back a financial command, while a committed command cannot lose its indexing
 intent.
+
+## Transactional financial audit
+
+The command use cases append controlled evidence for claim submission, review,
+approval/rejection, invoice issuance, reconciliation, voiding, dispute
+resolution, and payment. The audit insert shares the owning PostgreSQL
+transaction with the aggregate mutation and any search projection outbox row;
+failure is fail-closed. Typed application records exclude member ID, policy
+number, service code, amounts, payment references, and free-text reasons.
+Liquibase constraints and triggers reject invalid change keys plus update,
+delete, and truncate operations.
+
+`GET /api/v1/claims/audit-records` requires `SYSTEM_ADMIN` in both presentation
+and application layers. The service accepts only aggregate UUID, a Claims/Billing
+action allowlist, and page sizes up to 100, ordered by occurrence and audit UUID.
+Because Claim and Invoice are aggregates in the same bounded context, they share
+this service-owned journal; Authorization and Policy audit records remain in
+their respective databases and APIs.
+
+```mermaid
+sequenceDiagram
+    participant Command as Claim or invoice command
+    participant App as Application use case
+    participant Aggregate as Claim / Invoice
+    participant Audit as AuditTrail port
+    participant Outbox as Search projection outbox
+    participant DB as Claims/Billing PostgreSQL
+    Command->>App: command + verified actor
+    App->>Aggregate: enforce transition/invariants
+    App->>DB: persist aggregate
+    App->>Audit: append controlled status delta
+    Audit->>DB: INSERT audit_records
+    App->>Outbox: append current search projection
+    Outbox->>DB: INSERT outbox
+    alt any write fails
+        DB-->>App: rollback all local writes
+    else all writes succeed
+        DB-->>App: commit atomically
+    end
+```

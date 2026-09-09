@@ -182,21 +182,35 @@ and correlation policies. Each service still validates the token and owns its
 provider/role authorization decisions: gateway authentication does not replace
 application authorization.
 
-### Milestone 9 — Audit and governance (first vertical slice)
+### Milestone 9 — Audit and governance
 
 The audit design is service-owned and append-only. This avoids coupling every
 business transaction to a central audit service and lets the audit row commit
-atomically with the state it describes. Authorization now records submission,
-approval, and rejection through a framework-free `AuditTrail` output port.
+atomically with the state it describes. Authorization records submission,
+approval, and rejection; Policy records policy issuance; Claims/Billing records
+claim adjudication, invoice reconciliation/void/dispute resolution, and payment.
+Each application core depends on a framework-free `AuditTrail` output port.
 
 The contract captures a controlled action, actor subject/roles, provider scope,
 correlation ID, timestamp, controlled reason code, status delta, and retention
 class. It intentionally cannot accept business snapshots or free text. A JDBC
 adapter writes the journal, and Liquibase adds database triggers that reject
 update, delete, and truncate. PostgreSQL Testcontainers prove both the positive
-path and fail-closed rollback: if audit persistence fails, the decision and both
-outboxes roll back. Read-side authorization and other service journals remain
-open, so Milestone 9 is not yet complete.
+path and fail-closed rollback: if audit persistence fails, the governed business
+mutation and related outboxes roll back.
+
+Each service also owns a query port, use case, JDBC read adapter, and REST
+controller for its journal. Both controller and use case require `SYSTEM_ADMIN`;
+filters are restricted to aggregate UUID and service-local action allowlists,
+page size is capped at 100, and ordering uses timestamp plus audit ID. APISIX
+routes the three APIs, while the React Audit Trail page selects one service at a
+time. This preserves database-per-service ownership: the UI is unified, the data
+stores are not. The repeatable synthetic demo asserts minimum evidence counts for
+policy, authorization, claim, invoice, and payment transitions.
+
+Retention classes describe handling intent rather than inventing legal periods.
+Lawful basis, approved durations, disposal jobs, backup erasure, encryption/key
+management, and regulatory sign-off remain explicit production responsibilities.
 
 ## 3. Architecture at runtime
 
@@ -494,10 +508,10 @@ duplicated business logic.”
 - ECS logs are emitted to stdout but a production log shipper, redaction policy,
   dashboards, alerts, and retention policy are not yet configured.
 - Demo users must be created locally because credentials are never committed.
-- Data classification, audit minimization, and retention classes are designed;
-  Policy/Claims audit coverage, privileged audit reads, approved retention
-  durations, disposal jobs, encryption/key management, and regulatory sign-off
-  remain incomplete.
+- Data classification, audit minimization, service-owned write coverage, and
+  privileged bounded reads are implemented. Approved retention durations,
+  disposal jobs, backup erasure, encryption/key management, SIEM monitoring of
+  privileged access, and regulatory sign-off remain incomplete.
 - Local APISIX-to-Keycloak discovery is HTTP; production requires trusted TLS.
 - Rate-limit state is per gateway instance; a scaled topology requires shared
   Redis counters or an explicitly accepted per-instance quota.

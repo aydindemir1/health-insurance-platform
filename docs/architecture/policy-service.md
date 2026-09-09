@@ -12,10 +12,13 @@ flowchart LR
     UseCases --> Aggregate[Policy aggregate]
     UseCases --> RepoPort[Policy repository port]
     UseCases --> CachePort[Coverage evaluation cache port]
+    UseCases --> AuditPort[Audit write and query ports]
     Redis[Redis adapter] --> CachePort
     Redis --> Cache[(Redis)]
     JPA[JPA adapter] --> RepoPort
     JPA --> DB[(Policy PostgreSQL)]
+    Audit[Insert-only JDBC audit adapters] --> AuditPort
+    Audit --> DB
     Keycloak[Keycloak] --> REST
 ```
 
@@ -72,3 +75,32 @@ Redis is an acceleration adapter, not policy storage. It hashes the full lookup
 identity, tracks keys per policy for invalidation, and fails open on every cache
 operation. PostgreSQL remains authoritative and its failure is never converted
 into an assumed eligible response.
+
+## Transactional policy audit
+
+Issuing a policy appends `POLICY_ISSUED` evidence in the same local transaction
+as the aggregate. The typed record contains actor subject/roles, correlation ID,
+controlled reason/status values, and retention class; it cannot carry member ID,
+policy number, coverage/service codes, limits, or other business snapshots. A
+Liquibase migration installs JSON-shape checks and triggers rejecting update,
+delete, and truncate. Audit failure rolls back policy issuance.
+
+`GET /api/v1/policies/audit-records` is independently protected in the controller
+and application use case with `SYSTEM_ADMIN`. It accepts an optional aggregate
+UUID, the service-local action allowlist, and bounded pagination up to 100 rows.
+The JDBC query uses `occurred_at DESC, audit_id DESC`. It does not expose Policy
+tables or provide a database join to another service.
+
+```mermaid
+sequenceDiagram
+    participant Admin as SYSTEM_ADMIN portal
+    participant API as Policy audit API
+    participant App as Audit query use case
+    participant DB as Policy PostgreSQL
+    Admin->>API: GET audit records + bounded filters
+    API->>API: Require SYSTEM_ADMIN
+    API->>App: query + verified actor
+    App->>App: Require SYSTEM_ADMIN
+    App->>DB: paged read of local audit_records
+    DB-->>Admin: minimized deterministic page
+```

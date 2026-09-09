@@ -6,10 +6,11 @@ provider requests authorization for a member's service, an insurer verifies
 policy coverage and decides the request, and an approved service proceeds to
 claim adjudication, invoice reconciliation, payment, and settlement.
 
-> **Current checkpoint:** Milestones 0–8 are implemented. Milestone 9 has an
-> approved audit/data-governance design and its first production slice in
-> Authorization Service; cross-service coverage and the secured read model are
-> still in progress. Policy uses a resilient
+> **Current checkpoint:** Milestones 0–9 are implemented. Authorization,
+> Policy, and Claims/Billing own minimized append-only audit journals and expose
+> independently secured, bounded `SYSTEM_ADMIN` read APIs. The Operations
+> Portal provides a service-aware audit view without joining service databases.
+> Policy also uses a resilient
 > Redis cache-aside adapter; Claims/Billing emits transactionally durable search
 > projections; Search Service builds a provider-scoped Elasticsearch read model.
 > Every Java runtime emits ECS JSON with correlation IDs, and the Compose stack
@@ -38,9 +39,9 @@ worker:
 | Notification Worker | Technical delivery lifecycle and idempotency evidence | Contact, member, policy, clinical, authorization, or claim source data |
 | Search | Denormalized operational claim/pre-authorization projections | Aggregate truth, commands, policy rules, or financial transactions |
 
-The Operations Portal currently exposes the pre-authorization workflow. Policy
-and Claims/Billing behavior is available through secured APIs and the synthetic
-demo script.
+The Operations Portal exposes the pre-authorization workflow, cross-context
+search, and a `SYSTEM_ADMIN` audit view. Policy and Claims/Billing command
+workflows remain available through secured APIs and the synthetic demo script.
 
 ## Implemented capabilities
 
@@ -218,21 +219,34 @@ domain concern.
   script proves missing/invalid token and wrong-audience rejection, authorized routing, correlation,
   CORS, payload limiting and rate limiting.
 
-### Milestone 9 — Audit and data governance (in progress)
+### Milestone 9 — Audit and data governance
 
 - [ADR-011](docs/adr/011-service-owned-append-only-audit.md) defines a local,
   service-owned audit journal instead of a synchronous central audit dependency.
-- Authorization submission and decision transitions append minimized audit
-  evidence in the same PostgreSQL transaction as the aggregate and outboxes.
+- Authorization submission/decision, Policy issuance, and Claims/Billing state
+  transitions append minimized audit evidence in the same PostgreSQL transaction
+  as their aggregate and any relevant outboxes.
 - The typed audit contract contains actor subject/roles, provider scope,
   correlation ID, controlled action/reason codes and status delta. It excludes
   member, policy, diagnosis, service, amount, decision text and request bodies.
-- Liquibase creates an insert-only `audit_records` journal. PostgreSQL triggers
-  reject `UPDATE`, `DELETE`, and `TRUNCATE`; a JSON key constraint limits the
-  change document to `fromStatus` and `toStatus`.
-- Integration tests prove fail-closed rollback and database mutation rejection.
-  A privileged paginated read API, Policy/Claims coverage, retention execution,
-  demo UI and screenshot evidence remain open Milestone 9 work.
+- Each owning database has a Liquibase-managed `audit_records` journal.
+  PostgreSQL triggers reject `UPDATE`, `DELETE`, and `TRUNCATE`; JSON constraints
+  limit change documents to `fromStatus` and `toStatus`.
+- Every service exposes its own paginated audit query through an application
+  input port. Controller and use-case checks both require `SYSTEM_ADMIN`;
+  aggregate identifiers and service-local allowlisted actions are the only
+  filters, page size is capped at 100, and ordering is deterministic.
+- The portal's administrator-only Audit Trail page queries one owning service at
+  a time through APISIX. It deliberately does not create a central audit store
+  or cross-database join.
+- Integration tests prove transaction rollback when required audit persistence
+  fails and prove database-level mutation rejection. The synthetic demo verifies
+  expected audit evidence for authorization, policy, claim, invoice, and payment
+  transitions.
+- The data-governance threat model classifies sensitive fields and storage
+  surfaces, documents minimization rules and retention classes, and records
+  residual risks. Legal retention approval and automated disposal remain later
+  operational work; this portfolio does not claim regulatory compliance.
 
 ## Architecture overview
 
@@ -242,6 +256,8 @@ flowchart LR
     Portal -->|OIDC Authorization Code + PKCE| KC[Keycloak]
     Portal -->|Bearer token| Gateway[APISIX Gateway]
     Gateway --> Auth[Authorization Service]
+    Gateway --> Policy
+    Gateway --> Claims
     Auth -->|Synchronous coverage evaluation| Policy[Policy Service]
     Auth -->|Decision events via transactional outbox| Kafka{{Apache Kafka}}
     Auth -->|Notification tasks via confirm-aware relay| Rabbit{{RabbitMQ}}
@@ -262,6 +278,9 @@ flowchart LR
     Auth --> AuthDB[(Authorization DB)]
     Policy --> PolicyDB[(Policy DB)]
     Claims --> ClaimsDB[(Claims/Billing DB)]
+    Auth --> AuthAudit[(Local audit journal)]
+    Policy --> PolicyAudit[(Local audit journal)]
+    Claims --> ClaimsAudit[(Local audit journal)]
     Notifications --> NotificationDB[(Notification DB)]
 ```
 
@@ -641,11 +660,13 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
   operationalized.
 - No production workload identity/token exchange exists between services.
 - No circuit breaker is configured for synchronous dependencies.
-- A real email/SMS provider and contact-resolution boundary, audit trail,
-  centralized log shipping and Kubernetes delivery remain future
-  slices.
-- Production PHI/privacy, consent, encryption/key management, retention, and
-  regulatory requirements need explicit threat modeling and governance.
+- A real email/SMS provider and contact-resolution boundary, centralized log
+  shipping, and Kubernetes delivery remain future slices.
+- The privacy threat model, minimized audit evidence, and retention classes are
+  documented and enforced at current write/read boundaries. Lawful basis,
+  consent, approved retention durations, automated disposal, encryption/key
+  management, privileged-access controls, and regulatory sign-off require a
+  real data controller and later production work.
 
 ## Roadmap
 
@@ -658,7 +679,7 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
 - [x] Milestone 6 — RabbitMQ notification worker
 - [x] Milestone 7 — Redis, Elasticsearch, Kibana, Elastic APM, correlation IDs
 - [x] Milestone 8 — APISIX gateway and centralized edge security policies
-- [ ] Milestone 9 — Append-only audit trail, KVKK and data governance
+- [x] Milestone 9 — Append-only audit trail, KVKK and data governance
 - [ ] Milestone 10 — Elasticsearch and messaging recovery operations
 - [ ] Milestone 11 — Notification provider and external-service resilience
 - [ ] Milestone 12 — Load, performance and resilience testing
@@ -667,12 +688,11 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
 - [ ] Milestone 15 — Backup, restore, disaster recovery and capacity planning
 - [ ] Milestone 16 — Portfolio and interview finalization
 
-Milestone 8 is complete. Milestone 9 is governed by
+Milestone 9 is complete. Its implementation is governed by
 [ADR-011](docs/adr/011-service-owned-append-only-audit.md) and the
 [data-governance/KVKK threat model](docs/security/data-governance-and-kvkk.md).
-Its Authorization write-side vertical slice is implemented; the roadmap item
-remains open until the read boundary and remaining service mutations are covered.
-At every later milestone, the
+The next implementation milestone is Milestone 10; it has not started. At every
+later milestone, the
 README, diagrams, ADRs, synthetic demo, scenario, screenshots, technical
 walkthrough, test evidence, limitations, and roadmap are part of the definition
 of done—not end-of-project cleanup.

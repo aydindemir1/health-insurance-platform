@@ -78,8 +78,15 @@ try {
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.getByRole("table", { name: "Elasticsearch healthcare operations results" }).waitFor();
   await capture("07-healthcare-search.png");
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.getByRole("button", { name: "Sign in with Keycloak" }).waitFor();
+  await signIn("system-admin-demo");
+  await page.getByRole("link", { name: "Audit trail" }).click();
+  await page.getByRole("table", { name: "Service-owned audit records" }).waitFor();
+  await capture("10-audit-trail.png");
 } finally {
   await browser.close();
 }
 
-console.log(`Captured six synthetic portal screenshots in ${screenshotsDirectory}`);
+console.log(`Captured seven synthetic portal screenshots in ${screenshotsDirectory}`);

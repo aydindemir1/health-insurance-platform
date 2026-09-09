@@ -32,7 +32,7 @@ Spring Security, HTTP, and audit storage.
 The initial rollout covers:
 
 - Authorization: submission and `PENDING -> APPROVED|REJECTED` transitions;
-- Policy: issue and policy-status transitions exposed by a use case;
+- Policy: policy issuance;
 - Claims/Billing: claim lifecycle, invoice reconciliation/dispute resolution,
   payment recording, settlement, and voiding;
 - Notification Worker: delivery lifecycle remains operational evidence and will
@@ -66,10 +66,12 @@ and `DELETE` for the application path, and integration tests will prove both the
 atomic write and immutability rules. This is append-only enforcement, not a claim
 of cryptographic tamper evidence against a database administrator.
 
-Audit queries are application use cases, not direct repository exposure. The
-first read API is restricted to `SYSTEM_ADMIN`, paginated, time-bounded, and
-filterable only by safe identifiers. Adding a dedicated auditor role is a future
-security-model decision rather than silently broadening an existing role.
+Audit queries are application use cases, not direct repository exposure. Each
+service-local read API is restricted to `SYSTEM_ADMIN`, paginated with a maximum
+size of 100, deterministically ordered, and filterable only by aggregate UUID and
+an allowlisted action. Adding a dedicated auditor role or time-range filter is a
+future security-model decision rather than silently broadening the current
+contract.
 
 ## Transaction and failure behavior
 
@@ -126,4 +128,3 @@ avoid recursive audit creation.
 - **Database triggers that infer every business meaning:** rejected as the sole
   producer because a trigger sees rows but not the authenticated actor or use-case
   intent. Database controls are still used to enforce immutability.
-

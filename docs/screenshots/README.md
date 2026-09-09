@@ -4,11 +4,12 @@ This directory contains milestone checkpoint images captured from the running
 operations portal with synthetic demo identifiers. It must never contain access
 tokens, credentials, real patient information, or real provider data.
 
-The current portal only implements pre-authorization operations. Policy and
-Claims/Billing are demonstrated through the API script until their screens are
+The portal implements pre-authorization operations, cross-context search, and a
+privileged service-owned audit view. Policy and Claims/Billing command workflows
+are demonstrated through the API script until their operational screens are
 implemented in a later milestone.
 
-Screenshots retained for the Milestone 8 documentation checkpoint:
+Screenshots retained through the Milestone 9 documentation checkpoint:
 
 - `01-dashboard.png` — role-aware landing page and operational summary.
 - `02-pre-authorization-work-queue.png` — filter, sort, and pagination UI.
@@ -24,6 +25,8 @@ Screenshots retained for the Milestone 8 documentation checkpoint:
 - `09-apisix-gateway-problem-details.png` — live unauthenticated gateway
   rejection rendered as RFC 9457 JSON with a correlation ID; the executable
   demo separately verifies the non-visual wrong-audience rejection.
+- `10-audit-trail.png` — `SYSTEM_ADMIN`-only service selector, bounded filters,
+  paginated minimized state-change evidence, actor context, and correlation ID.
 
 ## Preview
 
@@ -45,6 +48,10 @@ Screenshots retained for the Milestone 8 documentation checkpoint:
 
 ![APISIX Problem Details](09-apisix-gateway-problem-details.png)
 
+When captured with runtime-only demo credentials, the Milestone 9 audit view is
+stored as `10-audit-trail.png`. Its absence means the authenticated capture has
+not yet been rerun; it must not be replaced with fabricated runtime evidence.
+
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
 runtime-only local user, and replace only images whose view changed:
@@ -56,8 +63,9 @@ Set-Location apps/operations-portal
 npm run screenshots
 ```
 
-The capture script drives the real Keycloak login and real API-backed pages in
-headless Chrome. It fills but does not submit the example form or pending
+The capture script drives real Keycloak logins and real API-backed pages,
+including `system-admin-demo` for the audit view, in headless Chrome. It fills
+but does not submit the example form or pending
 decision, so recapturing screenshots does not mutate business data.
 
 Milestone 7 adds the sixth portal view and an APM runtime view. Capture them only
