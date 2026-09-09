@@ -1,5 +1,6 @@
 package com.aydindemir.health.search.infrastructure.elasticsearch;
 
+import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.aydindemir.health.search.application.port.out.SearchIndex;
 import com.aydindemir.health.search.domain.model.RecordType;
 import com.aydindemir.health.search.domain.model.SearchRecord;
@@ -28,6 +29,7 @@ class ElasticsearchSearchIndexIntegrationTest {
             .withEnv("xpack.security.enabled", "false");
 
     @Autowired SearchIndex index;
+    @Autowired ElasticsearchClient client;
 
     @Test
     void indexesAndFiltersHealthcareRecords() {
@@ -35,11 +37,27 @@ class ElasticsearchSearchIndexIntegrationTest {
         index.save(record(providerId));
 
         await().untilAsserted(() -> {
+            assertThat(client.indices().existsAlias(request -> request.name("healthcare-operations")).value())
+                    .isTrue();
             var page = index.search("POL-SEARCH", RecordType.CLAIM, "APPROVED", providerId, 0, 10);
             assertThat(page.totalElements()).isEqualTo(1);
             assertThat(page.content()).singleElement().satisfies(record ->
                     assertThat(record.invoiceStatus()).isEqualTo("RECONCILED"));
         });
+    }
+
+    @Test
+    void attachesTheStableAliasToAnExistingLegacyIndexWithoutDeletingIt() throws Exception {
+        String suffix = UUID.randomUUID().toString().replace("-", "");
+        String legacyIndex = "healthcare-operations-v1-" + suffix;
+        String alias = "healthcare-operations-" + suffix;
+        client.indices().create(request -> request.index(legacyIndex));
+
+        var migratingIndex = new ElasticsearchSearchIndex(client, alias, legacyIndex);
+        migratingIndex.save(record(UUID.randomUUID()));
+
+        assertThat(client.indices().exists(request -> request.index(legacyIndex)).value()).isTrue();
+        assertThat(client.indices().existsAlias(request -> request.name(alias)).value()).isTrue();
     }
 
     private SearchRecord record(UUID providerId) {

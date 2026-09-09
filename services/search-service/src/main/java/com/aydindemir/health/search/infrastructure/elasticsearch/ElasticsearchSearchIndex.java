@@ -6,6 +6,7 @@ import com.aydindemir.health.search.application.dto.SearchPage;
 import com.aydindemir.health.search.application.port.out.SearchIndex;
 import com.aydindemir.health.search.domain.model.RecordType;
 import com.aydindemir.health.search.domain.model.SearchRecord;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -16,20 +17,32 @@ import java.util.UUID;
 @Component
 public class ElasticsearchSearchIndex implements SearchIndex {
     private final ElasticsearchClient client;
-    private final String indexName;
+    private final String aliasName;
+    private final String initialIndexName;
 
     public ElasticsearchSearchIndex(
             ElasticsearchClient client,
-            @Value("${app.search.index-name:healthcare-operations-v1}") String indexName) {
+            @Value("${app.search.alias-name:healthcare-operations}") String aliasName,
+            @Value("${app.search.initial-index-name:healthcare-operations-v1}") String initialIndexName) {
         this.client = client;
-        this.indexName = indexName;
+        this.aliasName = aliasName;
+        this.initialIndexName = initialIndexName;
+    }
+
+    @PostConstruct
+    void initializeIndexAlias() {
+        try {
+            ensureIndex();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not initialize healthcare search index alias", exception);
+        }
     }
 
     @Override
     public void save(SearchRecord record) {
         try {
             ensureIndex();
-            client.index(request -> request.index(indexName).id(record.id()).document(toDocument(record)));
+            client.index(request -> request.index(aliasName).id(record.id()).document(toDocument(record)));
         } catch (IOException exception) {
             throw new IllegalStateException("Could not index healthcare search record", exception);
         }
@@ -41,7 +54,7 @@ public class ElasticsearchSearchIndex implements SearchIndex {
         try {
             ensureIndex();
             var response = client.search(request -> request
-                    .index(indexName)
+                    .index(aliasName)
                     .from(page * size)
                     .size(size)
                     .sort(sort -> sort.field(field -> field.field("occurredAt").order(SortOrder.Desc)))
@@ -76,9 +89,19 @@ public class ElasticsearchSearchIndex implements SearchIndex {
         }
     }
 
-    private void ensureIndex() throws IOException {
-        if (client.indices().exists(request -> request.index(indexName)).value()) return;
-        client.indices().create(request -> request.index(indexName).mappings(mapping -> mapping
+    private synchronized void ensureIndex() throws IOException {
+        if (client.indices().existsAlias(request -> request.name(aliasName)).value()) return;
+        if (client.indices().exists(request -> request.index(initialIndexName)).value()) {
+            client.indices().updateAliases(request -> request.actions(action -> action.add(add -> add
+                    .index(initialIndexName)
+                    .alias(aliasName)
+                    .isWriteIndex(true))));
+            return;
+        }
+        client.indices().create(request -> request
+                .index(initialIndexName)
+                .aliases(aliasName, alias -> alias.isWriteIndex(true))
+                .mappings(mapping -> mapping
                 .properties("type", property -> property.keyword(keyword -> keyword))
                 .properties("sourceId", property -> property.keyword(keyword -> keyword))
                 .properties("preAuthorizationId", property -> property.keyword(keyword -> keyword))

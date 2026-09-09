@@ -33,7 +33,8 @@ app:
       max-attempts: ${SEARCH_KAFKA_MAX_ATTEMPTS:3}
       retry-delay: ${SEARCH_KAFKA_RETRY_DELAY:1s}
   search:
-    index-name: ${SEARCH_INDEX_NAME:healthcare-operations-v1}
+    alias-name: ${SEARCH_INDEX_ALIAS:healthcare-operations}
+    initial-index-name: ${SEARCH_INDEX_NAME:healthcare-operations-v1}
 
 management:
   endpoints:
