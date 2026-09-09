@@ -6,6 +6,7 @@ import com.aydindemir.health.claims.application.port.in.ManageInvoiceUseCase;
 import com.aydindemir.health.claims.application.port.in.GetClaimsBillingUseCase;
 import com.aydindemir.health.claims.application.port.in.HandleApprovedPreAuthorizationUseCase;
 import com.aydindemir.health.claims.application.port.in.ReviewClaimUseCase;
+import com.aydindemir.health.claims.application.port.in.SearchAuditRecordsUseCase;
 import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizationPort;
 import com.aydindemir.health.claims.application.port.out.ClaimRepository;
 import com.aydindemir.health.claims.application.port.out.ClaimSearchProjectionOutbox;
@@ -13,6 +14,8 @@ import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
 import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
 import com.aydindemir.health.claims.application.port.out.AuditTrail;
 import com.aydindemir.health.claims.application.port.out.AuditContextProvider;
+import com.aydindemir.health.claims.application.port.out.AuditRecordQuery;
+import com.aydindemir.health.claims.application.dto.PageResult;
 import com.aydindemir.health.claims.application.security.ActorContext;
 import com.aydindemir.health.claims.application.security.ApplicationRole;
 import com.aydindemir.health.claims.domain.model.Claim;
@@ -54,6 +57,9 @@ class ApplicationConfigurationTest {
             assertThat(create).isSameAs(context.getBean(HandleApprovedPreAuthorizationUseCase.class));
             assertThat(AopUtils.isAopProxy(create)).isTrue();
             assertThat(AopUtils.getTargetClass(create)).isEqualTo(TransactionalClaimsBillingUseCases.class);
+            Object audit = context.getBean(SearchAuditRecordsUseCase.class);
+            assertThat(AopUtils.isAopProxy(audit)).isTrue();
+            assertThat(AopUtils.getTargetClass(audit)).isEqualTo(TransactionalAuditQuery.class);
         });
     }
 
@@ -102,6 +108,10 @@ class ApplicationConfigurationTest {
         }
         @Bean AuditTrail auditTrail() { return record -> { }; }
         @Bean AuditContextProvider auditContextProvider() { return () -> "test-correlation-id"; }
+        @Bean AuditRecordQuery auditRecordQuery() {
+            return criteria -> new PageResult<>(
+                    java.util.List.of(), criteria.page(), criteria.size(), 0, 0);
+        }
         @Bean RecordingTransactionManager transactionManager() { return new RecordingTransactionManager(); }
     }
 

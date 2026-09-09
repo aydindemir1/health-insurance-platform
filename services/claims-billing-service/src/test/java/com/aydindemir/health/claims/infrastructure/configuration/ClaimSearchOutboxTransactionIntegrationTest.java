@@ -2,6 +2,8 @@ package com.aydindemir.health.claims.infrastructure.configuration;
 
 import com.aydindemir.health.claims.application.command.CreateClaimCommand;
 import com.aydindemir.health.claims.application.port.in.CreateClaimUseCase;
+import com.aydindemir.health.claims.application.port.in.SearchAuditRecordsUseCase;
+import com.aydindemir.health.claims.application.query.SearchAuditRecordsQuery;
 import com.aydindemir.health.claims.application.port.out.ApprovedPreAuthorizationPort;
 import com.aydindemir.health.claims.application.port.out.ClaimSearchProjectionOutbox;
 import com.aydindemir.health.claims.application.port.out.AuditTrail;
@@ -42,6 +44,7 @@ class ClaimSearchOutboxTransactionIntegrationTest {
     static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:17-alpine");
 
     @Autowired CreateClaimUseCase createClaim;
+    @Autowired SearchAuditRecordsUseCase searchAudit;
     @Autowired JdbcTemplate jdbc;
     @MockitoBean ApprovedPreAuthorizationPort preAuthorizations;
     @MockitoSpyBean ClaimSearchProjectionOutbox searchOutbox;
@@ -119,6 +122,24 @@ class ClaimSearchOutboxTransactionIntegrationTest {
                 .hasMessageContaining("append-only");
         assertThatThrownBy(() -> jdbc.execute("truncate table audit_records"))
                 .hasMessageContaining("append-only");
+    }
+
+    @Test
+    void readsFilteredClaimsAuditThroughAdministratorBoundary() {
+        var created = createClaim.create(command());
+
+        var result = searchAudit.search(SearchAuditRecordsQuery.fromRequest(
+                new ActorContext("administrator", null, Set.of(ApplicationRole.SYSTEM_ADMIN)),
+                created.claim().id(), "claim_submitted", 0, 10));
+
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.content()).singleElement().satisfies(record -> {
+            assertThat(record.aggregateId()).isEqualTo(created.claim().id());
+            assertThat(record.action()).isEqualTo("CLAIM_SUBMITTED");
+            assertThat(record.providerId()).isEqualTo(providerId);
+            assertThat(record.fromStatus()).isNull();
+            assertThat(record.toStatus()).isEqualTo("SUBMITTED");
+        });
     }
 
     private CreateClaimCommand command() {

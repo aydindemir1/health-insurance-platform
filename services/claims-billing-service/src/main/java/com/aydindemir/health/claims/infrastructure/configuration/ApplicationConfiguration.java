@@ -8,6 +8,9 @@ import com.aydindemir.health.claims.application.port.out.InvoiceRepository;
 import com.aydindemir.health.claims.application.port.out.ProcessedMessageRepository;
 import com.aydindemir.health.claims.application.port.out.AuditTrail;
 import com.aydindemir.health.claims.application.port.out.AuditContextProvider;
+import com.aydindemir.health.claims.application.port.out.AuditRecordQuery;
+import com.aydindemir.health.claims.application.port.in.SearchAuditRecordsUseCase;
+import com.aydindemir.health.claims.application.usecase.AuditQueryService;
 import com.aydindemir.health.claims.application.usecase.ClaimsBillingApplicationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -42,5 +45,10 @@ public class ApplicationConfiguration {
                 new ClaimsBillingApplicationService(
                         claims, invoices, preAuthorizations, identifiers, processedMessages,
                         searchOutbox, auditTrail, auditContext, clock));
+    }
+
+    @Bean
+    SearchAuditRecordsUseCase claimsAuditQuery(AuditRecordQuery records) {
+        return new TransactionalAuditQuery(new AuditQueryService(records));
     }
 }
