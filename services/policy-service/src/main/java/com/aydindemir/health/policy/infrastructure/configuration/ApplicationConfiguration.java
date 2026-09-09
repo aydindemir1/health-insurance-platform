@@ -5,6 +5,9 @@ import com.aydindemir.health.policy.application.port.out.PolicyRepository;
 import com.aydindemir.health.policy.application.port.out.CoverageEvaluationCache;
 import com.aydindemir.health.policy.application.port.out.AuditTrail;
 import com.aydindemir.health.policy.application.port.out.AuditContextProvider;
+import com.aydindemir.health.policy.application.port.out.AuditRecordQuery;
+import com.aydindemir.health.policy.application.port.in.SearchAuditRecordsUseCase;
+import com.aydindemir.health.policy.application.usecase.AuditQueryService;
 import com.aydindemir.health.policy.application.usecase.PolicyApplicationService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,5 +38,10 @@ public class ApplicationConfiguration {
         return new TransactionalPolicyUseCases(
                 new PolicyApplicationService(
                         repository, idGenerator, coverageCache, auditTrail, auditContext, clock));
+    }
+
+    @Bean
+    SearchAuditRecordsUseCase policyAuditQuery(AuditRecordQuery records) {
+        return new TransactionalAuditQuery(new AuditQueryService(records));
     }
 }

@@ -8,6 +8,9 @@ import com.aydindemir.health.policy.application.port.out.PolicyRepository;
 import com.aydindemir.health.policy.application.port.out.CoverageEvaluationCache;
 import com.aydindemir.health.policy.application.port.out.AuditTrail;
 import com.aydindemir.health.policy.application.port.out.AuditContextProvider;
+import com.aydindemir.health.policy.application.port.out.AuditRecordQuery;
+import com.aydindemir.health.policy.application.port.in.SearchAuditRecordsUseCase;
+import com.aydindemir.health.policy.application.dto.PageResult;
 import com.aydindemir.health.policy.application.dto.CoverageEvaluationResult;
 import com.aydindemir.health.policy.application.command.EvaluateCoverageCommand;
 import com.aydindemir.health.policy.application.security.ActorContext;
@@ -47,10 +50,13 @@ class ApplicationConfigurationTest {
             assertThat(context).hasNotFailed();
             Object create = context.getBean(CreatePolicyUseCase.class);
             Object evaluate = context.getBean(EvaluateCoverageUseCase.class);
+            Object audit = context.getBean(SearchAuditRecordsUseCase.class);
 
             assertThat(create).isSameAs(evaluate);
             assertThat(AopUtils.isAopProxy(create)).isTrue();
             assertThat(AopUtils.getTargetClass(create)).isEqualTo(TransactionalPolicyUseCases.class);
+            assertThat(AopUtils.isAopProxy(audit)).isTrue();
+            assertThat(AopUtils.getTargetClass(audit)).isEqualTo(TransactionalAuditQuery.class);
         });
     }
 
@@ -119,6 +125,12 @@ class ApplicationConfigurationTest {
         @Bean
         AuditContextProvider auditContextProvider() {
             return () -> "test-correlation-id";
+        }
+
+        @Bean
+        AuditRecordQuery auditRecordQuery() {
+            return criteria -> new PageResult<>(
+                    List.of(), criteria.page(), criteria.size(), 0, 0);
         }
     }
 

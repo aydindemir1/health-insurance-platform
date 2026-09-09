@@ -2,6 +2,8 @@ package com.aydindemir.health.policy.infrastructure.configuration;
 
 import com.aydindemir.health.policy.application.command.CreatePolicyCommand;
 import com.aydindemir.health.policy.application.port.in.CreatePolicyUseCase;
+import com.aydindemir.health.policy.application.port.in.SearchAuditRecordsUseCase;
+import com.aydindemir.health.policy.application.query.SearchAuditRecordsQuery;
 import com.aydindemir.health.policy.application.port.out.AuditTrail;
 import com.aydindemir.health.policy.application.port.out.CoverageEvaluationCache;
 import com.aydindemir.health.policy.application.security.ActorContext;
@@ -39,6 +41,7 @@ class PolicyAuditTransactionIntegrationTest {
 
     @Autowired CreatePolicyUseCase createPolicy;
     @Autowired JdbcTemplate jdbc;
+    @Autowired SearchAuditRecordsUseCase searchAudit;
     @MockitoBean CoverageEvaluationCache coverageCache;
     @MockitoSpyBean AuditTrail auditTrail;
 
@@ -88,6 +91,23 @@ class PolicyAuditTransactionIntegrationTest {
                 .hasMessageContaining("append-only");
         assertThatThrownBy(() -> jdbc.execute("truncate table audit_records"))
                 .hasMessageContaining("append-only");
+    }
+
+    @Test
+    void readsFilteredPolicyAuditThroughAdministratorBoundary() {
+        var created = createPolicy.create(command("POL-AUDIT-READ"));
+
+        var result = searchAudit.search(SearchAuditRecordsQuery.fromRequest(
+                new ActorContext("administrator", Set.of(ApplicationRole.SYSTEM_ADMIN)),
+                created.id(), "POLICY_ISSUED", 0, 10));
+
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.content()).singleElement().satisfies(record -> {
+            assertThat(record.aggregateId()).isEqualTo(created.id());
+            assertThat(record.action()).isEqualTo("POLICY_ISSUED");
+            assertThat(record.fromStatus()).isNull();
+            assertThat(record.toStatus()).isEqualTo("ACTIVE");
+        });
     }
 
     private CreatePolicyCommand command(String policyNumber) {
