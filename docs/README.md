@@ -41,6 +41,7 @@ the end of the project.
 - [ADR-009: Cache, search, and observability boundaries](adr/009-cache-search-and-observability.md)
 - [ADR-010: APISIX external security boundary](adr/010-apisix-security-boundary.md)
 - [ADR-011: Service-owned append-only audit journals](adr/011-service-owned-append-only-audit.md)
+- [ADR-012: Versioned search rebuild and controlled message recovery](adr/012-versioned-search-rebuild-and-controlled-message-recovery.md)
 
 ## Milestone documentation definition of done
 
