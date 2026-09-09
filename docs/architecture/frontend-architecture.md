@@ -28,7 +28,8 @@ authentication uses a narrow React context; API data is not copied into a
 global client store. React Hook Form and Zod validate submission input, while
 route and feature components apply role-aware UI behavior.
 
-The Healthcare Search page uses a distinct `VITE_SEARCH_API_BASE_URL`; the
+The authorization and search clients retain separate environment override keys,
+but both default to the APISIX origin at `http://localhost:9080/api/v1`. The
 shared HTTP client supplies the same Keycloak access token and a fresh bounded
 correlation ID. Search filters and pagination are URL state, while TanStack Query
 keeps results in its server-state cache. The Search Service, not the browser,

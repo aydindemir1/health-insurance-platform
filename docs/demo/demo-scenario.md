@@ -1,4 +1,4 @@
-# Demonstration Scenario — Milestones 0–7
+# Demonstration Scenario — Milestones 0–8
 
 This scenario uses only synthetic identifiers and clinical codes. It proves the
 implemented happy path and leaves records in several states for UI and API
@@ -15,6 +15,12 @@ Elasticsearch projections, a provider-scoped search UI, ECS JSON logs,
 correlation propagation, and Elastic APM/Kibana runtime evidence. PostgreSQL is
 still authoritative and search never participates in a command transaction.
 
+Milestone 8 places APISIX in front of every browser-facing business API. The
+same demo now uses port `9080` for Policy, Authorization, Claims/Billing and
+Search, then automatically verifies gateway authentication, routing,
+correlation, CORS, payload limiting and rate limiting. Spring Security remains
+active behind the gateway.
+
 ## Preconditions
 
 1. Copy `.env.example` to the ignored `.env` and replace placeholders.
@@ -27,8 +33,8 @@ still authoritative and search never participates in a command transaction.
    - claim user: `CLAIM_APPROVER`
 4. Confirm RabbitMQ Management is available at `http://localhost:15672`; its
    credentials come from the ignored `.env`.
-5. Confirm Elasticsearch, Search Service, APM Server, and Kibana are reachable at
-   ports `9200`, `8084`, `8200`, and `5601` respectively.
+5. Confirm APISIX, Elasticsearch, APM Server, and Kibana are reachable at ports
+   `9080`, `9200`, `8200`, and `5601`. Search Service remains internal.
 6. Obtain short-lived access tokens through the configured OIDC login and keep
    them only in the current shell.
 
@@ -125,6 +131,16 @@ The script creates:
     bounded retry, DLT/DLQ, database ownership, and optimistic locking.
 
 ## Expected negative demonstrations
+
+- A request without a token is rejected by APISIX with `401` and
+  `application/problem+json`.
+- An invalid token is rejected before an upstream is called.
+- A correctly signed token issued to Keycloak's unrelated `admin-cli` audience
+  is rejected with `403`; a token carrying `health-insurance-api` is accepted.
+- A request larger than 1 MiB returns `413`; exceeding the local one-minute
+  quota returns `429` with rate-limit headers.
+- Direct host access to ports `8081`–`8084` fails because API services are only
+  exposed on the Compose network.
 
 - A hospital token with another provider cannot read the records: `403`.
 - A hospital token cannot approve a pre-authorization or claim: `403`.

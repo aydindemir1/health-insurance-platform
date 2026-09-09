@@ -1,6 +1,6 @@
 # Technical Walkthrough: Milestones 0–7
 
-This document explains the implemented system through Milestone 7. It is a
+This document explains the implemented system through Milestone 8. It is a
 living technical narrative: every completed milestone updates it, the README, the
 architecture diagrams, the demo, and relevant screenshots.
 
@@ -353,7 +353,7 @@ rotting while later milestones change the implementation.
 
 ## 10. Delivery and local operations
 
-Docker Compose runs Keycloak, Kafka, RabbitMQ, Redis, four API services,
+Docker Compose runs Keycloak, APISIX, Kafka, RabbitMQ, Redis, four API services,
 Notification Worker, four private databases, Elasticsearch, Kibana, and APM
 Server.
 Required credentials are supplied from an ignored `.env`, using `.env.example`
@@ -361,7 +361,19 @@ as a safe template. Health checks order database-dependent startup. GitHub
 Actions independently tests backend services and the operations portal using
 Java 21 and Node.
 
-The repository does not yet contain Kubernetes, APISIX, Jenkins, SonarQube,
+APISIX is a file-driven data plane: no etcd or mutable Admin API is needed for
+the local topology. It authenticates external bearer tokens, applies traffic
+policy, and routes to unpublished Spring ports. It deliberately does not own
+provider or aggregate authorization; Spring repeats token validation and the
+application layer enforces those business rules. Gateway-native errors are
+adapted to RFC 9457 without rewriting business errors from upstream services.
+
+The realm declares a bearer-only `health-insurance-api` audience client. Keycloak
+adds that audience to portal and demo access tokens, and APISIX requires an exact
+audience match. A token may therefore be cryptographically valid for the realm but
+still be rejected when it was issued for another resource.
+
+The repository does not yet contain Kubernetes, Jenkins, SonarQube,
 Nexus, Harbor, or Argo CD implementations. Those remain planned slices and will only be added
 when they solve an explicit operational or domain problem.
 
@@ -388,6 +400,7 @@ when they solve an explicit operational or domain problem.
 | Elasticsearch .NET client/read model | Elastic Java Client projection adapter |
 | Serilog ECS + `LogContext` | Spring Boot ECS logging + SLF4J MDC |
 | Application Insights/OpenTelemetry auto-instrumentation | Externally attached Elastic APM Java agent |
+| ASP.NET Core reverse proxy / YARP | APISIX declarative routes and edge plugins |
 
 ## 12. Interview explanation
 
@@ -408,6 +421,13 @@ provider-scoped Elasticsearch read model. ECS logs, correlation propagation and
 Elastic APM make synchronous and asynchronous paths diagnosable. Tests cover
 domain rules, security, architecture, persistence, concurrency, cache failure,
 and real search infrastructure.”
+
+“The portal reaches one APISIX origin instead of four published service ports.
+The gateway validates Keycloak JWTs with JWKS and owns rate, CORS, body-size,
+timeout and correlation policies. I kept Spring Security and application
+authorization behind it because a gateway can authenticate traffic but should
+not own provider-scoped domain decisions. This is defence in depth rather than
+duplicated business logic.”
 
 ### Questions to expect
 
@@ -430,8 +450,12 @@ and real search infrastructure.”
 - How does the search projection avoid a dual-write inconsistency?
 - What does a correlation ID prove, and what does it not prove?
 - Why attach the APM agent externally instead of adding a code dependency?
+- Why use APISIX standalone mode instead of etcd and the Admin API?
+- Which rules belong at the gateway and which belong in application use cases?
+- Why validate the same JWT at both APISIX and Spring Security?
+- Why is a local rate counter insufficient for multiple APISIX replicas?
 
-## 13. Known gaps after Milestone 7
+## 13. Known gaps after Milestone 8
 
 - The portal has no policy, claim, invoice, or payment screens yet; those flows
   are demonstrated through the API seed script.
@@ -448,6 +472,9 @@ and real search infrastructure.”
 - Demo users must be created locally because credentials are never committed.
 - Production-grade consent, PHI classification, encryption/key management,
   retention, audit trail, and regulatory controls require explicit design.
+- Local APISIX-to-Keycloak discovery is HTTP; production requires trusted TLS.
+- Rate-limit state is per gateway instance; a scaled topology requires shared
+  Redis counters or an explicitly accepted per-instance quota.
 
 Notification persistence, transactionally recorded producer intent, the
 confirm-aware relay, durable queue/DLQ topology, classified bounded retry,

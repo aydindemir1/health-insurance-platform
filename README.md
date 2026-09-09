@@ -6,12 +6,15 @@ provider requests authorization for a member's service, an insurer verifies
 policy coverage and decides the request, and an approved service proceeds to
 claim adjudication, invoice reconciliation, payment, and settlement.
 
-> **Current checkpoint:** Milestones 0–7 are implemented. Policy uses a resilient
+> **Current checkpoint:** Milestones 0–8 are implemented. Policy uses a resilient
 > Redis cache-aside adapter; Claims/Billing emits transactionally durable search
 > projections; Search Service builds a provider-scoped Elasticsearch read model.
 > Every Java runtime emits ECS JSON with correlation IDs, and the Compose stack
 > includes Elasticsearch, Kibana, APM Server, and externally attached Elastic
-> Java agents. Compose and Testcontainers exercise the real infrastructure paths.
+> Java agents. APISIX is the only host-published business API boundary and
+> applies OIDC/JWKS validation, traffic limits, correlation IDs, defensive
+> headers, and RFC 9457 gateway errors. Compose and Testcontainers exercise the
+> real infrastructure paths.
 
 ## Why this project exists
 
@@ -43,7 +46,7 @@ demo script.
 - Java 21 across Maven, Dockerfiles, and GitHub Actions.
 - Spring Boot 4.1.1 services built through Maven Wrapper.
 - Multi-stage container images with non-root runtime users.
-- Docker Compose for Keycloak, Kafka, RabbitMQ, four PostgreSQL databases, three
+- Docker Compose for Keycloak, APISIX, Kafka, RabbitMQ, four PostgreSQL databases, four
   API services, and the Notification Worker.
 - Actuator health endpoints and database health-gated startup.
 - Secret-safe configuration through ignored `.env` files and committed examples.
@@ -193,13 +196,33 @@ domain concern.
   search outbox writes, projection mapping, provider scope, Elasticsearch queries,
   and correlation handling.
 
+### Milestone 8 — APISIX gateway and centralized edge security
+
+- Apache APISIX 3.18 runs in declarative, file-driven standalone mode; the Admin
+  API and etcd are absent from the local data plane.
+- Port `9080` is the only host-published business API entry point. Authorization,
+  Policy, Claims/Billing and Search ports remain internal to Compose.
+- Keycloak bearer tokens receive gateway-level RS256 signature, issuer, expiry and
+  `health-insurance-api` audience validation through OIDC discovery/JWKS, followed
+  by Spring Security validation.
+- Shared edge policy provides correlation IDs, explicit CORS, 120 requests per
+  minute per source address, a 1 MiB body limit, upstream timeouts, no-store and
+  defensive response headers.
+- A bounded APISIX infrastructure adapter converts gateway-native failures to
+  RFC 9457 `application/problem+json`; upstream business Problem Details pass
+  through unchanged.
+- The portal and synthetic demo use one API origin. A repeatable verification
+  script proves missing/invalid token and wrong-audience rejection, authorized routing, correlation,
+  CORS, payload limiting and rate limiting.
+
 ## Architecture overview
 
 ```mermaid
 flowchart LR
     User[Hospital and insurance users] --> Portal[React Operations Portal]
     Portal -->|OIDC Authorization Code + PKCE| KC[Keycloak]
-    Portal -->|Bearer token| Auth[Authorization Service]
+    Portal -->|Bearer token| Gateway[APISIX Gateway]
+    Gateway --> Auth[Authorization Service]
     Auth -->|Synchronous coverage evaluation| Policy[Policy Service]
     Auth -->|Decision events via transactional outbox| Kafka{{Apache Kafka}}
     Auth -->|Notification tasks via confirm-aware relay| Rabbit{{RabbitMQ}}
@@ -207,7 +230,7 @@ flowchart LR
     Rabbit -->|Bounded retry, manual ack, DLQ| Notifications[Notification Worker]
     Claims -->|Search projection outbox| Kafka
     Kafka -->|Decision and financial projections| Search[Search Service]
-    Portal -->|Secured operations query| Search
+    Gateway -->|Secured operations query| Search
     Policy -->|Cache-aside| Redis[(Redis)]
     Search --> Elastic[(Elasticsearch)]
     Elastic --> Kibana[Kibana]
@@ -308,11 +331,12 @@ because Keycloak 26 ignores undeclared custom attributes by default.
 - TanStack Query, React Hook Form, Zod, Keycloak JS.
 - Vitest, Testing Library, oxlint.
 - Keycloak 26.4, Docker, Docker Compose, GitHub Actions.
+- Apache APISIX 3.18 with OIDC, request ID, CORS, limit, validation and response policies.
 - Redis 8.2, Elasticsearch/Kibana/APM Server 9.5.3, Elastic APM Java Agent 1.56.
 
 ### Planned, not implemented
 
-APISIX, Kubernetes, Argo CD, Jenkins, SonarQube, Nexus, and Harbor.
+Kubernetes, Argo CD, Jenkins, SonarQube, Nexus, and Harbor.
 Each will be introduced only with a documented need and trade-off.
 
 ## Repository layout
@@ -327,6 +351,7 @@ services/
   search-service/             Elasticsearch operational read model
   notification-worker/        RabbitMQ notification delivery worker
 infra/
+  apisix/                     Declarative gateway and security policies
   keycloak/                   Importable realm/client/role configuration
 demo/                         Synthetic data catalogue and API seed script
 docs/
@@ -360,10 +385,8 @@ docker compose up --build
 | Component | Local URL/port |
 | --- | --- |
 | Keycloak | `http://localhost:8080` |
-| Authorization Service | `http://localhost:8081` |
-| Policy Service | `http://localhost:8082` |
-| Claims and Billing Service | `http://localhost:8083` |
-| Search Service | `http://localhost:8084` |
+| APISIX business API | `http://localhost:9080` |
+| Authorization, Policy, Claims/Billing, Search | Compose network only |
 | Redis | `localhost:6379` |
 | Elasticsearch | `http://localhost:9200` |
 | Kibana | `http://localhost:5601` |
@@ -390,7 +413,8 @@ npm run dev
 ```
 
 Open `http://localhost:5173`. The web client uses Authorization Code + PKCE and
-stores no client secret. Copy `apps/operations-portal/.env.example` to its local
+stores no client secret. Its default API origin is APISIX at port `9080`. Copy
+`apps/operations-portal/.env.example` to its local
 `.env` only when overriding URLs.
 
 ### Backend services outside containers
@@ -428,6 +452,7 @@ The script creates:
 - a fully settled approved claim/invoice with partial payments;
 - a disputed invoice awaiting reconciliation.
 - three `DELIVERED` provider notification records created through RabbitMQ.
+- APISIX security verification evidence for 401, 413, 429, CORS and correlation.
 
 It generates unique business references on each run, never stores or prints
 tokens, and uses no real patient data. The source catalogue is
@@ -482,6 +507,13 @@ oxlint, and its TypeScript/Vite production build. Real Redis and Elasticsearch
 tests require Docker; run large Testcontainers suites serially on constrained
 Docker Desktop installations to avoid infrastructure startup-time contention.
 
+Milestone 8 changes no domain/application behavior, so the 157-test backend
+baseline remains applicable and is rerun in full. Gateway CI starts the real
+APISIX 3.18 image with the repository's declarative configuration and asserts an
+RFC 9457 401 with a generated correlation ID. The Compose-backed verification
+script additionally exercises valid routing, CORS, 1 MiB rejection and rate
+limiting using runtime-only tokens.
+
 Validate the living portfolio documentation separately. This command checks
 local Markdown links, JSON and PowerShell syntax, the expected screenshot set,
 and renders every Mermaid block:
@@ -507,6 +539,8 @@ optimistic concurrency.
 ## API summary
 
 All business endpoints require a valid Keycloak bearer token.
+External callers prepend `http://localhost:9080`; individual service ports are
+not published to the host.
 
 | Method | Endpoint | Required responsibility |
 | --- | --- | --- |
@@ -578,6 +612,7 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 
 See ADR-001 through ADR-009 in [docs/adr](docs/adr/) for full context,
 alternatives, consequences, and rejected options.
+Gateway ownership and defence-in-depth are recorded in ADR-010.
 
 ## Current limitations
 
@@ -588,7 +623,7 @@ alternatives, consequences, and rejected options.
 - No production workload identity/token exchange exists between services.
 - No circuit breaker is configured for synchronous dependencies.
 - A real email/SMS provider and contact-resolution boundary, audit trail,
-  centralized log shipping, gateway, and Kubernetes delivery remain future
+  centralized log shipping and Kubernetes delivery remain future
   slices.
 - Production PHI/privacy, consent, encryption/key management, retention, and
   regulatory requirements need explicit threat modeling and governance.
@@ -603,11 +638,11 @@ alternatives, consequences, and rejected options.
 - [x] Milestone 5 — Transactional Outbox, Kafka, idempotent consumer, retry/DLQ
 - [x] Milestone 6 — RabbitMQ notification worker
 - [x] Milestone 7 — Redis, Elasticsearch, Kibana, Elastic APM, correlation IDs
-- [ ] Milestone 8 — APISIX gateway and completed security policies
+- [x] Milestone 8 — APISIX gateway and centralized edge security policies
 - [ ] Milestone 9 — Kubernetes and extended CI/CD toolchain
 - [ ] Milestone 10 — Final portfolio and interview package
 
-Milestone 7 is complete. At every later milestone, the
+Milestone 8 is complete. At every later milestone, the
 README, diagrams, ADRs, synthetic demo, scenario, screenshots, technical
 walkthrough, test evidence, limitations, and roadmap are part of the definition
 of done—not end-of-project cleanup.

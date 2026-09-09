@@ -15,8 +15,9 @@ npm run dev
 ```
 
 The development server runs at `http://localhost:5173`. Keycloak is expected at
-`http://localhost:8080`, and Authorization Service is expected at
-`http://localhost:8081`.
+`http://localhost:8080`; all business APIs use APISIX at
+`http://localhost:9080`. Individual Spring service ports are internal to the
+Compose network.
 
 ## Quality checks
 

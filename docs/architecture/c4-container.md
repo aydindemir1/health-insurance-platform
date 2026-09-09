@@ -7,6 +7,7 @@ flowchart TB
     Keycloak["Keycloak 26<br/>OIDC, PKCE, realm roles,<br/>provider_id claim"]
 
     subgraph Platform["Health Insurance Platform"]
+        Gateway["APISIX :9080<br/>OIDC/JWKS, routing, limits,<br/>correlation and edge errors"]
         Auth["Authorization Service :8081<br/>Java 21 / Spring Boot<br/>Owns pre-authorization lifecycle"]
         Policy["Policy Service :8082<br/>Java 21 / Spring Boot<br/>Owns policy and coverage rules"]
         Claims["Claims & Billing Service :8083<br/>Java 21 / Spring Boot<br/>Owns claims, invoices and payments"]
@@ -27,8 +28,12 @@ flowchart TB
 
     User -->|"HTTPS"| Portal
     Portal -->|"Authorization Code + PKCE"| Keycloak
-    Portal -->|"REST + bearer JWT"| Auth
-    Portal -->|"Search REST + bearer JWT"| Search
+    Portal -->|"REST + bearer JWT"| Gateway
+    Gateway --> Auth
+    Gateway --> Policy
+    Gateway --> Claims
+    Gateway --> Search
+    Gateway -.->|"OIDC discovery + JWKS"| Keycloak
     Auth -->|"Synchronous coverage query<br/>REST + relayed bearer JWT"| Policy
     Auth -->|"Pre-authorization decisions<br/>at-least-once"| Kafka
     Auth -->|"Persistent notification tasks<br/>confirm-aware outbox relay"| Rabbit
@@ -61,7 +66,8 @@ flowchart TB
 
 | Caller | Callee | Current purpose | Failure behavior |
 | --- | --- | --- | --- |
-| Portal | Authorization | Work queue, detail, submission and decision | UI error state; no local copy of server state |
+| Portal | APISIX | Single external business API, authentication and traffic governance | RFC 9457 gateway error with correlation ID |
+| APISIX | Spring APIs | Route authenticated requests over the private Compose network | Bounded connect/send/read timeout; upstream unavailable response |
 | Authorization | Policy | Coverage eligibility before accepting a request | Fail closed with 503; nothing persisted |
 | Claims/Billing | Authorization | Confirm current approved, provider-owned authorization | Fail closed with 503; no claim or invoice persisted |
 | Authorization | Kafka | Publish committed decisions from the outbox | Row remains unpublished and the next poll retries |
@@ -72,5 +78,5 @@ flowchart TB
 | Claims/Billing | Kafka/Search | Publish transactionally recorded operational projections | Outbox row remains pending until acknowledged |
 | Portal | Search | Provider-authorized full-text/filter query | Empty/error state; no impact on source transactions |
 
-APISIX and Kubernetes remain roadmap items and are not shown as current runtime
-components.
+Kubernetes remains a roadmap item and is not shown as a current runtime
+component.

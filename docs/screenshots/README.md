@@ -8,7 +8,7 @@ The current portal only implements pre-authorization operations. Policy and
 Claims/Billing are demonstrated through the API script until their screens are
 implemented in a later milestone.
 
-Screenshots retained for the Milestone 7 documentation checkpoint:
+Screenshots retained for the Milestone 8 documentation checkpoint:
 
 - `01-dashboard.png` — role-aware landing page and operational summary.
 - `02-pre-authorization-work-queue.png` — filter, sort, and pagination UI.
@@ -21,6 +21,9 @@ Screenshots retained for the Milestone 7 documentation checkpoint:
   operations query using synthetic policy and financial records.
 - `08-kibana-apm-services.png` — live Kibana APM services inventory populated by
   externally attached Java agents.
+- `09-apisix-gateway-problem-details.png` — live unauthenticated gateway
+  rejection rendered as RFC 9457 JSON with a correlation ID; the executable
+  demo separately verifies the non-visual wrong-audience rejection.
 
 ## Preview
 
@@ -39,6 +42,8 @@ Screenshots retained for the Milestone 7 documentation checkpoint:
 ![Healthcare operations search](07-healthcare-search.png)
 
 ![Kibana APM services](08-kibana-apm-services.png)
+
+![APISIX Problem Details](09-apisix-gateway-problem-details.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
@@ -79,6 +84,13 @@ Capture the no-credential local Kibana APM inventory after generating traffic:
 ```powershell
 Set-Location apps/operations-portal
 npm run screenshots:kibana
+```
+
+Capture the gateway-native error contract without any credentials:
+
+```powershell
+Set-Location apps/operations-portal
+npm run screenshots:gateway
 ```
 
 The local Compose stack disables Elastic security for developer convenience and

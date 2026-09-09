@@ -8,6 +8,7 @@ flowchart TB
         Vite["Vite dev server :5173"]
         subgraph Docker["Docker Desktop / Compose network"]
             Keycloak["Keycloak :8080"]
+            Gateway["APISIX :9080<br/>external API boundary"]
             Auth["Authorization :8081<br/>Temurin 21 JRE, non-root"]
             Policy["Policy :8082<br/>Temurin 21 JRE, non-root"]
             Claims["Claims/Billing :8083<br/>Temurin 21 JRE, non-root"]
@@ -28,8 +29,12 @@ flowchart TB
 
     Browser --> Vite
     Browser --> Keycloak
-    Vite -.->|"Browser-issued REST calls"| Auth
-    Vite -.->|"Browser-issued search calls"| Search
+    Vite -.->|"Bearer REST calls"| Gateway
+    Gateway --> Auth
+    Gateway --> Policy
+    Gateway --> Claims
+    Gateway --> Search
+    Gateway -.->|"OIDC discovery + JWKS"| Keycloak
     Auth --> Policy
     Auth --> Kafka
     Auth --> Rabbit
@@ -51,6 +56,11 @@ flowchart TB
     Claims --> ClaimsDb
     Worker --> WorkerDb
 ```
+
+APISIX is the only host-published business API port. The four Spring API ports
+are visible only on the Compose network; Keycloak remains browser-accessible for
+Authorization Code + PKCE. APISIX runs without etcd or an Admin API and loads
+Git-versioned routes from a read-only volume.
 
 Docker images use a Java 21 JDK build stage and a smaller Java 21 JRE runtime
 stage. Services run as the unprivileged `spring` user. Credentials are supplied

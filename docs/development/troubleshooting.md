@@ -1,6 +1,6 @@
 # Local Troubleshooting
 
-This guide covers reproducible local-development failures through Milestone 7.
+This guide covers reproducible local-development failures through Milestone 8.
 Never paste passwords, access tokens, message payloads, or real health data into
 commands, issues, screenshots, or logs.
 
@@ -137,7 +137,7 @@ Send a safe bounded header, confirm it is echoed, then find the same
 `correlationId` field in ECS JSON:
 
 ```powershell
-curl.exe -i -H "X-Correlation-ID: local-diagnostic-001" http://localhost:8081/actuator/health
+curl.exe -i -H "X-Correlation-ID: local-diagnostic-001" http://localhost:9080/api/v1/pre-authorizations
 docker compose logs --no-color --tail 100 authorization-service
 ```
 
@@ -145,6 +145,34 @@ The Java agent is attached through `JAVA_TOOL_OPTIONS`; verify that environment
 and APM Server connectivity in the exact container without printing tokens or
 secrets. APM unavailability must not stop business processing. Correlation IDs
 connect evidence but do not provide distributed transaction semantics.
+
+## APISIX is unhealthy or returns 502/504
+
+```powershell
+docker compose ps apisix authorization-service policy-service claims-billing-service search-service keycloak
+docker compose logs --no-color --tail 150 apisix
+docker compose config --quiet
+```
+
+Confirm both read-only files under `infra/apisix` are mounted and the route file
+ends with `#END`. A `401` for a missing token proves the route and gateway-native
+RFC 9457 adapter loaded; it does not prove the upstream is ready. A `502` means
+the selected internal service could not be reached, while `504` indicates the
+bounded upstream timeout expired.
+
+The local stack intentionally uses HTTP for Keycloak discovery, so APISIX logs a
+security warning. Do not silence this by disabling checks in production; deploy
+trusted TLS for the public and backchannel identity-provider endpoints.
+
+The APISIX OpenID Connect plugin currently records a missing bearer token as an
+`error` before returning the expected `401`. Correlate the status and request ID
+before treating that line as an outage; alerting should not page on isolated
+client-side authentication failures.
+
+The rate limiter is local to the APISIX process. A verification run deliberately
+exhausts its one-minute window. Restart APISIX or wait for the reset header
+before an immediate manual demo. Multiple production replicas require a shared
+counter policy.
 
 ## Safe reset
 
