@@ -122,7 +122,7 @@ pipeline {
                           test -n "${jar}"
                           version=$("services/${service}/mvnw" --quiet --non-recursive help:evaluate -Dexpression=project.version -DforceStdout)
                           repository=releases
-                          case "${version}" in *-SNAPSHOT) repository=snapshots ;; esac
+                          case "${version}" in *SNAPSHOT*) repository=snapshots ;; esac
                           "services/${service}/mvnw" --batch-mode --no-transfer-progress \
                             --settings .jenkins/maven-settings.xml \
                             deploy:deploy-file \
