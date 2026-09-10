@@ -220,3 +220,22 @@ counter policy.
 removes containers and the network but preserves named volumes. `docker compose
 down -v` deletes all project volumes and therefore all local demo databases and
 broker state; use it only after explicit confirmation that the data is disposable.
+
+## Kubernetes manifest or rollout diagnostics
+
+Validate only the deployment package before touching a cluster:
+
+```powershell
+.\scripts\validate-kubernetes.ps1
+kubectl kustomize deploy/kubernetes/overlays/local
+```
+
+For a live local rollout, first confirm that `kubectl config current-context`
+names the disposable cluster, then use
+`deploy/kubernetes/scripts/apply-local.ps1`. A missing Secret blocks pod
+creation by design; populate the ignored `.env` rather than editing YAML.
+Readiness failures keep traffic away from a pod, while liveness failures restart
+it. If a process tries to write outside `/tmp`, fix its explicit writable mount
+instead of disabling the read-only root filesystem. Network timeouts should be
+checked against the default-deny NetworkPolicies and declared external ports
+before broadening egress.

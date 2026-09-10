@@ -406,13 +406,14 @@ because Keycloak 26 ignores undeclared custom attributes by default.
 - React 19, TypeScript 6, Vite 8, React Router 8.
 - TanStack Query, React Hook Form, Zod, Keycloak JS.
 - Vitest, Testing Library, oxlint.
-- Keycloak 26.4, Docker, Docker Compose, GitHub Actions.
+- Keycloak 26.4, Docker, Docker Compose, Kubernetes, and Kustomize.
+- GitHub Actions.
 - Apache APISIX 3.18 with OIDC, request ID, CORS, limit, validation and response policies.
 - Redis 8.2, Elasticsearch/Kibana/APM Server 9.5.3, Elastic APM Java Agent 1.56.
 
 ### Planned, not implemented
 
-Kubernetes, Argo CD, Jenkins, SonarQube, Nexus, and Harbor.
+Argo CD, Jenkins, SonarQube, Nexus, and Harbor.
 Each will be introduced only with a documented need and trade-off.
 
 ## Repository layout
@@ -429,6 +430,7 @@ services/
 infra/
   apisix/                     Declarative gateway and security policies
   keycloak/                   Importable realm/client/role configuration
+deploy/kubernetes/            Kustomize base, local overlay, and safe apply tooling
 demo/                         Synthetic data catalogue and API seed script
 docs/
   adr/                        Architecture decision records
@@ -447,6 +449,24 @@ compose.yaml                  Local runtime topology
 - Docker Desktop with Compose support.
 - Java 21 for running backend services outside containers.
 - Node.js compatible with the portal dependencies.
+
+### Kubernetes deployment package
+
+Milestone 11 provides a production-oriented Kustomize base and a local overlay
+for Authorization, Policy, Claims/Billing, Notification Worker, Search, the
+operations portal and APISIX. Validate the package without changing a cluster:
+
+```powershell
+.\scripts\validate-kubernetes.ps1
+```
+
+The manifests enforce fixed non-root users, read-only root filesystems, dropped
+capabilities, seccomp, resource bounds, health probes, graceful termination,
+rolling updates, topology spread, PDBs, HPAs, dedicated token-free
+ServiceAccounts and default-deny NetworkPolicies. Stateful infrastructure is an
+external contract. When a disposable local cluster is already active, follow
+the [Kubernetes deployment guide](docs/deployment/kubernetes.md); rendering alone
+must not be reported as a successful rollout.
 
 ### Full backend stack
 
@@ -716,8 +736,11 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
   available; no automatic or destructive replay exists.
 - No production workload identity/token exchange exists between services.
 - No circuit breaker is configured for synchronous dependencies.
-- A real email/SMS provider and contact-resolution boundary, centralized log
-  shipping, and Kubernetes delivery remain future slices.
+- A real email/SMS provider and contact-resolution boundary and centralized log
+  shipping remain outside the selected portfolio scope.
+- Kubernetes manifests are rendered and container images are built; this
+  checkpoint did not claim a live-cluster rollout. Production still needs an
+  external secret controller/workload identity, trusted TLS, and cluster metrics.
 - The privacy threat model, minimized audit evidence, and retention classes are
   documented and enforced at current write/read boundaries. Lawful basis,
   consent, approved retention durations, automated disposal, encryption/key
@@ -740,17 +763,14 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
 - [x] Milestone 8 — APISIX gateway and centralized edge security policies
 - [x] Milestone 9 — Append-only audit trail, KVKK and data governance
 - [x] Milestone 10 — Elasticsearch and messaging recovery operations
-- [ ] Milestone 11 — Notification provider and external-service resilience
-- [ ] Milestone 12 — Load, performance and resilience testing
-- [ ] Milestone 13 — Kubernetes and deployment security
-- [ ] Milestone 14 — CI/CD and software supply chain
-- [ ] Milestone 15 — Backup, restore, disaster recovery and capacity planning
-- [ ] Milestone 16 — Portfolio and interview finalization
+- [x] Milestone 11 — Kubernetes and deployment security
+- [ ] Milestone 12 — CI/CD and software supply chain
+- [ ] Milestone 13 — Portfolio and interview finalization
 
-Milestone 10 is complete. Its implementation is governed by
-[ADR-012](docs/adr/012-versioned-search-rebuild-and-controlled-message-recovery.md)
-and the [recovery runbook](docs/operations/search-and-messaging-recovery.md).
-The next implementation milestone is Milestone 11; it has not started. At every
+Milestone 11 is complete. Its deployment boundary and trade-offs are governed by
+[ADR-013](docs/adr/013-kustomize-and-secure-stateless-workloads.md) and the
+[Kubernetes deployment guide](docs/deployment/kubernetes.md). The next
+implementation milestone is Milestone 12; it has not started. At every
 later milestone, the
 README, diagrams, ADRs, synthetic demo, scenario, screenshots, technical
 walkthrough, test evidence, limitations, and roadmap are part of the definition

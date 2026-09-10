@@ -457,9 +457,23 @@ adds that audience to portal and demo access tokens, and APISIX requires an exac
 audience match. A token may therefore be cryptographically valid for the realm but
 still be rejected when it was issued for another resource.
 
-The repository does not yet contain Kubernetes, Jenkins, SonarQube,
-Nexus, Harbor, or Argo CD implementations. Those remain planned slices and will only be added
-when they solve an explicit operational or domain problem.
+Milestone 11 adds a Kubernetes-native Kustomize base plus a local overlay for
+the seven stateless workloads. The baseline enforces non-root execution,
+read-only root filesystems, dropped Linux capabilities, RuntimeDefault seccomp,
+resource bounds, startup/readiness/liveness probes, graceful termination,
+rolling updates, topology spread, PDBs, HPAs, dedicated ServiceAccounts without
+mounted API tokens, and default-deny NetworkPolicies. Stateful platforms remain
+external contracts because their production operation needs vendor/operator,
+storage, backup and recovery choices that cannot be honestly encoded as a few
+portfolio YAML files. ADR-013 records that boundary.
+
+The local apply script materializes Kubernetes Secrets in memory from the
+ignored `.env`; the repository contains names and examples, never values. The
+base/local render validator checks workload count, security contexts,
+availability controls, network isolation and credential policy. Container
+images were built locally. No active cluster was available at this checkpoint,
+so a live rollout is not claimed. Jenkins, SonarQube, Nexus, Harbor and Argo CD
+belong to the next milestone.
 
 ## 11. .NET-to-Java mapping
 
@@ -583,6 +597,9 @@ duplicated business logic.”
 - Local APISIX-to-Keycloak discovery is HTTP; production requires trusted TLS.
 - Rate-limit state is per gateway instance; a scaled topology requires shared
   Redis counters or an explicitly accepted per-instance quota.
+- Kubernetes live-cluster rollout, trusted ingress TLS, an external secret
+  controller/workload identity, Metrics Server-backed HPA observation and
+  production stateful-service operators remain environment-specific work.
 
 Notification persistence, transactionally recorded producer intent, the
 confirm-aware relay, durable queue/DLQ topology, classified bounded retry,

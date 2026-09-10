@@ -142,7 +142,7 @@ monitoring for audit reads belongs in a separately protected security/SIEM trail
 - [x] Audit payload keys are allowlisted and typed contracts exclude sensitive business fields.
 - [ ] Log-capture tests reject token, member, policy, diagnosis and contact values.
 - [ ] Retention mappings receive legal/data-controller approval outside the codebase.
-- [ ] Disposal jobs and backup handling are implemented and rehearsed in Milestone 15.
+- [ ] Disposal jobs and backup handling require a production data-governance program.
 
 ## Residual risks
 

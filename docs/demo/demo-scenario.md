@@ -1,4 +1,4 @@
-# Demonstration Scenario — Milestones 0–10
+# Demonstration Scenario — Milestones 0–11
 
 This scenario uses only synthetic identifiers and clinical codes. It proves the
 implemented happy path and leaves records in several states for UI and API
@@ -33,6 +33,16 @@ an isolated versioned candidate, count and alias compare-and-swap gates protect
 activation, and the predecessor remains available for rollback. Broker recovery
 uses a separate inspect/classify/explicit-copy process with safe digests instead
 of automatic poison-message replay.
+
+Milestone 11 adds an operational deployment demonstration without inventing
+new business data. Render both Kustomize variants with
+`./scripts/validate-kubernetes.ps1`, explain the production-oriented base and
+the Compose-backed local dependency contracts, then inspect one Deployment,
+NetworkPolicy, PDB and HPA. Show that containers run as fixed non-root users,
+root filesystems are read-only, probes and resource bounds exist, and no Secret
+values are committed. Use `deploy/kubernetes/scripts/apply-local.ps1` only when
+a disposable local cluster is active; a rendered manifest is not evidence of a
+successful live rollout.
 
 ## Preconditions
 

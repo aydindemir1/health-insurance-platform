@@ -79,5 +79,26 @@ flowchart TB
 | Portal | Search | Provider-authorized full-text/filter query | Empty/error state; no impact on source transactions |
 | Portal | Authorization/Policy/Claims audit APIs | `SYSTEM_ADMIN` service-local evidence query | Controller and use-case authorization; bounded filters/page; no cross-database join |
 
-Kubernetes remains a roadmap item and is not shown as a current runtime
-component.
+## Kubernetes deployment view
+
+```mermaid
+flowchart LR
+    User[Operations user] --> Portal[Operations Portal<br/>2+ replicas]
+    Portal --> Gateway[APISIX<br/>2+ replicas]
+    Gateway --> Apps[Spring API deployments]
+    Apps --> External[Externally operated<br/>data, messaging, IAM and APM]
+    Worker[Notification Worker<br/>competing consumers] --> External
+
+    PSS[Restricted Pod Security] -.-> Portal
+    PSS -.-> Gateway
+    PSS -.-> Apps
+    PSS -.-> Worker
+    Net[Default-deny NetworkPolicies] -.-> Gateway
+    Net -.-> Apps
+    Health[Startup + readiness + liveness] -.-> Apps
+    Scale[PDB + topology spread + HPA] -.-> Apps
+```
+
+Kubernetes owns stateless rollout and isolation. Stateful dependencies remain
+separately operated contracts; this diagram does not imply that the application
+repository provides their production high availability.

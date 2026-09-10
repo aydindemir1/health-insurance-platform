@@ -16,6 +16,7 @@ the end of the project.
 - [Workflow sequence diagrams](architecture/workflow-sequences.md)
 - [Frontend architecture](architecture/frontend-architecture.md)
 - [Local deployment](architecture/local-deployment.md)
+- [Kubernetes deployment and security](deployment/kubernetes.md)
 - [Local troubleshooting](development/troubleshooting.md)
 - [Search and messaging recovery runbook](operations/search-and-messaging-recovery.md)
 - [Event-driven messaging](architecture/event-driven-messaging.md)
@@ -43,6 +44,7 @@ the end of the project.
 - [ADR-010: APISIX external security boundary](adr/010-apisix-security-boundary.md)
 - [ADR-011: Service-owned append-only audit journals](adr/011-service-owned-append-only-audit.md)
 - [ADR-012: Versioned search rebuild and controlled message recovery](adr/012-versioned-search-rebuild-and-controlled-message-recovery.md)
+- [ADR-013: Kustomize and secure stateless workloads](adr/013-kustomize-and-secure-stateless-workloads.md)
 
 ## Milestone documentation definition of done
 

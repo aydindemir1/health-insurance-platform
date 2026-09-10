@@ -1,5 +1,11 @@
 # Screenshot Catalogue
 
+Milestone 11 introduces deployment configuration rather than a new end-user
+screen. No synthetic UI screenshot was added: its repeatable evidence is the
+Kustomize validator output and inspectable Kubernetes resources documented in
+the [deployment guide](../deployment/kubernetes.md). A live-cluster dashboard
+image would be misleading because no live rollout is claimed at this checkpoint.
+
 This directory contains milestone checkpoint images captured from the running
 operations portal with synthetic demo identifiers. It must never contain access
 tokens, credentials, real patient information, or real provider data.
