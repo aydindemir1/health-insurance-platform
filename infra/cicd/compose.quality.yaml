@@ -9,6 +9,8 @@ services:
       JENKINS_ADMIN_USERNAME: ${JENKINS_ADMIN_USERNAME:?Set JENKINS_ADMIN_USERNAME}
       JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?Set JENKINS_ADMIN_PASSWORD}
       SONAR_TOKEN: ${SONAR_TOKEN:-local-bootstrap-pending}
+      NEXUS_USERNAME: ${NEXUS_USERNAME:-local-bootstrap-pending}
+      NEXUS_PASSWORD: ${NEXUS_PASSWORD:-local-bootstrap-pending}
     ports:
       - "127.0.0.1:8086:8080"
     volumes:

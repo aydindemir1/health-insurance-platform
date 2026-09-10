@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: health-insurance
+  namespace: argocd
+spec:
+  description: Restricted Health Insurance Platform GitOps boundary
+  sourceRepos:
+    - https://github.com/aydindemir1/health-insurance-platform.git
+  destinations:
+    - namespace: health-insurance
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  orphanedResources:
+    warn: true

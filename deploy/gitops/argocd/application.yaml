@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: health-insurance-staging
+  namespace: argocd
+spec:
+  project: health-insurance
+  source:
+    repoURL: https://github.com/aydindemir1/health-insurance-platform.git
+    targetRevision: main
+    path: deploy/gitops/environments/staging
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: health-insurance
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 1m

@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../../kubernetes/base
+
+images:
+  - name: health-insurance/authorization-service
+    newName: harbor.example.invalid/health-insurance/authorization-service
+    newTag: replace-with-full-git-sha
+  - name: health-insurance/policy-service
+    newName: harbor.example.invalid/health-insurance/policy-service
+    newTag: replace-with-full-git-sha
+  - name: health-insurance/claims-billing-service
+    newName: harbor.example.invalid/health-insurance/claims-billing-service
+    newTag: replace-with-full-git-sha
+  - name: health-insurance/notification-worker
+    newName: harbor.example.invalid/health-insurance/notification-worker
+    newTag: replace-with-full-git-sha
+  - name: health-insurance/search-service
+    newName: harbor.example.invalid/health-insurance/search-service
+    newTag: replace-with-full-git-sha
+  - name: health-insurance/operations-portal
+    newName: harbor.example.invalid/health-insurance/operations-portal
+    newTag: replace-with-full-git-sha

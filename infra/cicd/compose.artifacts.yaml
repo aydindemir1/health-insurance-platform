@@ -1,0 +1,36 @@
+name: health-insurance-artifacts
+
+services:
+  nexus:
+    image: sonatype/nexus3:3.84.1
+    restart: unless-stopped
+    environment:
+      INSTALL4J_ADD_VM_PARAMS: >-
+        -Xms512m -Xmx1024m -XX:MaxDirectMemorySize=1024m
+        -Djava.util.prefs.userRoot=/nexus-data/javaprefs
+    ports:
+      - "127.0.0.1:8087:8081"
+    volumes:
+      - nexus-data:/nexus-data
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 2048M
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8081/service/rest/v1/status > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 90s
+    networks:
+      quality:
+        aliases: [nexus]
+
+networks:
+  quality:
+    name: health-insurance-quality_default
+    external: true
+
+volumes:
+  nexus-data:
