@@ -214,6 +214,30 @@ exhausts its one-minute window. Restart APISIX or wait for the reset header
 before an immediate manual demo. Multiple production replicas require a shared
 counter policy.
 
+## Jenkins, Nexus, Harbor, or Argo CD publication fails
+
+Do not restart the complete pipeline when verification and the SonarQube gate
+already succeeded for the same commit. Resume at the failed boundary:
+
+- Nexus `403` with an EULA message: an administrator explicitly runs
+  `infra/cicd/accept-nexus-eula.ps1 -AcceptEula`, then retries Maven publication.
+- Harbor reports HTTPS against an HTTP registry: the Docker daemon uses
+  `localhost:8088`; Jenkins reaches the API through `host.docker.internal:8088`.
+- Host-side Harbor robot login fails: `.env` escapes `$` as `$$` for Compose;
+  unescape it only in the current process and never print the secret.
+- Argo CD `Unknown`: wait for `argocd-repo-server`, then request a hard refresh.
+- Argo CD `Synced/Progressing`: Git delivery succeeded; workloads are waiting
+  for external Secrets or stateful dependencies.
+
+Trivy is not a mandatory portfolio release gate. Do not rebuild the platform
+merely to obtain an optional local scan.
+
+```powershell
+kubectl --context portfolio-ci get pods -n argocd
+kubectl --context portfolio-ci get application health-insurance-staging -n argocd
+docker compose --env-file infra/cicd/.env -f infra/cicd/compose.artifacts.yaml ps
+```
+
 ## Safe reset
 
 `docker compose stop` preserves containers and volumes. `docker compose down`

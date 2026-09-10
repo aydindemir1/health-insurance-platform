@@ -7,6 +7,30 @@ repository. Databases, brokers, IAM, search storage and observability backends
 are external contracts. This preserves database-per-service ownership and keeps
 stateful operational promises out of application manifests.
 
+```mermaid
+flowchart TB
+    User[Operations user] --> Gateway[APISIX]
+    Gateway --> Portal[Operations portal]
+    Gateway --> Auth[Authorization Service]
+    Gateway --> Policy[Policy Service]
+    Gateway --> Claims[Claims and Billing]
+    Gateway --> Search[Search Service]
+    Worker[Notification Worker] --> External[(Operator-owned dependencies)]
+    Auth --> External
+    Policy --> External
+    Claims --> External
+    Search --> External
+    subgraph Namespace[health-insurance namespace]
+      Gateway
+      Portal
+      Auth
+      Policy
+      Claims
+      Search
+      Worker
+    end
+```
+
 ```text
 deploy/kubernetes/
   base/                    production-oriented resources
@@ -91,3 +115,22 @@ Create Secrets through the organization's approved external secret controller;
 do not commit generated Secret YAML. Configure Metrics Server before expecting
 HPA decisions, use trusted TLS for Keycloak and dependencies, and use immutable
 registry digests supplied by the CI/CD milestone.
+
+## GitOps checkpoint
+
+Milestone 12 adds `deploy/gitops/environments/staging` and an Argo CD
+`AppProject`/`Application`. The overlay maps all six application images to the
+private Harbor project and one immutable full Git SHA.
+
+```text
+Application: health-insurance-staging
+Sync: Synced
+Operation: Succeeded
+Git revision: a56fff2a14405d3024b98f357b1c3b38edd8384b
+Image revision: 7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d
+```
+
+`Progressing` or `Degraded` workload health is expected until operator-owned Secrets and
+external PostgreSQL, Kafka, RabbitMQ, Redis, Elasticsearch, Keycloak, and APM
+endpoints exist. Argo sync success proves desired-state delivery; it does not
+misrepresent absent stateful production dependencies as healthy.

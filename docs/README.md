@@ -17,6 +17,7 @@ the end of the project.
 - [Frontend architecture](architecture/frontend-architecture.md)
 - [Local deployment](architecture/local-deployment.md)
 - [Kubernetes deployment and security](deployment/kubernetes.md)
+- [CI/CD and software supply chain](architecture/ci-cd-supply-chain.md)
 - [Local troubleshooting](development/troubleshooting.md)
 - [Search and messaging recovery runbook](operations/search-and-messaging-recovery.md)
 - [Event-driven messaging](architecture/event-driven-messaging.md)
@@ -28,7 +29,10 @@ the end of the project.
 
 - [Technical walkthrough](project-technical-walkthrough.md)
 - [Demo scenario](demo/demo-scenario.md)
+- [Milestone 12 CI/CD demo](demo/milestone-12-ci-cd-demo.md)
 - [Screenshot catalogue](screenshots/README.md)
+- [Milestone 11 completion record](milestones/milestone-11-kubernetes-deployment-security.md)
+- [Milestone 12 completion record](milestones/milestone-12-ci-cd-software-supply-chain.md)
 
 ## Architecture decisions
 
@@ -45,6 +49,7 @@ the end of the project.
 - [ADR-011: Service-owned append-only audit journals](adr/011-service-owned-append-only-audit.md)
 - [ADR-012: Versioned search rebuild and controlled message recovery](adr/012-versioned-search-rebuild-and-controlled-message-recovery.md)
 - [ADR-013: Kustomize and secure stateless workloads](adr/013-kustomize-and-secure-stateless-workloads.md)
+- [ADR-014: Local CI/CD and software supply chain](adr/014-local-ci-cd-software-supply-chain.md)
 
 ## Milestone documentation definition of done
 

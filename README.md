@@ -738,9 +738,10 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
 - No circuit breaker is configured for synchronous dependencies.
 - A real email/SMS provider and contact-resolution boundary and centralized log
   shipping remain outside the selected portfolio scope.
-- Kubernetes manifests are rendered and container images are built; this
-  checkpoint did not claim a live-cluster rollout. Production still needs an
-  external secret controller/workload identity, trusted TLS, and cluster metrics.
+- Kubernetes manifests were rendered and Argo CD synchronized staging desired
+  state to a disposable Minikube cluster. Production still needs external
+  secret management, workload identity, trusted TLS, managed stateful services,
+  and cluster metrics.
 - The privacy threat model, minimized audit evidence, and retention classes are
   documented and enforced at current write/read boundaries. Lawful basis,
   consent, approved retention durations, automated disposal, encryption/key
@@ -764,14 +765,20 @@ Gateway ownership and defence-in-depth are recorded in ADR-010.
 - [x] Milestone 9 — Append-only audit trail, KVKK and data governance
 - [x] Milestone 10 — Elasticsearch and messaging recovery operations
 - [x] Milestone 11 — Kubernetes and deployment security
-- [ ] Milestone 12 — CI/CD and software supply chain
+- [x] Milestone 12 — CI/CD and software supply chain
 - [ ] Milestone 13 — Portfolio and interview finalization
 
-Milestone 11 is complete. Its deployment boundary and trade-offs are governed by
-[ADR-013](docs/adr/013-kustomize-and-secure-stateless-workloads.md) and the
-[Kubernetes deployment guide](docs/deployment/kubernetes.md). The next
-implementation milestone is Milestone 12; it has not started. At every
-later milestone, the
+Milestone 12 is complete. Jenkins executes the Java 21 and React quality stages,
+blocks publication on the SonarQube Quality Gate, publishes Maven snapshots to
+Nexus Community Edition, publishes immutable full-Git-SHA OCI tags to the
+private Harbor project, and hands the same image revision to the Argo CD
+staging Application. The local proof ended with Argo CD `Synced`, operation
+`Succeeded`, at Git revision `a56fff2a14405d3024b98f357b1c3b38edd8384b`.
+See [ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md), the
+[CI/CD architecture](docs/architecture/ci-cd-supply-chain.md), and the
+[repeatable demo](docs/demo/milestone-12-ci-cd-demo.md). Trivy is intentionally
+not a required gate: it is outside the vacancy scope and added disproportionate
+cost to this local educational environment. At every later milestone, the
 README, diagrams, ADRs, synthetic demo, scenario, screenshots, technical
 walkthrough, test evidence, limitations, and roadmap are part of the definition
 of done—not end-of-project cleanup.

@@ -15,7 +15,7 @@ production data platform.
 
 Use Kubernetes-native Kustomize with a production-oriented base and a local
 overlay. Kustomize is shipped with `kubectl`, avoids a second packaging runtime,
-and remains directly consumable by Argo CD in the next milestone.
+and is consumed directly by the Argo CD Application delivered in Milestone 12.
 
 The Kubernetes package owns only stateless platform workloads: five Spring
 applications, the React/Nginx portal and APISIX. PostgreSQL databases, Kafka,

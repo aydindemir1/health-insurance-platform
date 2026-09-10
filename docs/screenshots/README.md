@@ -1,10 +1,8 @@
 # Screenshot Catalogue
 
-Milestone 11 introduces deployment configuration rather than a new end-user
-screen. No synthetic UI screenshot was added: its repeatable evidence is the
-Kustomize validator output and inspectable Kubernetes resources documented in
-the [deployment guide](../deployment/kubernetes.md). A live-cluster dashboard
-image would be misleading because no live rollout is claimed at this checkpoint.
+Milestone 12 adds local supply-chain evidence. The Jenkins image records the
+pipeline stage result; the Harbor image records the private project/repository
+boundary. Credentials are injected only at capture time and are never rendered.
 
 This directory contains milestone checkpoint images captured from the running
 operations portal with synthetic demo identifiers. It must never contain access
@@ -35,6 +33,14 @@ Screenshots retained through the Milestone 10 documentation checkpoint:
   paginated minimized state-change evidence, actor context, and correlation ID.
 - `11-search-rebuild-recovery.png` — live stable alias target, current document
   count, and retained predecessor after a source-owned versioned rebuild.
+- `12-jenkins-supply-chain.png` — Jenkins Build #7 quality/Nexus/SBOM evidence;
+  its final red result is the documented local Harbor HTTP/HTTPS mismatch that
+  was resumed independently without repeating successful quality stages.
+- `13-harbor-artifacts.png` — Harbor private project and OCI repositories.
+- `14-argocd-gitops-sync.png` — Argo CD staging Application and GitOps state.
+- `15-nexus-maven-artifacts.png` — Nexus Maven snapshot repository evidence.
+- `16-docker-cicd-runtime.png` — live local CI/CD container inventory.
+- `17-kubernetes-argocd-runtime.png` — live Kubernetes and Argo CD resource state.
 
 ## Preview
 
@@ -59,6 +65,18 @@ Screenshots retained through the Milestone 10 documentation checkpoint:
 ![Service-owned audit trail](10-audit-trail.png)
 
 ![Versioned search rebuild and retained predecessor](11-search-rebuild-recovery.png)
+
+![Jenkins supply chain](12-jenkins-supply-chain.png)
+
+![Harbor artifacts](13-harbor-artifacts.png)
+
+![Argo CD GitOps sync](14-argocd-gitops-sync.png)
+
+![Nexus Maven artifacts](15-nexus-maven-artifacts.png)
+
+![Docker CI/CD runtime](16-docker-cicd-runtime.png)
+
+![Kubernetes and Argo CD runtime](17-kubernetes-argocd-runtime.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a

@@ -1,4 +1,4 @@
-# Demonstration Scenario — Milestones 0–11
+# Demonstration Scenario — Milestones 0–12
 
 This scenario uses only synthetic identifiers and clinical codes. It proves the
 implemented happy path and leaves records in several states for UI and API
@@ -43,6 +43,14 @@ root filesystems are read-only, probes and resource bounds exist, and no Secret
 values are committed. Use `deploy/kubernetes/scripts/apply-local.ps1` only when
 a disposable local cluster is active; a rendered manifest is not evidence of a
 successful live rollout.
+
+Milestone 12 demonstrates delivery separately from the business-data flow.
+Jenkins runs Java/React verification and the blocking SonarQube Quality Gate,
+publishes Maven snapshots to Nexus, archives CycloneDX SBOMs, and publishes six
+full-Git-SHA OCI tags to Harbor. Kustomize records the immutable revision in
+Git; Argo CD then synchronizes it to the disposable cluster. Use the
+[focused CI/CD demo](milestone-12-ci-cd-demo.md). A registry retry must not
+repeat quality stages that already passed for the same commit.
 
 ## Preconditions
 

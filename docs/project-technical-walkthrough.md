@@ -471,9 +471,11 @@ The local apply script materializes Kubernetes Secrets in memory from the
 ignored `.env`; the repository contains names and examples, never values. The
 base/local render validator checks workload count, security contexts,
 availability controls, network isolation and credential policy. Container
-images were built locally. No active cluster was available at this checkpoint,
-so a live rollout is not claimed. Jenkins, SonarQube, Nexus, Harbor and Argo CD
-belong to the next milestone.
+images were built locally. Milestone 12 subsequently exercised this package in
+a disposable Minikube cluster: all seven Argo CD control-plane pods became Ready
+and the staging Application completed a server-side sync. Application health
+remained `Progressing` because production-owned dependencies and Secrets are
+deliberately external, not because manifest delivery failed.
 
 ## 11. .NET-to-Java mapping
 
@@ -607,3 +609,14 @@ manual acknowledgement, real-broker integration proof, and a Compose-backed
 end-to-end demo are complete. The local sender intentionally logs safe metadata;
 contact resolution and an external email/SMS provider require a later security
 and vendor-boundary decision.
+## Milestone 12 — CI/CD and software supply chain
+
+The delivery workflow now separates verification, artifact publication, and
+GitOps deployment. Jenkins maps to an Azure DevOps/TFS build pipeline; Nexus to
+a private NuGet feed; Harbor to a private container registry; SonarQube to a
+blocking code-quality policy; and Argo CD to a pull-based deployment controller.
+The central trace key is the full Git SHA used by Harbor and Kustomize.
+
+The important trade-off is scope honesty. The local environment proves the
+toolchain and control flow, but does not claim production HA, enterprise secret
+management, signed provenance, or a fully provisioned dependency platform.
