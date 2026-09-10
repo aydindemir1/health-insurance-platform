@@ -55,9 +55,18 @@ pipeline {
                     steps { dir('services/notification-worker') { sh './mvnw --batch-mode --no-transfer-progress verify' } }
                     post { always { junit allowEmptyResults: false, testResults: 'services/notification-worker/target/surefire-reports/*.xml' } }
                 }
-                stage('Search') {
-                    steps { dir('services/search-service') { sh './mvnw --batch-mode --no-transfer-progress verify' } }
-                    post { always { junit allowEmptyResults: false, testResults: 'services/search-service/target/surefire-reports/*.xml' } }
+            }
+        }
+
+        stage('Search quality') {
+            steps {
+                dir('services/search-service') {
+                    sh './mvnw --batch-mode --no-transfer-progress verify'
+                }
+            }
+            post {
+                always {
+                    junit allowEmptyResults: false, testResults: 'services/search-service/target/surefire-reports/*.xml'
                 }
             }
         }

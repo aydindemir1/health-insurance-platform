@@ -1,5 +1,12 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$PublishArtifacts,
+    [string]$NexusUrl = 'http://nexus:8081',
+    [string]$HarborRegistry = 'host.docker.internal:8088',
+    [string]$HarborApiUrl = 'http://host.docker.internal:8088',
+    [ValidateSet('High', 'Medium', 'Low')]
+    [string]$HarborMaxAllowedSeverity = 'High'
+)
 
 $ErrorActionPreference = 'Stop'
 $directory = $PSScriptRoot
@@ -34,7 +41,18 @@ if (-not $configured.IsSuccessStatusCode) {
     throw "Jenkins job configuration failed: $([int]$configured.StatusCode)"
 }
 
-$triggered = $client.PostAsync("$jenkinsUrl/job/$jobName/build", $null).Result
+$parameters = [ordered]@{
+    PUBLISH_ARTIFACTS = $PublishArtifacts.IsPresent.ToString().ToLowerInvariant()
+    NEXUS_URL = $NexusUrl
+    HARBOR_REGISTRY = $HarborRegistry
+    HARBOR_API_URL = $HarborApiUrl
+    HARBOR_PROJECT = 'health-insurance'
+    HARBOR_MAX_ALLOWED_SEVERITY = $HarborMaxAllowedSeverity
+}
+$query = ($parameters.GetEnumerator() | ForEach-Object {
+    "{0}={1}" -f [Uri]::EscapeDataString($_.Key), [Uri]::EscapeDataString($_.Value)
+}) -join '&'
+$triggered = $client.PostAsync("$jenkinsUrl/job/$jobName/buildWithParameters?$query", $null).Result
 if (-not $triggered.IsSuccessStatusCode) {
     throw "Jenkins build trigger failed: $([int]$triggered.StatusCode)"
 }
