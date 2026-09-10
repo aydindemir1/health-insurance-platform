@@ -286,6 +286,73 @@ domain concern.
   [recovery runbook](docs/operations/search-and-messaging-recovery.md) records
   these limits and the safe failure procedure.
 
+### Milestone 11 — Kubernetes and deployment security
+
+- A Kustomize base packages the seven stateless workloads owned by this
+  repository: five Spring applications, the React/Nginx portal, and APISIX.
+- PostgreSQL, Kafka, RabbitMQ, Redis, Elasticsearch, Keycloak, and APM remain
+  explicit operator-owned service contracts. The repository does not imply
+  production-grade stateful operation with simplistic local StatefulSets.
+- The `health-insurance` namespace enforces the Restricted Pod Security
+  Standard. Containers use fixed non-root identities, read-only root
+  filesystems, RuntimeDefault seccomp, dropped Linux capabilities, disabled
+  privilege escalation, and bounded writable temporary volumes.
+- Every workload has a dedicated ServiceAccount with token automount disabled
+  and no unnecessary RBAC permissions. Default-deny NetworkPolicies open only
+  documented caller and dependency paths.
+- Startup, readiness, and liveness probes, resource requests/limits, graceful
+  shutdown, rolling updates, topology spread, PDBs, and conservative HPAs make
+  availability behavior explicit. Notification Worker deliberately has no
+  CPU-only HPA because queue-depth scaling requires an external metric.
+- Secrets are referenced by name and never rendered by Kustomize. The guarded
+  local helper reads ignored environment values and sends them directly to the
+  Kubernetes API without writing Secret YAML to disk.
+- Both the production-oriented base and one-replica local overlay render and
+  pass repository policy validation. Milestone 12 additionally applied the
+  package through Argo CD to a disposable Minikube cluster.
+
+See the [Milestone 11 completion record](docs/milestones/milestone-11-kubernetes-deployment-security.md),
+[ADR-013](docs/adr/013-kustomize-and-secure-stateless-workloads.md), and the
+[Kubernetes deployment guide](docs/deployment/kubernetes.md).
+
+### Milestone 12 — CI/CD and software supply chain
+
+- Jenkins is the primary vacancy-aligned orchestrator. It checks out GitHub
+  `main`, uses Java 21/Maven Wrapper and Node, and runs backend and frontend
+  quality stages before any publication.
+- SonarQube analysis is followed by a blocking Quality Gate. Publication cannot
+  proceed when the gate fails.
+- Maven snapshot artifacts are published to Nexus Community Edition through a
+  least-privilege Jenkins publisher. Nexus EULA acceptance is an explicit
+  administrator action rather than an automatic script default.
+- CycloneDX JSON SBOMs are generated and archived for five Java services and
+  the operations portal.
+- Six OCI images are published to the private Harbor project using immutable
+  full Git SHA tags. `latest` is forbidden in the publication contract, and a
+  least-privilege Harbor robot account performs push/pull operations.
+- Kustomize records the same immutable image revision in Git. Argo CD uses a
+  restricted AppProject and pull-based Application to synchronize staging
+  desired state to Kubernetes.
+- The verified checkpoint contained seven Ready Argo CD control-plane pods and
+  a `health-insurance-staging` Application with `Synced` state and a `Succeeded`
+  operation at Git revision `a56fff2a14405d3024b98f357b1c3b38edd8384b`.
+- Registry failures are resumable publication failures: successful tests and
+  Quality Gates are not repeated merely to retry Nexus or Harbor. Trivy remains
+  optional because it is outside the vacancy scope and disproportionate for
+  this laptop-based educational environment.
+
+Build #7 provides successful Java/React, SonarQube, Quality Gate, Nexus, and
+SBOM evidence. Its final Harbor stage exposed an HTTP/HTTPS local-registry
+mismatch; the existing images were reused and published independently after the
+endpoint correction. The committed Jenkins configuration contains that fix. A
+single all-green rerun was intentionally not performed solely to recreate
+already-successful stages.
+
+See the [Milestone 12 completion record](docs/milestones/milestone-12-ci-cd-software-supply-chain.md),
+[ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md), the
+[CI/CD architecture](docs/architecture/ci-cd-supply-chain.md), and the
+[CI/CD demo](docs/demo/milestone-12-ci-cd-demo.md).
+
 ## Architecture overview
 
 ```mermaid
@@ -321,6 +388,31 @@ flowchart LR
     Claims --> ClaimsAudit[(Local audit journal)]
     Notifications --> NotificationDB[(Notification DB)]
 ```
+
+Deployment and software-supply-chain view:
+
+```mermaid
+flowchart LR
+    Developer[Developer] -->|commit and push| GitHub[GitHub main]
+    GitHub --> Actions[GitHub Actions PR CI]
+    GitHub --> Jenkins[Jenkins delivery pipeline]
+    Jenkins --> Verify[Java 21 and React verification]
+    Verify --> Sonar[SonarQube Quality Gate]
+    Sonar -->|pass| Nexus[Nexus Maven repositories]
+    Sonar -->|pass| SBOM[CycloneDX SBOM archive]
+    Sonar -->|pass| Harbor[Private Harbor OCI registry]
+    Harbor -->|full Git SHA| Kustomize[Kustomize staging revision]
+    Kustomize --> GitHub
+    GitHub --> Argo[Argo CD AppProject and Application]
+    Argo --> Kubernetes[Kubernetes / Minikube]
+    Kubernetes --> Workloads[Seven stateless workloads]
+    Workloads -. external contracts .-> Dependencies[(Databases, brokers, IAM, search, APM)]
+```
+
+GitHub Actions remains the repository-hosted pull-request verification example.
+Jenkins demonstrates the vacancy-aligned local delivery and publication chain.
+Neither system stores committed credentials; publication identities are
+bootstrapped into runtime-only credential stores.
 
 Each backend service applies the same dependency rule:
 
@@ -406,15 +498,22 @@ because Keycloak 26 ignores undeclared custom attributes by default.
 - React 19, TypeScript 6, Vite 8, React Router 8.
 - TanStack Query, React Hook Form, Zod, Keycloak JS.
 - Vitest, Testing Library, oxlint.
-- Keycloak 26.4, Docker, Docker Compose, Kubernetes, and Kustomize.
-- GitHub Actions.
+- Keycloak 26.4, Docker, Docker Compose, Kubernetes, Minikube, and Kustomize.
+- Git, GitHub, GitHub Actions, Jenkins 2.568.3, and SonarQube Community.
+- Nexus Repository Community Edition 3.84.1 and Harbor 2.15.2.
+- Argo CD 3.5.2 with restricted AppProject/Application GitOps resources.
 - Apache APISIX 3.18 with OIDC, request ID, CORS, limit, validation and response policies.
 - Redis 8.2, Elasticsearch/Kibana/APM Server 9.5.3, Elastic APM Java Agent 1.56.
 
-### Planned, not implemented
+### Deliberately not introduced
 
-Argo CD, Jenkins, SonarQube, Nexus, and Harbor.
-Each will be introduced only with a documented need and trade-off.
+- Helm: Kustomize already solves the current environment-overlay requirement.
+- Terraform and Ansible: no cloud infrastructure or machine fleet is owned by
+  this repository.
+- TFS/Azure DevOps Server: the implemented Git/Jenkins stages are documented as
+  transferable equivalents instead of installing another tool only by name.
+- Trivy as a mandatory release gate: optional scanning is not part of the
+  vacancy requirement or accepted local portfolio scope.
 
 ## Repository layout
 
@@ -429,8 +528,10 @@ services/
   notification-worker/        RabbitMQ notification delivery worker
 infra/
   apisix/                     Declarative gateway and security policies
+  cicd/                       Jenkins, SonarQube, Nexus, and Harbor local tooling
   keycloak/                   Importable realm/client/role configuration
 deploy/kubernetes/            Kustomize base, local overlay, and safe apply tooling
+deploy/gitops/                Argo CD project, application, and staging revision
 demo/                         Synthetic data catalogue and API seed script
 docs/
   adr/                        Architecture decision records
@@ -439,6 +540,7 @@ docs/
   screenshots/                Milestone UI evidence using synthetic data
   project-technical-walkthrough.md
 .github/workflows/            Backend and frontend CI
+Jenkinsfile                   Quality, publication, SBOM, and registry pipeline
 compose.yaml                  Local runtime topology
 ```
 
@@ -467,6 +569,68 @@ ServiceAccounts and default-deny NetworkPolicies. Stateful infrastructure is an
 external contract. When a disposable local cluster is already active, follow
 the [Kubernetes deployment guide](docs/deployment/kubernetes.md); rendering alone
 must not be reported as a successful rollout.
+
+### Local CI/CD and GitOps
+
+Milestone 12 separates quality, artifact publication, image publication, and
+deployment. The local stacks are resource-limited and use named volumes, so
+restarting them does not require recreating every image or repository.
+
+First-time quality and artifact setup:
+
+```powershell
+.\infra\cicd\start-quality-stack.ps1
+.\infra\cicd\bootstrap-quality-stack.ps1
+
+.\infra\cicd\start-artifact-stack.ps1
+# Legal opt-in: run only after reviewing and accepting the Nexus CE EULA.
+.\infra\cicd\accept-nexus-eula.ps1 -AcceptEula
+.\infra\cicd\bootstrap-artifact-stack.ps1
+
+.\infra\cicd\harbor\start-local-harbor.ps1
+.\infra\cicd\harbor\bootstrap-local-harbor.ps1
+```
+
+Run the Jenkins quality pipeline without publication by default, or explicitly
+enable Nexus and Harbor publication:
+
+```powershell
+.\infra\cicd\run-local-pipeline.ps1
+.\infra\cicd\run-local-pipeline.ps1 -PublishArtifacts
+```
+
+| CI/CD component | Local endpoint | Responsibility |
+| --- | --- | --- |
+| Jenkins | `http://localhost:8086` | Pipeline orchestration |
+| SonarQube | `http://localhost:9000` | Analysis and blocking Quality Gate |
+| Nexus | `http://localhost:8087` | Maven snapshot/release repositories |
+| Harbor | `http://localhost:8088` | Private OCI registry |
+| Minikube | context `portfolio-ci` | Disposable Kubernetes proof |
+| Argo CD | namespace `argocd` | Pull-based GitOps reconciliation |
+
+The ignored `infra/cicd/.env` holds local bootstrap values. Jenkins receives
+least-privilege Nexus and Harbor credentials through its credential store;
+secrets must never be copied into the Jenkinsfile, Kustomize, screenshots, or
+Git history.
+
+For the disposable GitOps proof:
+
+```powershell
+minikube start -p portfolio-ci --driver=docker --cpus=2 --memory=4096 `
+  --kubernetes-version=v1.35.1 `
+  --insecure-registry=host.minikube.internal:8088
+
+.\deploy\gitops\install-local-argocd.ps1 -Context portfolio-ci
+kubectl --context portfolio-ci get pods -n argocd
+kubectl --context portfolio-ci get application health-insurance-staging -n argocd
+```
+
+The Argo CD Application intentionally has no unconditional automated sync.
+Review the rendered revision and use the manual promotion procedure in the
+[CI/CD demo](docs/demo/milestone-12-ci-cd-demo.md). `Synced` proves that desired
+state was applied. `Progressing` or `Degraded` workload health is expected when
+operator-owned databases, brokers, IAM, observability endpoints, or Secrets are
+not provisioned in the disposable cluster.
 
 ### Full backend stack
 
@@ -617,6 +781,33 @@ stale and legacy revisions plus activation/rollback. The portal passed oxlint,
 9 Vitest tests in 8 files, and its production TypeScript/Vite build. These dated
 counts are evidence, never a substitute for rerunning the commands.
 
+Milestone 11 changes deployment packaging rather than domain behavior. Its
+focused checks render the production base and local overlay, assert seven
+workloads, enforce security contexts, probes, resources, ServiceAccounts,
+NetworkPolicies, PDBs, HPAs, and verify that credentials are references rather
+than committed values:
+
+```powershell
+.\scripts\validate-kubernetes.ps1
+kubectl kustomize deploy/kubernetes/base
+kubectl kustomize deploy/kubernetes/overlays/local
+```
+
+Milestone 12 adds supply-chain contract checks without replacing real pipeline
+execution:
+
+```powershell
+.\scripts\validate-ci-pipeline.ps1
+.\scripts\validate-supply-chain.ps1
+```
+
+The real local checkpoint proved Jenkins Java/React quality stages, SonarQube
+Quality Gate, Nexus publication, CycloneDX archives, six Harbor repositories,
+seven Ready Argo CD pods, and a successful GitOps sync. Build #7's overall red
+status is retained as honest evidence of the Harbor HTTP/HTTPS mismatch; Harbor
+publication was resumed independently after correcting the endpoint. No claim
+is made that an unexecuted all-green rerun occurred.
+
 Validate the living portfolio documentation separately. This command checks
 local Markdown links, JSON and PowerShell syntax, the expected screenshot set,
 and renders every Mermaid block:
@@ -686,6 +877,18 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 
 ![Live versioned search rebuild](docs/screenshots/11-search-rebuild-recovery.png)
 
+![Jenkins supply-chain evidence](docs/screenshots/12-jenkins-supply-chain.png)
+
+![Harbor private project](docs/screenshots/13-harbor-artifacts.png)
+
+![Argo CD GitOps synchronization](docs/screenshots/14-argocd-gitops-sync.png)
+
+![Nexus Maven artifacts](docs/screenshots/15-nexus-maven-artifacts.png)
+
+![Docker CI/CD runtime](docs/screenshots/16-docker-cicd-runtime.png)
+
+![Kubernetes and Argo CD runtime](docs/screenshots/17-kubernetes-argocd-runtime.png)
+
 - [Engineering documentation index](docs/README.md)
 - [Technical walkthrough and interview guide](docs/project-technical-walkthrough.md)
 - [C4 context](docs/architecture/c4-context.md) and
@@ -696,9 +899,14 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 - [Event-driven messaging](docs/architecture/event-driven-messaging.md)
 - [Frontend architecture](docs/architecture/frontend-architecture.md)
 - [Local deployment](docs/architecture/local-deployment.md)
+- [Kubernetes deployment and security](docs/deployment/kubernetes.md)
+- [CI/CD and software supply chain](docs/architecture/ci-cd-supply-chain.md)
 - [Local troubleshooting](docs/development/troubleshooting.md)
 - [Search and messaging recovery runbook](docs/operations/search-and-messaging-recovery.md)
 - [Demo scenario](docs/demo/demo-scenario.md)
+- [Milestone 12 CI/CD demo](docs/demo/milestone-12-ci-cd-demo.md)
+- [Milestone 11 completion record](docs/milestones/milestone-11-kubernetes-deployment-security.md)
+- [Milestone 12 completion record](docs/milestones/milestone-12-ci-cd-software-supply-chain.md)
 - [Screenshot catalogue](docs/screenshots/README.md)
 - [ADRs](docs/adr/)
 
@@ -722,6 +930,16 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
   queue while Kafka remains the durable business-event stream. Publisher
   confirms and mandatory returns protect the producer boundary; consumer
   idempotency handles inevitable redelivery.
+- **Kustomize rather than Helm:** plain Kubernetes resources and overlays cover
+  the current environment variation and remain directly consumable by Argo CD.
+- **External stateful services:** Kubernetes owns stateless application
+  scheduling, not pretend single-node production databases or brokers.
+- **Fail-closed publication:** Jenkins waits for the SonarQube Quality Gate
+  before Nexus or Harbor receives artifacts.
+- **Immutable GitOps promotion:** Harbor and Kustomize share a full Git SHA;
+  Argo CD pulls reviewed desired state instead of accepting an imperative push.
+- **Resumable publication:** a Nexus, Harbor, or Argo failure is retried at that
+  boundary and does not invalidate successful tests for the unchanged commit.
 
 See ADR-001 through ADR-009 in [docs/adr](docs/adr/) for full context,
 alternatives, consequences, and rejected options.
