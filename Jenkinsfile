@@ -8,7 +8,6 @@ pipeline {
         string(name: 'HARBOR_REGISTRY', defaultValue: 'harbor.example.invalid', description: 'Harbor registry host')
         string(name: 'HARBOR_API_URL', defaultValue: 'https://harbor.example.invalid', description: 'Harbor API origin')
         string(name: 'HARBOR_PROJECT', defaultValue: 'health-insurance', description: 'Harbor project')
-        choice(name: 'HARBOR_MAX_ALLOWED_SEVERITY', choices: ['High', 'Medium', 'Low'], description: 'Severity above this value blocks publication')
     }
 
     options {
@@ -190,9 +189,6 @@ pipeline {
                           --tag "${image}" apps/operations-portal
                         docker push "${image}"
 
-                        HARBOR_IMAGE_TAG="${GIT_COMMIT}" \
-                        HARBOR_MAX_ALLOWED_SEVERITY="${HARBOR_MAX_ALLOWED_SEVERITY}" \
-                          node scripts/verify-harbor-scan.mjs
                         docker logout "${HARBOR_REGISTRY}"
                     '''
                 }

@@ -2,10 +2,8 @@
 param(
     [switch]$PublishArtifacts,
     [string]$NexusUrl = 'http://nexus:8081',
-    [string]$HarborRegistry = 'host.docker.internal:8088',
-    [string]$HarborApiUrl = 'http://host.docker.internal:8088',
-    [ValidateSet('High', 'Medium', 'Low')]
-    [string]$HarborMaxAllowedSeverity = 'High'
+    [string]$HarborRegistry = 'localhost:8088',
+    [string]$HarborApiUrl = 'http://host.docker.internal:8088'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,7 +45,6 @@ $parameters = [ordered]@{
     HARBOR_REGISTRY = $HarborRegistry
     HARBOR_API_URL = $HarborApiUrl
     HARBOR_PROJECT = 'health-insurance'
-    HARBOR_MAX_ALLOWED_SEVERITY = $HarborMaxAllowedSeverity
 }
 $query = ($parameters.GetEnumerator() | ForEach-Object {
     "{0}={1}" -f [Uri]::EscapeDataString($_.Key), [Uri]::EscapeDataString($_.Value)

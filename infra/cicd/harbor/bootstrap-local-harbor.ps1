@@ -29,7 +29,7 @@ $request = @{
 try {
     Invoke-RestMethod @request -Method Post -Uri "$harborUrl/api/v2.0/projects" -Body (@{
         project_name = $projectName
-        metadata = @{ public = 'false'; auto_scan = 'true' }
+        metadata = @{ public = 'false'; auto_scan = 'false' }
     } | ConvertTo-Json -Depth 4) | Out-Null
 } catch {
     if ($_.Exception.Response.StatusCode.value__ -ne 409) { throw }

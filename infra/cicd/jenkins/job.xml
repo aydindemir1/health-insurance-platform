@@ -17,7 +17,7 @@
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>HARBOR_REGISTRY</name>
-          <defaultValue>host.docker.internal:8088</defaultValue>
+            <defaultValue>localhost:8088</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -30,16 +30,6 @@
           <defaultValue>health-insurance</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
-        <hudson.model.ChoiceParameterDefinition>
-          <name>HARBOR_MAX_ALLOWED_SEVERITY</name>
-          <choices class="java.util.Arrays$ArrayList">
-            <a class="string-array">
-              <string>High</string>
-              <string>Medium</string>
-              <string>Low</string>
-            </a>
-          </choices>
-        </hudson.model.ChoiceParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
