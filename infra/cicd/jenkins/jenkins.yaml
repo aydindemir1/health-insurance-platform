@@ -20,6 +20,27 @@ unclassified:
     installations:
       - name: "health-sonarqube"
         serverUrl: "http://sonarqube:9000"
+        credentialsId: "sonar-token"
         triggers:
           skipScmCause: false
           skipUpstreamCause: false
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - string:
+              scope: GLOBAL
+              id: "sonar-token"
+              secret: "${SONAR_TOKEN}"
+              description: "Local SonarQube analysis token"
+
+tool:
+  sonarRunnerInstallation:
+    installations:
+      - name: "sonar-scanner"
+        properties:
+          - installSource:
+              installers:
+                - sonarRunnerInstaller:
+                    id: "8.1.0.6389"

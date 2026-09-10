@@ -32,3 +32,14 @@ The script creates an ignored `.env` with random local-only credentials on its
 first run. Use `stop-quality-stack.ps1` to preserve volumes while releasing CPU
 and memory. The three-service profile is capped at 4.25 CPUs and approximately
 4.5 GiB RAM; it is not a production topology.
+
+After the first healthy startup, run `bootstrap-quality-stack.ps1`. It rotates
+the default SonarQube administrator password, creates a local analysis token,
+stores it only in the ignored `.env`, provisions the Jenkins string credential
+through JCasC and creates the Jenkins webhook. The scanner version is an
+explicit Jenkins tool installation (`8.1.0.6389`), not an unversioned download
+in pipeline code.
+
+Run `run-local-pipeline.ps1` to create or update the local pipeline job from the
+committed SCM definition and queue one build. Publication remains false by
+default; this command cannot push to Nexus or Harbor.

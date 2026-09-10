@@ -27,6 +27,14 @@ pipeline {
             }
         }
 
+        stage('Prime Maven runtime') {
+            steps {
+                dir('services/authorization-service') {
+                    sh './mvnw --batch-mode --no-transfer-progress --version'
+                }
+            }
+        }
+
         stage('Backend quality') {
             parallel {
                 stage('Authorization') {

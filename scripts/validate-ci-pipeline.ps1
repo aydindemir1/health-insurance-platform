@@ -10,6 +10,7 @@ $requiredPipelineTokens = @(
     "agent { label 'java21-node24-docker' }",
     "withSonarQubeEnv('health-sonarqube')",
     'waitForQualityGate abortPipeline: true',
+    "stage('Prime Maven runtime')",
     'npm ci',
     'npm run lint',
     'npm test',
