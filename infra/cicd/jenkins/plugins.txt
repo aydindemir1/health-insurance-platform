@@ -4,5 +4,6 @@ git
 junit
 pipeline-stage-view
 sonar
+timestamper
 workflow-aggregator
 ws-cleanup

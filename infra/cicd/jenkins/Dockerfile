@@ -4,6 +4,9 @@ FROM jenkins/jenkins:lts-jdk21
 
 USER root
 COPY --from=node /usr/local/ /usr/local/
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends docker-cli \
+    && rm -rf /var/lib/apt/lists/*
 
 USER jenkins
 COPY --chown=jenkins:jenkins plugins.txt /usr/share/jenkins/ref/plugins.txt

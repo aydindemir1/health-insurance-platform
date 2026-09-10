@@ -1,5 +1,13 @@
 pipeline {
-    agent { label 'java21-node24' }
+    agent { label 'java21-node24-docker' }
+
+    parameters {
+        booleanParam(name: 'PUBLISH_ARTIFACTS', defaultValue: false,
+            description: 'Publish Maven artifacts and OCI images after every quality gate passes')
+        string(name: 'NEXUS_URL', defaultValue: 'http://nexus:8081', description: 'Nexus base URL')
+        string(name: 'HARBOR_REGISTRY', defaultValue: 'harbor.example.invalid', description: 'Harbor registry host')
+        string(name: 'HARBOR_PROJECT', defaultValue: 'health-insurance', description: 'Harbor project')
+    }
 
     options {
         timestamps()
@@ -70,6 +78,76 @@ pipeline {
             options { timeout(time: 10, unit: 'MINUTES') }
             steps {
                 waitForQualityGate abortPipeline: true
+            }
+        }
+
+        stage('Publish Maven artifacts to Nexus') {
+            when {
+                allOf {
+                    branch 'main'
+                    expression { params.PUBLISH_ARTIFACTS }
+                }
+            }
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'nexus-publisher',
+                    usernameVariable: 'NEXUS_USERNAME',
+                    passwordVariable: 'NEXUS_PASSWORD'
+                )]) {
+                    sh '''
+                        set +x
+                        for service in authorization-service policy-service claims-billing-service notification-worker search-service; do
+                          jar=$(find "services/${service}/target" -maxdepth 1 -type f -name '*.jar' ! -name '*.original' | head -n 1)
+                          test -n "${jar}"
+                          version=$("services/${service}/mvnw" --quiet --non-recursive help:evaluate -Dexpression=project.version -DforceStdout)
+                          repository=releases
+                          case "${version}" in *-SNAPSHOT) repository=snapshots ;; esac
+                          "services/${service}/mvnw" --batch-mode --no-transfer-progress \
+                            --settings .jenkins/maven-settings.xml \
+                            deploy:deploy-file \
+                            -DrepositoryId="nexus-${repository}" \
+                            -Durl="${NEXUS_URL}/repository/maven-${repository}/" \
+                            -Dfile="${jar}" \
+                            -DpomFile="services/${service}/pom.xml" \
+                            -DgeneratePom=false
+                        done
+                    '''
+                }
+            }
+        }
+
+        stage('Publish OCI images to Harbor') {
+            when {
+                allOf {
+                    branch 'main'
+                    expression { params.PUBLISH_ARTIFACTS }
+                }
+            }
+            steps {
+                withCredentials([usernamePassword(
+                    credentialsId: 'harbor-publisher',
+                    usernameVariable: 'HARBOR_USERNAME',
+                    passwordVariable: 'HARBOR_PASSWORD'
+                )]) {
+                    sh '''
+                        set +x
+                        echo "${HARBOR_PASSWORD}" | docker login "${HARBOR_REGISTRY}" \
+                          --username "${HARBOR_USERNAME}" --password-stdin
+
+                        for service in authorization-service policy-service claims-billing-service notification-worker search-service; do
+                          image="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${service}:${GIT_COMMIT}"
+                          docker build --file "services/${service}/Dockerfile" \
+                            --tag "${image}" "services/${service}"
+                          docker push "${image}"
+                        done
+
+                        image="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/operations-portal:${GIT_COMMIT}"
+                        docker build --file apps/operations-portal/Dockerfile \
+                          --tag "${image}" apps/operations-portal
+                        docker push "${image}"
+                        docker logout "${HARBOR_REGISTRY}"
+                    '''
+                }
             }
         }
     }

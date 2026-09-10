@@ -16,9 +16,14 @@ if (-not (Test-Path $environmentFile)) {
         "JENKINS_ADMIN_PASSWORD=$jenkinsPassword"
         'SONAR_DB_USERNAME=sonar'
         "SONAR_DB_PASSWORD=$databasePassword"
+        'DOCKER_SOCKET_GID=0'
     )
     [System.IO.File]::WriteAllLines($environmentFile, $content)
     Write-Host 'Created ignored infra/cicd/.env with random local-only credentials.'
+}
+
+if (-not (Select-String -Path $environmentFile -Pattern '^DOCKER_SOCKET_GID=' -Quiet)) {
+    [System.IO.File]::AppendAllText($environmentFile, "DOCKER_SOCKET_GID=0$([Environment]::NewLine)")
 }
 
 docker compose --env-file $environmentFile -f $composeFile up --detach --build

@@ -2,7 +2,7 @@ jenkins:
   systemMessage: "Local Health Insurance Platform CI — disposable, not production"
   numExecutors: 2
   mode: NORMAL
-  labelString: "java21-node24"
+  labelString: "java21-node24-docker"
   securityRealm:
     local:
       allowsSignup: false
@@ -12,10 +12,6 @@ jenkins:
   authorizationStrategy:
     loggedInUsersCanDoAnything:
       allowAnonymousRead: false
-  crumbIssuer:
-    standard:
-      excludeClientIPFromCrumb: true
-
 unclassified:
   location:
     url: "http://localhost:8086/"

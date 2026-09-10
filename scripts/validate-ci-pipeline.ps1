@@ -7,13 +7,17 @@ $jenkinsfile = Get-Content (Join-Path $root 'Jenkinsfile') -Raw
 $sonar = Get-Content (Join-Path $root 'sonar-project.properties') -Raw
 
 $requiredPipelineTokens = @(
-    "agent { label 'java21-node24' }",
+    "agent { label 'java21-node24-docker' }",
     "withSonarQubeEnv('health-sonarqube')",
     'waitForQualityGate abortPipeline: true',
     'npm ci',
     'npm run lint',
     'npm test',
-    'npm run build'
+    'npm run build',
+    "credentialsId: 'nexus-publisher'",
+    "credentialsId: 'harbor-publisher'",
+    'params.PUBLISH_ARTIFACTS',
+    '${GIT_COMMIT}'
 )
 
 $services = @(
@@ -45,6 +49,12 @@ if ($jenkinsfile -match '(?i)(password|token|secret)\s*=\s*["''][^"'']+["'']') {
 
 if ($sonar -match '(?im)^sonar\.(login|token|password)\s*=') {
     throw 'SonarQube credentials must not be stored in sonar-project.properties.'
+}
+
+$mavenSettings = Get-Content (Join-Path $root '.jenkins/maven-settings.xml') -Raw
+if (-not $mavenSettings.Contains('${env.NEXUS_USERNAME}') -or
+    -not $mavenSettings.Contains('${env.NEXUS_PASSWORD}')) {
+    throw 'Maven settings must resolve Nexus credentials from the Jenkins environment.'
 }
 
 Write-Host 'Jenkins stages: OK (backend, frontend, SonarQube, blocking Quality Gate)'
