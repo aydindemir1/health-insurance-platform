@@ -103,8 +103,10 @@ pipeline {
         stage('Publish Maven artifacts to Nexus') {
             when {
                 allOf {
-                    branch 'main'
                     expression { params.PUBLISH_ARTIFACTS }
+                    expression {
+                        env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main'
+                    }
                 }
             }
             steps {
@@ -156,8 +158,10 @@ pipeline {
         stage('Publish OCI images to Harbor') {
             when {
                 allOf {
-                    branch 'main'
                     expression { params.PUBLISH_ARTIFACTS }
+                    expression {
+                        env.BRANCH_NAME == 'main' || env.GIT_BRANCH == 'origin/main' || env.GIT_BRANCH == 'main'
+                    }
                 }
             }
             steps {
