@@ -1,5 +1,5 @@
 pipeline {
-    agent { label 'java21-node24-docker' }
+    agent { label 'java21-node24' }
 
     options {
         timestamps()

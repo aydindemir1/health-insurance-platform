@@ -1,0 +1,29 @@
+jenkins:
+  systemMessage: "Local Health Insurance Platform CI — disposable, not production"
+  numExecutors: 2
+  mode: NORMAL
+  labelString: "java21-node24"
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "${JENKINS_ADMIN_USERNAME}"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: true
+
+unclassified:
+  location:
+    url: "http://localhost:8086/"
+  sonarGlobalConfiguration:
+    buildWrapperEnabled: true
+    installations:
+      - name: "health-sonarqube"
+        serverUrl: "http://sonarqube:9000"
+        triggers:
+          skipScmCause: false
+          skipUpstreamCause: false

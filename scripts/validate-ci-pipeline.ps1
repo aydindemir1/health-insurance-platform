@@ -7,7 +7,7 @@ $jenkinsfile = Get-Content (Join-Path $root 'Jenkinsfile') -Raw
 $sonar = Get-Content (Join-Path $root 'sonar-project.properties') -Raw
 
 $requiredPipelineTokens = @(
-    "agent { label 'java21-node24-docker' }",
+    "agent { label 'java21-node24' }",
     "withSonarQubeEnv('health-sonarqube')",
     'waitForQualityGate abortPipeline: true',
     'npm ci',

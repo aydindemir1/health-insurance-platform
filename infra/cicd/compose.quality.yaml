@@ -1,0 +1,84 @@
+name: health-insurance-quality
+
+services:
+  jenkins:
+    build:
+      context: ./jenkins
+    restart: unless-stopped
+    environment:
+      JENKINS_ADMIN_USERNAME: ${JENKINS_ADMIN_USERNAME:?Set JENKINS_ADMIN_USERNAME}
+      JENKINS_ADMIN_PASSWORD: ${JENKINS_ADMIN_PASSWORD:?Set JENKINS_ADMIN_PASSWORD}
+    ports:
+      - "127.0.0.1:8086:8080"
+    volumes:
+      - jenkins-home:/var/jenkins_home
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: 1536M
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent http://localhost:8080/login > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    depends_on:
+      sonarqube:
+        condition: service_healthy
+
+  sonarqube:
+    image: sonarqube:community
+    restart: unless-stopped
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar-db:5432/sonarqube
+      SONAR_JDBC_USERNAME: ${SONAR_DB_USERNAME:?Set SONAR_DB_USERNAME}
+      SONAR_JDBC_PASSWORD: ${SONAR_DB_PASSWORD:?Set SONAR_DB_PASSWORD}
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    ports:
+      - "127.0.0.1:9000:9000"
+    volumes:
+      - sonar-data:/opt/sonarqube/data
+      - sonar-extensions:/opt/sonarqube/extensions
+      - sonar-logs:/opt/sonarqube/logs
+    deploy:
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 2560M
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --output-document=- http://localhost:9000/api/system/status | grep -q '\"status\":\"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 60
+      start_period: 60s
+    depends_on:
+      sonar-db:
+        condition: service_healthy
+
+  sonar-db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: sonarqube
+      POSTGRES_USER: ${SONAR_DB_USERNAME:?Set SONAR_DB_USERNAME}
+      POSTGRES_PASSWORD: ${SONAR_DB_PASSWORD:?Set SONAR_DB_PASSWORD}
+    volumes:
+      - sonar-db-data:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d sonarqube"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  jenkins-home:
+  sonar-data:
+  sonar-extensions:
+  sonar-logs:
+  sonar-db-data:

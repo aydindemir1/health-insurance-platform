@@ -1,7 +1,7 @@
 # Jenkins quality-gate baseline
 
 The declarative pipeline expects a disposable Linux agent labelled
-`java21-node24-docker` with Java 21, Node.js 24, npm, Docker CLI and Git. Jenkins
+`java21-node24` with Java 21, Node.js 24, npm and Git. Jenkins
 must define:
 
 - a SonarQube server named `health-sonarqube`;
@@ -13,3 +13,15 @@ Tokens belong in Jenkins Credentials/SonarQube configuration and must never be
 passed as build parameters or committed files. This first slice performs tests,
 builds, analysis and a blocking Quality Gate. Artifact publication and GitOps
 promotion are intentionally added in later Milestone 12 slices.
+
+Start the resource-limited local controller and SonarQube server independently
+from the application stack:
+
+```powershell
+.\infra\cicd\start-quality-stack.ps1
+```
+
+The script creates an ignored `.env` with random local-only credentials on its
+first run. Use `stop-quality-stack.ps1` to preserve volumes while releasing CPU
+and memory. The three-service profile is capped at 4.25 CPUs and approximately
+4.5 GiB RAM; it is not a production topology.
