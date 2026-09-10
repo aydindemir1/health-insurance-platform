@@ -5,6 +5,8 @@ server:
 spring:
   application:
     name: authorization-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5433/authorization}
     username: ${DB_USERNAME}

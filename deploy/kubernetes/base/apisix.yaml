@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apisix
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: apisix
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: apisix
+        app.kubernetes.io/component: gateway
+    spec:
+      serviceAccountName: apisix
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 636
+        runAsGroup: 636
+        fsGroup: 636
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: apisix
+      initContainers:
+        - name: prepare-config
+          image: busybox:1.37.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - cp /config-source/config.yaml /config-write/config.yaml &&
+              cp /config-source/apisix.yaml /config-write/apisix.yaml
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 636
+            runAsGroup: 636
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+          volumeMounts:
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+            - name: config-write
+              mountPath: /config-write
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: gateway
+          image: apache/apisix:3.18.0-debian
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9080
+          env:
+            - name: APISIX_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: apisix-oidc-credentials
+                  key: client-secret
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "-c", "apisix status"]
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "apisix status"]
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 192Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config-write
+              mountPath: /usr/local/apisix/conf
+            - name: config-source
+              mountPath: /usr/local/apisix/apisix/plugins/problem-details.lua
+              subPath: problem-details.lua
+              readOnly: true
+            - name: logs
+              mountPath: /usr/local/apisix/logs
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config-source
+          configMap:
+            name: apisix-declarative-config
+        - name: config-write
+          emptyDir:
+            sizeLimit: 16Mi
+        - name: logs
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: apisix
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: apisix
+  ports:
+    - name: http
+      port: 9080
+      targetPort: http

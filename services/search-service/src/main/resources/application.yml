@@ -1,5 +1,6 @@
 server:
   port: 8084
+  shutdown: graceful
 
 logging:
   structured:
@@ -9,6 +10,8 @@ logging:
 spring:
   application:
     name: search-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   elasticsearch:
     uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
     connection-timeout: ${ELASTICSEARCH_CONNECT_TIMEOUT:2s}

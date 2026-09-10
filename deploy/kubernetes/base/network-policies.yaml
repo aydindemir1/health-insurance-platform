@@ -1,0 +1,242 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-public-web-entry
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [apisix, operations-portal]
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 9080
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apisix-to-backends
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: apisix
+      ports:
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8082
+        - protocol: TCP
+          port: 8083
+        - protocol: TCP
+          port: 8084
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-authorization-service-callers
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: authorization-service
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: claims-billing-service
+      ports:
+        - protocol: TCP
+          port: 8081
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-policy-service-callers
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: policy-service
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: authorization-service
+      ports:
+        - protocol: TCP
+          port: 8082
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: authorization-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: authorization-service
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: policy-service
+      ports:
+        - protocol: TCP
+          port: 8082
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 5672 }
+        - { protocol: TCP, port: 8080 }
+        - { protocol: TCP, port: 8200 }
+        - { protocol: TCP, port: 9092 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: policy-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: policy-service
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 6379 }
+        - { protocol: TCP, port: 8080 }
+        - { protocol: TCP, port: 8200 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: claims-billing-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: claims-billing-service
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: authorization-service
+      ports:
+        - protocol: TCP
+          port: 8081
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 8080 }
+        - { protocol: TCP, port: 8200 }
+        - { protocol: TCP, port: 9092 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: notification-worker-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: notification-worker
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - { protocol: TCP, port: 5432 }
+        - { protocol: TCP, port: 5672 }
+        - { protocol: TCP, port: 8200 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: search-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: search-service
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 8080 }
+        - { protocol: TCP, port: 8200 }
+        - { protocol: TCP, port: 9092 }
+        - { protocol: TCP, port: 9200 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: apisix-egress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: apisix
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: backend
+      ports:
+        - { protocol: TCP, port: 8081 }
+        - { protocol: TCP, port: 8082 }
+        - { protocol: TCP, port: 8083 }
+        - { protocol: TCP, port: 8084 }
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - { protocol: TCP, port: 443 }
+        - { protocol: TCP, port: 8080 }

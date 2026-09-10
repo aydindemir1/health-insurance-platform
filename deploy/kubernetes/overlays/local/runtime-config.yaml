@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-runtime
+data:
+  KEYCLOAK_ISSUER_URI: http://localhost:8080/realms/health-insurance
+  KEYCLOAK_JWK_SET_URI: http://host.docker.internal:8080/realms/health-insurance/protocol/openid-connect/certs
+  KAFKA_BOOTSTRAP_SERVERS: host.docker.internal:9092
+  RABBITMQ_HOST: host.docker.internal
+  ELASTICSEARCH_URIS: http://host.docker.internal:9200
+  ELASTIC_APM_SERVER_URL: http://host.docker.internal:8200
+  ELASTIC_APM_ENVIRONMENT: local-kubernetes
+  REDIS_HOST: host.docker.internal
+  POLICY_SERVICE_BASE_URL: http://policy-service:8082
+  AUTHORIZATION_SERVICE_BASE_URL: http://authorization-service:8081
+  CORS_ALLOWED_ORIGINS: http://localhost:5173,http://localhost:8088

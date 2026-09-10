@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: health-insurance
+resources:
+  - namespace.yaml
+  - runtime-config.yaml
+  - service-accounts.yaml
+  - authorization-service.yaml
+  - policy-service.yaml
+  - claims-billing-service.yaml
+  - notification-worker.yaml
+  - search-service.yaml
+  - operations-portal.yaml
+  - apisix.yaml
+  - pod-disruption-budgets.yaml
+  - horizontal-pod-autoscalers.yaml
+  - network-policies.yaml
+configMapGenerator:
+  - name: apisix-declarative-config
+    files:
+      - config.yaml=apisix-config/config.yaml
+      - apisix.yaml=apisix-config/apisix.yaml
+      - problem-details.lua=apisix-config/problem-details.lua
+generatorOptions:
+  disableNameSuffixHash: false
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: health-insurance-platform
+      app.kubernetes.io/managed-by: kustomize
+    includeSelectors: false

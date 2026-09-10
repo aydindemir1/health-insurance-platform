@@ -1,6 +1,8 @@
 spring:
   application:
     name: policy-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5434/policy}
     username: ${DB_USERNAME:policy}
@@ -26,6 +28,7 @@ spring:
 
 server:
   port: 8082
+  shutdown: graceful
 
 logging:
   structured:

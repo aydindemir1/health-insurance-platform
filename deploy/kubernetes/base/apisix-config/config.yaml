@@ -1,0 +1,30 @@
+apisix:
+  node_listen:
+    - port: 9080
+  enable_ipv6: false
+
+plugins:
+  - openid-connect
+  - request-id
+  - cors
+  - limit-count
+  - request-validation
+  - client-control
+  - response-rewrite
+  - problem-details
+
+stream_plugins: []
+
+deployment:
+  role: data_plane
+  role_data_plane:
+    config_provider: yaml
+  admin:
+    enable_admin: false
+
+nginx_config:
+  error_log: /dev/stderr
+  error_log_level: warn
+  http:
+    access_log: /dev/stdout
+    access_log_format: '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent "$http_referer" "$http_user_agent" correlation_id=$http_x_correlation_id request_time=$request_time upstream_response_time=$upstream_response_time'

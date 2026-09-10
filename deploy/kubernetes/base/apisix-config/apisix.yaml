@@ -1,0 +1,128 @@
+plugin_configs:
+  - id: health-api-boundary
+    desc: Shared authentication and traffic policies for public healthcare APIs
+    plugins:
+      openid-connect:
+        client_id: health-insurance-api
+        client_secret: $ENV://APISIX_OIDC_CLIENT_SECRET
+        discovery: http://keycloak:8080/realms/health-insurance/.well-known/openid-configuration
+        bearer_only: true
+        unauth_action: deny
+        use_jwks: true
+        token_signing_alg_values_expected: RS256
+        accept_unsupported_alg: false
+        realm: health-insurance
+        timeout: 5
+        set_access_token_header: false
+        set_id_token_header: false
+        set_userinfo_header: false
+        claim_validator:
+          issuer:
+            valid_issuers:
+              - https://identity.health-insurance.example/realms/health-insurance
+              - http://localhost:8080/realms/health-insurance
+          audience:
+            claim: aud
+            required: true
+            match_with_client_id: true
+      request-id:
+        header_name: X-Correlation-ID
+        include_in_response: true
+        algorithm: uuid
+      cors:
+        allow_origins: https://operations.health-insurance.example,http://localhost:5173,http://localhost:8088
+        allow_methods: GET,POST,OPTIONS
+        allow_headers: Authorization,Content-Type,X-Correlation-ID
+        expose_headers: Location,X-Correlation-ID,X-RateLimit-Limit,X-RateLimit-Remaining,X-RateLimit-Reset
+        max_age: 3600
+        allow_credential: false
+      limit-count:
+        count: 120
+        time_window: 60
+        policy: local
+        key: remote_addr
+        rejected_code: 429
+        rejected_msg: Too many requests. Retry after the current rate-limit window.
+        show_limit_quota_header: true
+      request-validation:
+        max_req_body_size: 1048576
+        rejected_code: 413
+        rejected_msg: Request payload exceeds the 1 MiB gateway limit.
+        header_schema:
+          type: object
+      client-control:
+        max_body_size: 1048576
+      response-rewrite:
+        headers:
+          set:
+            X-Content-Type-Options: nosniff
+            X-Frame-Options: DENY
+            Referrer-Policy: no-referrer
+            Cache-Control: no-store
+      problem-details: {}
+
+routes:
+  - id: authorization-api
+    name: Authorization API
+    uris:
+      - /api/v1/pre-authorizations*
+      - /api/v1/audit-records*
+      - /api/v1/admin/search-projections/pre-authorizations*
+    methods: [GET, POST, OPTIONS]
+    plugin_config_id: health-api-boundary
+    upstream:
+      type: roundrobin
+      timeout:
+        connect: 3
+        send: 10
+        read: 15
+      nodes:
+        authorization-service:8081: 1
+  - id: policy-api
+    name: Policy API
+    uris:
+      - /api/v1/policies*
+      - /api/v1/coverage-evaluations*
+    methods: [GET, POST, OPTIONS]
+    plugin_config_id: health-api-boundary
+    upstream:
+      type: roundrobin
+      timeout:
+        connect: 3
+        send: 10
+        read: 15
+      nodes:
+        policy-service:8082: 1
+  - id: claims-billing-api
+    name: Claims and Billing API
+    uris:
+      - /api/v1/claims*
+      - /api/v1/invoices*
+      - /api/v1/admin/search-projections/claims*
+    methods: [GET, POST, OPTIONS]
+    plugin_config_id: health-api-boundary
+    upstream:
+      type: roundrobin
+      timeout:
+        connect: 3
+        send: 10
+        read: 15
+      nodes:
+        claims-billing-service:8083: 1
+  - id: healthcare-search-api
+    name: Healthcare Operations Search API
+    uris:
+      - /api/v1/search*
+      - /api/v1/admin/search-rebuilds*
+    methods: [GET, POST, OPTIONS]
+    plugin_config_id: health-api-boundary
+    upstream:
+      type: roundrobin
+      timeout:
+        connect: 3
+        send: 10
+        read: 15
+      nodes:
+        search-service:8084: 1
+
+#END

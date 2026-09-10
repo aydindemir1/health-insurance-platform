@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authorization-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: application
+          env:
+            - name: DB_URL
+              value: jdbc:postgresql://host.docker.internal:5433/authorization
+            - name: OUTBOX_ENABLED
+              value: "false"
+            - name: NOTIFICATION_OUTBOX_ENABLED
+              value: "false"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: policy-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: application
+          env:
+            - name: DB_URL
+              value: jdbc:postgresql://host.docker.internal:5434/policy
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claims-billing-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: application
+          env:
+            - name: DB_URL
+              value: jdbc:postgresql://host.docker.internal:5435/claims_billing
+            - name: KAFKA_CONSUMER_ENABLED
+              value: "false"
+            - name: CLAIM_SEARCH_OUTBOX_ENABLED
+              value: "false"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-worker
+spec:
+  template:
+    spec:
+      containers:
+        - name: application
+          env:
+            - name: DB_URL
+              value: jdbc:postgresql://host.docker.internal:5436/notification_worker
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-service
+spec:
+  template:
+    spec:
+      containers:
+        - name: application
+          env:
+            - name: SEARCH_KAFKA_CONSUMER_ENABLED
+              value: "false"

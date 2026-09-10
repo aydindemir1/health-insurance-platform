@@ -1,8 +1,8 @@
 spring:
   application:
     name: notification-worker
-  main:
-    web-application-type: none
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5436/notification_worker}
     username: ${DB_USERNAME}
@@ -25,6 +25,20 @@ logging:
   structured:
     format:
       console: ${CONSOLE_LOG_FORMAT:ecs}
+
+server:
+  port: 8085
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 app:
   messaging:
