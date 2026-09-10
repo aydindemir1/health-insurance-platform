@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter } from 'react-router'
 import { useState, type ReactNode } from 'react'
-import { AuthProvider } from '@/features/authentication/model/AuthProvider'
+import { AuthProvider } from '@/features/authentication'
 import { AppErrorBoundary } from './AppErrorBoundary'
 
 export function AppProviders({ children }: { children: ReactNode }) {

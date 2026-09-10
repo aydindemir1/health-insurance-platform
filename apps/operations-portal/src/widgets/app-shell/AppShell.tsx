@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router'
-import { useAuth } from '@/features/authentication/model/useAuth'
+import { useAuth } from '@/features/authentication'
 
 export function AppShell() {
   const auth = useAuth()
@@ -9,8 +9,8 @@ export function AppShell() {
         <div className="brand"><span className="brand-mark">H+</span><span>Health Insurance<br /><small>Operations Portal</small></span></div>
         <nav aria-label="Primary navigation">
           <NavLink to="/dashboard">Dashboard</NavLink>
-          <NavLink to="/pre-authorizations">Pre-authorizations</NavLink>
-          <NavLink to="/search">Healthcare search</NavLink>
+          {auth.hasRole('HOSPITAL_USER', 'INSURANCE_SPECIALIST', 'SYSTEM_ADMIN') && <NavLink to="/pre-authorizations">Pre-authorizations</NavLink>}
+          {auth.hasRole('HOSPITAL_USER', 'INSURANCE_SPECIALIST', 'CLAIM_APPROVER', 'SYSTEM_ADMIN') && <NavLink to="/search">Healthcare search</NavLink>}
           {auth.hasRole('SYSTEM_ADMIN') && <NavLink to="/audit">Audit trail</NavLink>}
         </nav>
         <div className="sidebar-user">

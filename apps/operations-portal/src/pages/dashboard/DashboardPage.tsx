@@ -1,5 +1,5 @@
 import { Link } from 'react-router'
-import { useAuth } from '@/features/authentication/model/useAuth'
+import { useAuth } from '@/features/authentication'
 import { PageHeader } from '@/shared/ui/PageHeader'
 
 export function DashboardPage() {

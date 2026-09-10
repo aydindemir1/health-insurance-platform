@@ -3,7 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
-import { preAuthorizationApi } from '@/entities/pre-authorization/api/pre-authorization-api'
+import { preAuthorizationApi } from '@/entities/pre-authorization'
 import { ErrorState } from '@/shared/ui/AsyncState'
 
 const schema = z.object({
@@ -26,18 +26,18 @@ export function SubmitPreAuthorizationForm() {
   })
   return (
     <form className="content-card form-grid" onSubmit={form.handleSubmit((values) => mutation.mutate(values))} noValidate>
-      <Field label="Member ID" error={form.formState.errors.memberId?.message}><input {...form.register('memberId')} placeholder="Member UUID" /></Field>
-      <Field label="Policy number" error={form.formState.errors.policyNumber?.message}><input {...form.register('policyNumber')} placeholder="POL-2026-001" /></Field>
-      <Field label="Service code" error={form.formState.errors.serviceCode?.message}><input {...form.register('serviceCode')} placeholder="IMG-MRI" /></Field>
-      <Field label="Diagnosis code" error={form.formState.errors.diagnosisCode?.message}><input {...form.register('diagnosisCode')} placeholder="J18.9" /></Field>
-      <Field label="Requested amount" error={form.formState.errors.requestedAmount?.message}><input {...form.register('requestedAmount')} inputMode="decimal" placeholder="1250.00" /></Field>
-      <Field label="Currency" error={form.formState.errors.currency?.message}><input {...form.register('currency')} maxLength={3} /></Field>
+      <Field label="Member ID" error={form.formState.errors.memberId?.message} errorId="memberId-error"><input {...form.register('memberId')} aria-invalid={Boolean(form.formState.errors.memberId)} aria-describedby={form.formState.errors.memberId ? 'memberId-error' : undefined} placeholder="Member UUID" /></Field>
+      <Field label="Policy number" error={form.formState.errors.policyNumber?.message} errorId="policyNumber-error"><input {...form.register('policyNumber')} aria-invalid={Boolean(form.formState.errors.policyNumber)} aria-describedby={form.formState.errors.policyNumber ? 'policyNumber-error' : undefined} placeholder="POL-2026-001" /></Field>
+      <Field label="Service code" error={form.formState.errors.serviceCode?.message} errorId="serviceCode-error"><input {...form.register('serviceCode')} aria-invalid={Boolean(form.formState.errors.serviceCode)} aria-describedby={form.formState.errors.serviceCode ? 'serviceCode-error' : undefined} placeholder="IMG-MRI" /></Field>
+      <Field label="Diagnosis code" error={form.formState.errors.diagnosisCode?.message} errorId="diagnosisCode-error"><input {...form.register('diagnosisCode')} aria-invalid={Boolean(form.formState.errors.diagnosisCode)} aria-describedby={form.formState.errors.diagnosisCode ? 'diagnosisCode-error' : undefined} placeholder="J18.9" /></Field>
+      <Field label="Requested amount" error={form.formState.errors.requestedAmount?.message} errorId="requestedAmount-error"><input {...form.register('requestedAmount')} aria-invalid={Boolean(form.formState.errors.requestedAmount)} aria-describedby={form.formState.errors.requestedAmount ? 'requestedAmount-error' : undefined} inputMode="decimal" placeholder="1250.00" /></Field>
+      <Field label="Currency" error={form.formState.errors.currency?.message} errorId="currency-error"><input {...form.register('currency')} aria-invalid={Boolean(form.formState.errors.currency)} aria-describedby={form.formState.errors.currency ? 'currency-error' : undefined} maxLength={3} /></Field>
       {mutation.error && <div className="form-span"><ErrorState error={mutation.error} /></div>}
       <div className="form-actions form-span"><button className="button" disabled={mutation.isPending}>{mutation.isPending ? 'Submitting…' : 'Submit pre-authorization'}</button><button type="button" className="button button--secondary" onClick={() => navigate(-1)}>Cancel</button></div>
     </form>
   )
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
-  return <label className="field"><span>{label}</span>{children}{error && <small className="field-error">{error}</small>}</label>
+function Field({ label, error, errorId, children }: { label: string; error: string | undefined; errorId: string; children: React.ReactNode }) {
+  return <label className="field"><span>{label}</span>{children}{error && <small id={errorId} className="field-error" role="alert">{error}</small>}</label>
 }

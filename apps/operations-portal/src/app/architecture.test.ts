@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs'
-import { extname, join, relative, sep } from 'node:path'
+import { dirname, extname, join, relative, resolve, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const sourceRoot = join(process.cwd(), 'src')
@@ -20,11 +20,31 @@ describe('Feature-Sliced Design dependency direction', () => {
       const sourceLayer = relative(sourceRoot, file).split(sep)[0]
       const sourceRank = layers.indexOf(sourceLayer as typeof layers[number])
       if (sourceRank < 0) continue
-      for (const match of readFileSync(file, 'utf8').matchAll(/from ['"]@\/(app|pages|widgets|features|entities|shared)\//g)) {
-        const targetLayer = match[1]
+      for (const match of readFileSync(file, 'utf8').matchAll(/(?:from\s+|import\()\s*['"]([^'"]+)['"]/g)) {
+        const specifier = match[1]
+        if (!specifier) continue
+        const targetLayer = specifier.startsWith('@/')
+          ? specifier.split('/')[1]
+          : specifier.startsWith('.')
+            ? relative(sourceRoot, resolve(dirname(file), specifier)).split(sep)[0]
+            : undefined
+        if (!targetLayer || !layers.includes(targetLayer as typeof layers[number])) continue
         if (layers.indexOf(targetLayer as typeof layers[number]) < sourceRank) {
           violations.push(`${relative(sourceRoot, file)} imports ${targetLayer}`)
         }
+      }
+    }
+    expect(violations).toEqual([])
+  })
+
+  it('uses slice public APIs across feature and entity boundaries', () => {
+    const violations: string[] = []
+    for (const file of sourceFiles(sourceRoot)) {
+      const sourceParts = relative(sourceRoot, file).split(sep)
+      const sourceSlice = sourceParts.length > 1 ? `${sourceParts[0]}/${sourceParts[1]}` : undefined
+      for (const match of readFileSync(file, 'utf8').matchAll(/(?:from\s+|import\()\s*['"]@\/(features|entities)\/([^/'"]+)\/[^'"]+['"]/g)) {
+        const targetSlice = `${match[1]}/${match[2]}`
+        if (sourceSlice !== targetSlice) violations.push(`${relative(sourceRoot, file)} bypasses ${targetSlice} public API`)
       }
     }
     expect(violations).toEqual([])

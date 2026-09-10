@@ -13,10 +13,12 @@ export function ErrorState({ error, retry }: { error: Error; retry?: () => void 
   const message = error instanceof ApiError
     ? error.problem.detail ?? error.problem.title ?? error.message
     : error.message
+  const correlationId = error instanceof ApiError ? error.problem.correlationId : undefined
   return (
     <div className="state-panel state-panel--error" role="alert">
       <strong>We could not complete the request</strong>
       <p>{message}</p>
+      {correlationId && <small>Reference: <code>{correlationId}</code></small>}
       {retry && <button className="button button--secondary" onClick={retry}>Try again</button>}
     </div>
   )

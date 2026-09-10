@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router'
-import { useAuth } from '@/features/authentication/model/useAuth'
+import { useAuth } from '../model/useAuth'
 import { ErrorState, LoadingState } from '@/shared/ui/AsyncState'
 
 export function RequireAuthentication() {

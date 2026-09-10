@@ -26,7 +26,7 @@ describe('preAuthorizationApi.search', () => {
       direction: 'asc',
     })
 
-    const url = new URL(fetchMock.mock.calls[0][0] as string)
+    const url = new URL(fetchMock.mock.calls[0]![0] as string)
     expect(url.pathname).toBe('/api/v1/pre-authorizations')
     expect(Object.fromEntries(url.searchParams)).toEqual({
       page: '2',

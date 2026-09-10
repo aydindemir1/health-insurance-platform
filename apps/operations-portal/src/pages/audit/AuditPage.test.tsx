@@ -2,10 +2,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { auditApi } from '@/entities/audit-record/api/audit-api'
+import { auditApi } from '@/entities/audit-record'
 import { AuditPage } from './AuditPage'
 
-vi.mock('@/features/authentication/model/useAuth', () => ({
+vi.mock('@/features/authentication', () => ({
   useAuth: () => ({ hasRole: (role: string) => role === 'SYSTEM_ADMIN' }),
 }))
 
@@ -30,6 +30,9 @@ describe('AuditPage', () => {
     expect(await screen.findByText('CLAIM_APPROVED')).toBeInTheDocument()
     expect(screen.getByText('IN_REVIEW → APPROVED')).toBeInTheDocument()
     expect(screen.getByText('Page 1 of 1 · 1 records')).toBeInTheDocument()
-    expect(search).toHaveBeenCalledWith(expect.objectContaining({ service: 'claims-billing', action: 'CLAIM_APPROVED', page: 0, size: 10 }))
+    expect(search).toHaveBeenCalledWith(
+      expect.objectContaining({ service: 'claims-billing', action: 'CLAIM_APPROVED', page: 0, size: 10 }),
+      expect.any(AbortSignal),
+    )
   })
 })

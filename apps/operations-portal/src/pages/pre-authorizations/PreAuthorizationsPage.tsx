@@ -2,15 +2,16 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { type FormEvent } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { z } from 'zod'
-import { preAuthorizationApi } from '@/entities/pre-authorization/api/pre-authorization-api'
-import type {
-  PreAuthorizationSearch,
-  PreAuthorizationSortField,
-  PreAuthorizationStatus,
-  SortDirection,
-} from '@/entities/pre-authorization/model/types'
-import { StatusBadge } from '@/entities/pre-authorization/ui/StatusBadge'
-import { useAuth } from '@/features/authentication/model/useAuth'
+import {
+  preAuthorizationApi,
+  preAuthorizationKeys,
+  StatusBadge,
+  type PreAuthorizationSearch,
+  type PreAuthorizationSortField,
+  type PreAuthorizationStatus,
+  type SortDirection,
+} from '@/entities/pre-authorization'
+import { useAuth } from '@/features/authentication'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/AsyncState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 
@@ -38,17 +39,17 @@ export function PreAuthorizationsPage() {
   const memberId = urlParameters.get('memberId') ?? ''
   const policyNumber = urlParameters.get('policyNumber') ?? ''
   const search: PreAuthorizationSearch = {
-    status,
-    memberId: memberId || undefined,
-    policyNumber: policyNumber || undefined,
+    ...(status ? { status } : {}),
+    ...(memberId ? { memberId } : {}),
+    ...(policyNumber ? { policyNumber } : {}),
     page,
     size,
     sortBy,
     direction,
   }
   const query = useQuery({
-    queryKey: ['pre-authorizations', status, memberId, policyNumber, page, size, sortBy, direction],
-    queryFn: () => preAuthorizationApi.search(search),
+    queryKey: preAuthorizationKeys.list(search),
+    queryFn: ({ signal }) => preAuthorizationApi.search(search, signal),
     placeholderData: keepPreviousData,
   })
 

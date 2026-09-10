@@ -2,10 +2,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { preAuthorizationApi } from '@/entities/pre-authorization/api/pre-authorization-api'
+import { preAuthorizationApi } from '@/entities/pre-authorization'
 import { PreAuthorizationsPage } from './PreAuthorizationsPage'
 
-vi.mock('@/features/authentication/model/useAuth', () => ({
+vi.mock('@/features/authentication', () => ({
   useAuth: () => ({ hasRole: () => false }),
 }))
 
@@ -55,6 +55,6 @@ describe('PreAuthorizationsPage', () => {
       size: 10,
       sortBy: 'createdAt',
       direction: 'desc',
-    }))
+    }), expect.any(AbortSignal))
   })
 })

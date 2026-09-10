@@ -43,11 +43,16 @@ export function subscribeToKeycloak(listener: () => void) {
   keycloak.onAuthSuccess = listener
   keycloak.onAuthLogout = listener
   keycloak.onAuthRefreshSuccess = listener
-  keycloak.onTokenExpired = () => void keycloak.updateToken(30).then(listener)
+  keycloak.onTokenExpired = () => void keycloak.updateToken(30)
+    .then(listener)
+    .catch(() => {
+      keycloak.clearToken()
+      listener()
+    })
   return () => {
-    keycloak.onAuthSuccess = undefined
-    keycloak.onAuthLogout = undefined
-    keycloak.onAuthRefreshSuccess = undefined
-    keycloak.onTokenExpired = undefined
+    delete keycloak.onAuthSuccess
+    delete keycloak.onAuthLogout
+    delete keycloak.onAuthRefreshSuccess
+    delete keycloak.onTokenExpired
   }
 }

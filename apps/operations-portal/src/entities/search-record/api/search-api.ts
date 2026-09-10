@@ -1,9 +1,9 @@
 import { apiRequest } from '@/shared/api/http-client'
 import { environment } from '@/shared/config/environment'
-import type { SearchCriteria, SearchPageResult } from '@/entities/search-record/model/types'
+import { searchPageResultSchema, type SearchCriteria, type SearchPageResult } from '../model/types'
 
 export const searchApi = {
-  search: (criteria: SearchCriteria) => {
+  search: (criteria: SearchCriteria, signal?: AbortSignal) => {
     const parameters = new URLSearchParams({
       page: criteria.page.toString(),
       size: criteria.size.toString(),
@@ -12,6 +12,10 @@ export const searchApi = {
     if (criteria.type) parameters.set('type', criteria.type)
     if (criteria.status) parameters.set('status', criteria.status)
     if (criteria.providerId) parameters.set('providerId', criteria.providerId)
-    return apiRequest<SearchPageResult>(`/search?${parameters}`, {}, environment.searchApiBaseUrl)
+    return apiRequest<SearchPageResult>(`/search?${parameters}`, {
+      baseUrl: environment.searchApiBaseUrl,
+      responseSchema: searchPageResultSchema,
+      ...(signal ? { signal } : {}),
+    })
   },
 }

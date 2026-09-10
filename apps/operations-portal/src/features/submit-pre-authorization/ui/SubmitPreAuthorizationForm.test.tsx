@@ -21,5 +21,7 @@ describe('SubmitPreAuthorizationForm', () => {
     expect(screen.getByText('Service code is required.')).toBeInTheDocument()
     expect(screen.getByText('Diagnosis code is required.')).toBeInTheDocument()
     expect(screen.getByText('Enter a positive amount with up to two decimals.')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Member UUID')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByPlaceholderText('Member UUID')).toHaveAttribute('aria-describedby', 'memberId-error')
   })
 })

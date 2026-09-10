@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router'
-import { useAuth } from '@/features/authentication/model/useAuth'
-import { SubmitPreAuthorizationForm } from '@/features/submit-pre-authorization/ui/SubmitPreAuthorizationForm'
+import { useAuth } from '@/features/authentication'
+import { SubmitPreAuthorizationForm } from '@/features/submit-pre-authorization'
 import { PageHeader } from '@/shared/ui/PageHeader'
 
 export function NewPreAuthorizationPage() {

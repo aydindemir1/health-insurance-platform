@@ -1,5 +1,5 @@
 import { apiRequest } from '@/shared/api/http-client'
-import type { AuditPageResult, AuditSearchCriteria, AuditService } from '@/entities/audit-record/model/types'
+import { auditPageResultSchema, type AuditPageResult, type AuditSearchCriteria, type AuditService } from '../model/types'
 
 const servicePaths: Record<AuditService, string> = {
   authorization: '/audit-records',
@@ -8,13 +8,16 @@ const servicePaths: Record<AuditService, string> = {
 }
 
 export const auditApi = {
-  search: (criteria: AuditSearchCriteria) => {
+  search: (criteria: AuditSearchCriteria, signal?: AbortSignal) => {
     const parameters = new URLSearchParams({
       page: criteria.page.toString(),
       size: criteria.size.toString(),
     })
     if (criteria.aggregateId) parameters.set('aggregateId', criteria.aggregateId)
     if (criteria.action) parameters.set('action', criteria.action)
-    return apiRequest<AuditPageResult>(`${servicePaths[criteria.service]}?${parameters}`)
+    return apiRequest<AuditPageResult>(`${servicePaths[criteria.service]}?${parameters}`, {
+      responseSchema: auditPageResultSchema,
+      ...(signal ? { signal } : {}),
+    })
   },
 }

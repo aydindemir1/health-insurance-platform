@@ -2,9 +2,8 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { type FormEvent } from 'react'
 import { Navigate, useSearchParams } from 'react-router'
 import { z } from 'zod'
-import { auditApi } from '@/entities/audit-record/api/audit-api'
-import type { AuditSearchCriteria, AuditService } from '@/entities/audit-record/model/types'
-import { useAuth } from '@/features/authentication/model/useAuth'
+import { auditApi, type AuditSearchCriteria, type AuditService } from '@/entities/audit-record'
+import { useAuth } from '@/features/authentication'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/AsyncState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 
@@ -36,14 +35,14 @@ export function AuditPage() {
   const requestedAction = urlParameters.get('action') ?? ''
   const criteria: AuditSearchCriteria = {
     service,
-    aggregateId: urlParameters.get('aggregateId') || undefined,
-    action: actions[service].includes(requestedAction) ? requestedAction : undefined,
+    ...(urlParameters.get('aggregateId') ? { aggregateId: urlParameters.get('aggregateId')! } : {}),
+    ...(actions[service].includes(requestedAction) ? { action: requestedAction } : {}),
     page,
     size,
   }
   const result = useQuery({
     queryKey: ['audit-records', criteria],
-    queryFn: () => auditApi.search(criteria),
+    queryFn: ({ signal }) => auditApi.search(criteria, signal),
     placeholderData: keepPreviousData,
     enabled: auth.hasRole('SYSTEM_ADMIN'),
   })

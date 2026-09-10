@@ -1,14 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router'
-import { preAuthorizationApi } from '@/entities/pre-authorization/api/pre-authorization-api'
-import { StatusBadge } from '@/entities/pre-authorization/ui/StatusBadge'
-import { DecisionPanel } from '@/features/review-pre-authorization/ui/DecisionPanel'
+import { preAuthorizationApi, preAuthorizationKeys, StatusBadge } from '@/entities/pre-authorization'
+import { DecisionPanel } from '@/features/review-pre-authorization'
 import { ErrorState, LoadingState } from '@/shared/ui/AsyncState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 
 export function PreAuthorizationDetailPage() {
   const { id = '' } = useParams()
-  const query = useQuery({ queryKey: ['pre-authorization', id], queryFn: () => preAuthorizationApi.getById(id), enabled: Boolean(id) })
+  const query = useQuery({ queryKey: preAuthorizationKeys.detail(id), queryFn: ({ signal }) => preAuthorizationApi.getById(id, signal), enabled: Boolean(id) })
   if (query.isPending) return <LoadingState label="Loading pre-authorization…" />
   if (query.error) return <ErrorState error={query.error} retry={() => void query.refetch()} />
   const item = query.data

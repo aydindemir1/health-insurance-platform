@@ -1,12 +1,17 @@
-import { Navigate } from 'react-router'
-import { useAuth } from '@/features/authentication/model/useAuth'
+import { Navigate, useLocation } from 'react-router'
+import { useAuth } from '@/features/authentication'
 import { ErrorState, LoadingState } from '@/shared/ui/AsyncState'
 
 export function LoginPage() {
   const auth = useAuth()
+  const location = useLocation()
+  const requestedLocation = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from
+  const destination = requestedLocation?.pathname
+    ? `${requestedLocation.pathname}${requestedLocation.search ?? ''}`
+    : '/dashboard'
   if (!auth.initialized) return <LoadingState label="Preparing secure sign-in…" />
   if (auth.error) return <ErrorState error={auth.error} retry={() => window.location.reload()} />
-  if (auth.authenticated) return <Navigate to="/dashboard" replace />
+  if (auth.authenticated) return <Navigate to={destination} replace />
   return (
     <main className="login-page">
       <section className="login-panel">

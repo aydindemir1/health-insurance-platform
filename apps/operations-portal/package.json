@@ -14,7 +14,8 @@
     "screenshots:gateway": "node scripts/capture-apisix-gateway-screenshot.mjs",
     "screenshots:recovery": "node scripts/capture-search-recovery-screenshot.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
@@ -27,6 +28,7 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
@@ -34,6 +36,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "axe-core": "^4.13.0",
     "jsdom": "^30.0.1",
     "oxlint": "^1.79.0",
     "playwright": "^1.62.1",

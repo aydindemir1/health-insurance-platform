@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 export type PreAuthorizationStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 export interface PreAuthorization {
@@ -46,3 +48,28 @@ export interface PageResult<T> {
   first: boolean
   last: boolean
 }
+
+export const preAuthorizationSchema = z.object({
+  id: z.uuid(),
+  memberId: z.uuid(),
+  providerId: z.uuid(),
+  policyNumber: z.string(),
+  serviceCode: z.string(),
+  diagnosisCode: z.string(),
+  requestedAmount: z.number().finite(),
+  currency: z.string().regex(/^[A-Z]{3}$/),
+  status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
+  decisionReason: z.string().nullable(),
+  createdAt: z.string().min(1),
+  decidedAt: z.string().nullable(),
+})
+
+export const preAuthorizationPageSchema = z.object({
+  content: z.array(preAuthorizationSchema),
+  page: z.number().int().nonnegative(),
+  size: z.number().int().positive(),
+  totalElements: z.number().int().nonnegative(),
+  totalPages: z.number().int().nonnegative(),
+  first: z.boolean(),
+  last: z.boolean(),
+})

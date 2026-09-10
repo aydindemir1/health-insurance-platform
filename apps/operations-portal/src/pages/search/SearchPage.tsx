@@ -2,8 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { z } from 'zod'
-import { searchApi } from '@/entities/search-record/api/search-api'
-import type { SearchCriteria, SearchRecordType } from '@/entities/search-record/model/types'
+import { searchApi, type SearchCriteria, type SearchRecordType } from '@/entities/search-record'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/AsyncState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 
@@ -22,16 +21,16 @@ export function SearchPage() {
   const size = [10, 20, 50].includes(requestedSize) ? requestedSize : 20
   const typeValue = urlParameters.get('type') as SearchRecordType | null
   const criteria: SearchCriteria = {
-    query: urlParameters.get('q') || undefined,
-    type: typeValue && recordTypes.has(typeValue) ? typeValue : undefined,
-    status: urlParameters.get('status') || undefined,
-    providerId: urlParameters.get('providerId') || undefined,
+    ...(urlParameters.get('q') ? { query: urlParameters.get('q')! } : {}),
+    ...(typeValue && recordTypes.has(typeValue) ? { type: typeValue } : {}),
+    ...(urlParameters.get('status') ? { status: urlParameters.get('status')! } : {}),
+    ...(urlParameters.get('providerId') ? { providerId: urlParameters.get('providerId')! } : {}),
     page,
     size,
   }
   const result = useQuery({
     queryKey: ['operations-search', criteria],
-    queryFn: () => searchApi.search(criteria),
+    queryFn: ({ signal }) => searchApi.search(criteria, signal),
     placeholderData: keepPreviousData,
   })
 
