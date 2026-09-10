@@ -24,3 +24,7 @@ and inject a least-privilege robot credential into Jenkins:
 ```powershell
 .\infra\cicd\harbor\bootstrap-local-harbor.ps1
 ```
+
+The pipeline waits for every Harbor scan and blocks a result above
+`HARBOR_MAX_ALLOWED_SEVERITY` (default: Critical findings are blocked). It also
+archives CycloneDX SBOMs for all six deployable components.

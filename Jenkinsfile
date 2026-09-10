@@ -6,7 +6,9 @@ pipeline {
             description: 'Publish Maven artifacts and OCI images after every quality gate passes')
         string(name: 'NEXUS_URL', defaultValue: 'http://nexus:8081', description: 'Nexus base URL')
         string(name: 'HARBOR_REGISTRY', defaultValue: 'harbor.example.invalid', description: 'Harbor registry host')
+        string(name: 'HARBOR_API_URL', defaultValue: 'https://harbor.example.invalid', description: 'Harbor API origin')
         string(name: 'HARBOR_PROJECT', defaultValue: 'health-insurance', description: 'Harbor project')
+        choice(name: 'HARBOR_MAX_ALLOWED_SEVERITY', choices: ['High', 'Medium', 'Low'], description: 'Severity above this value blocks publication')
     }
 
     options {
@@ -124,6 +126,24 @@ pipeline {
             }
         }
 
+        stage('Generate CycloneDX SBOMs') {
+            steps {
+                sh '''
+                    set -eu
+                    mkdir -p artifacts/sbom
+                    for service in authorization-service policy-service claims-billing-service notification-worker search-service; do
+                      (cd "services/${service}" && ./mvnw --batch-mode -DskipTests \
+                        org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom \
+                        -DoutputFormat=json -DoutputName=bom)
+                      cp "services/${service}/target/bom.json" "artifacts/sbom/${service}.cdx.json"
+                    done
+                    (cd apps/operations-portal && npm sbom --sbom-format cyclonedx) \
+                      > artifacts/sbom/operations-portal.cdx.json
+                '''
+                archiveArtifacts artifacts: 'artifacts/sbom/*.cdx.json', fingerprint: true
+            }
+        }
+
         stage('Publish OCI images to Harbor') {
             when {
                 allOf {
@@ -153,6 +173,10 @@ pipeline {
                         docker build --file apps/operations-portal/Dockerfile \
                           --tag "${image}" apps/operations-portal
                         docker push "${image}"
+
+                        HARBOR_IMAGE_TAG="${GIT_COMMIT}" \
+                        HARBOR_MAX_ALLOWED_SEVERITY="${HARBOR_MAX_ALLOWED_SEVERITY}" \
+                          node scripts/verify-harbor-scan.mjs
                         docker logout "${HARBOR_REGISTRY}"
                     '''
                 }
