@@ -40,6 +40,12 @@ credentials:
               username: "${NEXUS_USERNAME}"
               password: "${NEXUS_PASSWORD}"
               description: "Least-privilege local Nexus publisher"
+          - usernamePassword:
+              scope: GLOBAL
+              id: "harbor-publisher"
+              username: "${HARBOR_USERNAME}"
+              password: "${HARBOR_PASSWORD}"
+              description: "Least-privilege local Harbor robot account"
 
 tool:
   sonarRunnerInstallation:

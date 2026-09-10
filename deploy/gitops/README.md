@@ -16,3 +16,8 @@ kubectl kustomize deploy/gitops/argocd
 Install Argo CD in a disposable cluster from its official release manifests,
 then apply the rendered project and application only after the registry values
 are immutable and reachable from that cluster.
+
+`install-local-argocd.ps1 -Context <disposable-context>` installs the pinned
+official Argo CD `v3.5.2` manifest. It refuses a context mismatch and names that
+look production-like. The Application has no automated sync while sentinel
+image tags remain, so installation cannot deploy placeholder images.

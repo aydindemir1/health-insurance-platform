@@ -11,6 +11,8 @@ services:
       SONAR_TOKEN: ${SONAR_TOKEN:-local-bootstrap-pending}
       NEXUS_USERNAME: ${NEXUS_USERNAME:-local-bootstrap-pending}
       NEXUS_PASSWORD: ${NEXUS_PASSWORD:-local-bootstrap-pending}
+      HARBOR_USERNAME: ${HARBOR_USERNAME:-local-bootstrap-pending}
+      HARBOR_PASSWORD: ${HARBOR_PASSWORD:-local-bootstrap-pending}
     ports:
       - "127.0.0.1:8086:8080"
     volumes:

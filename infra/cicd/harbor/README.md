@@ -12,3 +12,15 @@ the application, SonarQube and Nexus simultaneously on a 16 GiB workstation.
 The pipeline deliberately contains no `latest` tag: every image is addressed by
 the complete Git commit SHA. A lightweight Docker Registry is not described as
 Harbor evidence because it cannot prove Harbor RBAC, retention or scanning.
+
+On Windows with Docker Desktop, `start-local-harbor.ps1` invokes Harbor's pinned
+official `prepare:v2.15.2` image directly, enables Trivy and starts the generated
+Compose model on `http://host.docker.internal:8088`. Runtime configuration and
+data are outside Git; generated credentials remain in the ignored CI `.env`.
+
+After Harbor becomes healthy, create the private project, enable scan-on-push
+and inject a least-privilege robot credential into Jenkins:
+
+```powershell
+.\infra\cicd\harbor\bootstrap-local-harbor.ps1
+```
