@@ -118,19 +118,22 @@ pipeline {
                     sh '''
                         set +x
                         for service in authorization-service policy-service claims-billing-service notification-worker search-service; do
-                          jar=$(find "services/${service}/target" -maxdepth 1 -type f -name '*.jar' ! -name '*.original' | head -n 1)
-                          test -n "${jar}"
-                          version=$("services/${service}/mvnw" --quiet --non-recursive help:evaluate -Dexpression=project.version -DforceStdout)
-                          repository=releases
-                          case "${version}" in *SNAPSHOT*) repository=snapshots ;; esac
-                          "services/${service}/mvnw" --batch-mode --no-transfer-progress \
-                            --settings .jenkins/maven-settings.xml \
-                            deploy:deploy-file \
-                            -DrepositoryId="nexus-${repository}" \
-                            -Durl="${NEXUS_URL}/repository/maven-${repository}/" \
-                            -Dfile="${jar}" \
-                            -DpomFile="services/${service}/pom.xml" \
-                            -DgeneratePom=false
+                          (
+                            cd "services/${service}"
+                            jar=$(find target -maxdepth 1 -type f -name '*.jar' ! -name '*.original' | head -n 1)
+                            test -n "${jar}"
+                            version=$(./mvnw --quiet --non-recursive help:evaluate -Dexpression=project.version -DforceStdout)
+                            repository=releases
+                            case "${version}" in *SNAPSHOT*) repository=snapshots ;; esac
+                            ./mvnw --batch-mode --no-transfer-progress \
+                              --settings ../../.jenkins/maven-settings.xml \
+                              deploy:deploy-file \
+                              -DrepositoryId="nexus-${repository}" \
+                              -Durl="${NEXUS_URL}/repository/maven-${repository}/" \
+                              -Dfile="${jar}" \
+                              -DpomFile=pom.xml \
+                              -DgeneratePom=false
+                          )
                         done
                     '''
                 }
