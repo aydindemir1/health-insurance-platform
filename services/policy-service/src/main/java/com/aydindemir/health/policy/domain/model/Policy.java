@@ -18,6 +18,7 @@ public final class Policy {
     private final LocalDate validFrom;
     private final LocalDate validUntil;
     private final Map<ServiceCode, Coverage> coverages;
+    private final long version;
     private PolicyStatus status;
 
     private Policy(
@@ -27,6 +28,7 @@ public final class Policy {
             LocalDate validFrom,
             LocalDate validUntil,
             PolicyStatus status,
+            long version,
             Collection<Coverage> coverages) {
         this.id = Objects.requireNonNull(id);
         this.policyNumber = requireText(policyNumber);
@@ -37,6 +39,10 @@ public final class Policy {
             throw new IllegalArgumentException("Policy end date cannot precede its start date");
         }
         this.status = Objects.requireNonNull(status);
+        if (version < 0) {
+            throw new IllegalArgumentException("Policy version cannot be negative");
+        }
+        this.version = version;
         this.coverages = indexCoverages(coverages);
         if (this.coverages.isEmpty()) {
             throw new IllegalArgumentException("A policy must define at least one coverage");
@@ -51,7 +57,7 @@ public final class Policy {
             LocalDate validUntil,
             Collection<Coverage> coverages) {
         return new Policy(id, policyNumber, memberId, validFrom, validUntil,
-                PolicyStatus.ACTIVE, coverages);
+                PolicyStatus.ACTIVE, 0, coverages);
     }
 
     public static Policy rehydrate(
@@ -61,9 +67,10 @@ public final class Policy {
             LocalDate validFrom,
             LocalDate validUntil,
             PolicyStatus status,
+            long version,
             Collection<Coverage> coverages) {
         return new Policy(id, policyNumber, memberId, validFrom, validUntil,
-                status, coverages);
+                status, version, coverages);
     }
 
     public CoverageDecision evaluate(
@@ -142,5 +149,6 @@ public final class Policy {
     public LocalDate validFrom() { return validFrom; }
     public LocalDate validUntil() { return validUntil; }
     public PolicyStatus status() { return status; }
+    public long version() { return version; }
     public List<Coverage> coverages() { return List.copyOf(coverages.values()); }
 }

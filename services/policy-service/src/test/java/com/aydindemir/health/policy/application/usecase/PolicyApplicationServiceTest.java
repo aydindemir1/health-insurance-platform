@@ -83,6 +83,25 @@ class PolicyApplicationServiceTest {
 
         assertThatThrownBy(() -> service.create(createCommand(specialist())))
                 .isInstanceOf(PolicyNumberConflictException.class);
+        assertThat(audits).hasSize(1);
+    }
+
+    @Test
+    void rejectsUnauthorizedEvaluationBeforeCallingCacheOrRepository() {
+        var repository = new CountingPolicyRepository();
+        var cache = new CountingCoverageCache();
+        service = new PolicyApplicationService(
+                repository, () -> POLICY_ID, cache, audits::add,
+                () -> "correlation-id", CLOCK);
+        var unauthorized = new ActorContext(
+                "claim-approver", Set.of(ApplicationRole.CLAIM_APPROVER));
+
+        assertThatThrownBy(() -> service.evaluate(new EvaluateCoverageCommand(
+                unauthorized, "POL-100", MEMBER_ID, "IMG-MRI",
+                new BigDecimal("100.00"), TRY, LocalDate.parse("2026-09-03"))))
+                .isInstanceOf(ApplicationAccessDeniedException.class);
+        assertThat(repository.findCount).isZero();
+        assertThat(cache.findCount).isZero();
     }
 
     @Test
@@ -160,7 +179,7 @@ class PolicyApplicationServiceTest {
         }
     }
 
-    private static final class InMemoryCoverageCache implements CoverageEvaluationCache {
+    private static class InMemoryCoverageCache implements CoverageEvaluationCache {
         private final Map<EvaluateCoverageCommand, CoverageEvaluationResult> values = new HashMap<>();
 
         @Override
@@ -176,6 +195,16 @@ class PolicyApplicationServiceTest {
         @Override
         public void evictPolicy(String policyNumber) {
             values.keySet().removeIf(command -> command.policyNumber().equalsIgnoreCase(policyNumber));
+        }
+    }
+
+    private static final class CountingCoverageCache extends InMemoryCoverageCache {
+        private int findCount;
+
+        @Override
+        public Optional<CoverageEvaluationResult> find(EvaluateCoverageCommand command) {
+            findCount++;
+            return super.find(command);
         }
     }
 }

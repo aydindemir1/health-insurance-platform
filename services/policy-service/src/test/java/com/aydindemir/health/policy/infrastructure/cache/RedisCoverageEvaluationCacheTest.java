@@ -19,8 +19,10 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -60,6 +62,29 @@ class RedisCoverageEvaluationCacheTest {
         when(values.get(anyString())).thenThrow(new RedisConnectionFailureException("offline"));
 
         assertThat(cache.find(command())).isEmpty();
+    }
+
+    @Test
+    void doesNotFailTheEvaluationWhenRedisWriteFails() {
+        when(redis.opsForValue()).thenReturn(values);
+        doThrow(new RedisConnectionFailureException("offline"))
+                .when(values).set(anyString(), anyString(), org.mockito.ArgumentMatchers.any(Duration.class));
+
+        assertThatNoException().isThrownBy(() -> cache.store(command(), result()));
+    }
+
+    @Test
+    void doesNotFailPolicyChangesWhenRedisEvictionFails() {
+        when(redis.opsForSet()).thenReturn(sets);
+        when(sets.members(anyString())).thenThrow(new RedisConnectionFailureException("offline"));
+
+        assertThatNoException().isThrownBy(() -> cache.evictPolicy("POL-SECRET"));
+    }
+
+    private CoverageEvaluationResult result() {
+        return new CoverageEvaluationResult(
+                true, "ELIGIBLE", "Coverage is available", UUID.randomUUID(),
+                new BigDecimal("900.00"), "TRY");
     }
 
     private EvaluateCoverageCommand command() {

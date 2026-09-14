@@ -3,3 +3,7 @@ databaseChangeLog:
       file: db/changelog/changes/001-create-policies.yaml
   - include:
       file: db/changelog/changes/002-create-append-only-audit.yaml
+  - include:
+      file: db/changelog/changes/003-harden-audit-change-shape.yaml
+  - include:
+      file: db/changelog/changes/004-add-policy-invariant-constraints.yaml

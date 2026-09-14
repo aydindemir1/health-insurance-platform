@@ -22,7 +22,7 @@ class JpaPolicyRepositoryAdapter implements PolicyRepository {
 
     @Override
     public Policy save(Policy policy) {
-        var entity = repository.findById(policy.id()).orElseGet(PolicyJpaEntity::new);
+        var entity = new PolicyJpaEntity();
         mapToEntity(policy, entity);
         try {
             return mapToDomain(repository.saveAndFlush(entity));
@@ -48,6 +48,7 @@ class JpaPolicyRepositoryAdapter implements PolicyRepository {
         target.validFrom = source.validFrom();
         target.validUntil = source.validUntil();
         target.status = source.status();
+        target.version = source.version();
         target.coverages.clear();
         source.coverages().stream().map(this::mapCoverage).forEach(target.coverages::add);
     }
@@ -70,6 +71,6 @@ class JpaPolicyRepositoryAdapter implements PolicyRepository {
                 .toList();
         return Policy.rehydrate(
                 source.id, source.policyNumber, source.memberId,
-                source.validFrom, source.validUntil, source.status, coverages);
+                source.validFrom, source.validUntil, source.status, source.version, coverages);
     }
 }

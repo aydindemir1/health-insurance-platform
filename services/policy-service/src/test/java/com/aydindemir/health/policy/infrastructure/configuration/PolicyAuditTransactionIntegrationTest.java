@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
@@ -30,7 +31,10 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @Testcontainers
 @SpringBootTest
@@ -77,6 +81,7 @@ class PolicyAuditTransactionIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from policies where policy_number = 'POL-AUDIT-ROLLBACK'",
                 Integer.class)).isZero();
+        verify(coverageCache, never()).evictPolicy(anyString());
     }
 
     @Test
@@ -91,6 +96,21 @@ class PolicyAuditTransactionIntegrationTest {
                 .hasMessageContaining("append-only");
         assertThatThrownBy(() -> jdbc.execute("truncate table audit_records"))
                 .hasMessageContaining("append-only");
+    }
+
+    @Test
+    void databaseRejectsIncompleteAuditChangeShape() {
+        assertThatThrownBy(() -> jdbc.update("""
+                        insert into audit_records (
+                            audit_id, aggregate_type, aggregate_id, action, actor_subject,
+                            actor_roles, correlation_id, occurred_at, reason_code, changes,
+                            retention_class
+                        ) values (?, 'POLICY', ?, 'POLICY_ISSUED', 'synthetic-actor',
+                            'SYSTEM_ADMIN', 'audit-shape-test', now(), 'USER_CREATION',
+                            '{}'::jsonb, 'AUDIT_EVIDENCE')
+                        """, UUID.randomUUID(), UUID.randomUUID()))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("chk_policy_audit_changes_allowlist");
     }
 
     @Test

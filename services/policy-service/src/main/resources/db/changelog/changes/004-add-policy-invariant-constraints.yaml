@@ -1,0 +1,36 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-add-policy-invariant-constraints
+      author: aydin-demir
+      changes:
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE policies
+                ADD CONSTRAINT chk_policies_validity
+                  CHECK (valid_until >= valid_from),
+                ADD CONSTRAINT chk_policies_status
+                  CHECK (status IN ('ACTIVE', 'SUSPENDED', 'CANCELLED')),
+                ADD CONSTRAINT chk_policies_version
+                  CHECK (version >= 0);
+
+              ALTER TABLE policy_coverages
+                ADD CONSTRAINT chk_policy_coverages_limit_positive
+                  CHECK (limit_amount > 0),
+                ADD CONSTRAINT chk_policy_coverages_used_range
+                  CHECK (used_amount >= 0 AND used_amount <= limit_amount),
+                ADD CONSTRAINT chk_policy_coverages_currency
+                  CHECK (currency ~ '^[A-Z]{3}$');
+      rollback:
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE policy_coverages
+                DROP CONSTRAINT chk_policy_coverages_currency,
+                DROP CONSTRAINT chk_policy_coverages_used_range,
+                DROP CONSTRAINT chk_policy_coverages_limit_positive;
+
+              ALTER TABLE policies
+                DROP CONSTRAINT chk_policies_version,
+                DROP CONSTRAINT chk_policies_status,
+                DROP CONSTRAINT chk_policies_validity;

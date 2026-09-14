@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-harden-audit-change-shape
+      author: aydin-demir
+      changes:
+        - sql:
+            sql: |
+              ALTER TABLE audit_records
+              DROP CONSTRAINT chk_policy_audit_changes_allowlist;
+
+              ALTER TABLE audit_records
+              ADD CONSTRAINT chk_policy_audit_changes_allowlist CHECK (
+                  jsonb_typeof(changes) = 'object'
+                  AND jsonb_exists(changes, 'fromStatus')
+                  AND jsonb_exists(changes, 'toStatus')
+                  AND (changes - 'fromStatus' - 'toStatus') = '{}'::jsonb
+                  AND jsonb_typeof(changes -> 'fromStatus') IN ('null', 'string')
+                  AND jsonb_typeof(changes -> 'toStatus') = 'string'
+              );
+      rollback:
+        - sql:
+            sql: |
+              ALTER TABLE audit_records
+              DROP CONSTRAINT chk_policy_audit_changes_allowlist;
+
+              ALTER TABLE audit_records
+              ADD CONSTRAINT chk_policy_audit_changes_allowlist
+              CHECK ((changes - 'fromStatus' - 'toStatus') = '{}'::jsonb);

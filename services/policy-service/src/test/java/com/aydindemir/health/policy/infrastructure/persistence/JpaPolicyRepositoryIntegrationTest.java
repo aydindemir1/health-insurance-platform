@@ -11,7 +11,9 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -23,6 +25,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=validate")
@@ -46,7 +49,7 @@ class JpaPolicyRepositoryIntegrationTest {
         repository.save(policy);
 
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from databasechangelog", Integer.class)).isEqualTo(2);
+                "select count(*) from databasechangelog", Integer.class)).isEqualTo(4);
         assertThat(repository.findByPolicyNumber("pol-100"))
                 .hasValueSatisfying(reloaded -> {
                     assertThat(reloaded.id()).isEqualTo(policy.id());
@@ -69,6 +72,57 @@ class JpaPolicyRepositoryIntegrationTest {
                 "uk_policies_policy_number_lower",
                 "uk_policy_coverages_service",
                 "idx_policies_member_validity");
+
+        var constraints = jdbcTemplate.queryForList("""
+                select conname from pg_constraint
+                where conrelid in ('policies'::regclass, 'policy_coverages'::regclass)
+                """, String.class);
+        assertThat(constraints).contains(
+                "chk_policies_validity",
+                "chk_policies_status",
+                "chk_policies_version",
+                "chk_policy_coverages_limit_positive",
+                "chk_policy_coverages_used_range",
+                "chk_policy_coverages_currency");
+    }
+
+    @Test
+    void databaseRejectsAnInvalidPolicyValidityPeriod() {
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into policies (
+                    id, policy_number, member_id, valid_from, valid_until, status, version
+                ) values (?, 'POL-INVALID-DATE', ?, '2026-12-31', '2026-01-01', 'ACTIVE', 0)
+                """, UUID.randomUUID(), UUID.randomUUID()))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("chk_policies_validity");
+    }
+
+    @Test
+    void databaseRejectsAZeroCoverageLimit() {
+        Policy created = repository.save(policy());
+
+        assertThatThrownBy(() -> jdbcTemplate.update("""
+                insert into policy_coverages (
+                    policy_id, service_code, limit_amount, used_amount, currency
+                ) values (?, 'LAB-ZERO', 0, 0, 'TRY')
+                """, created.id()))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("chk_policy_coverages_limit_positive");
+    }
+
+    @Test
+    void rejectsAStaleAggregateUpdateUsingTheJpaVersion() {
+        Policy created = repository.save(policy());
+        Policy firstCopy = repository.findByPolicyNumber(created.policyNumber()).orElseThrow();
+        Policy staleCopy = repository.findByPolicyNumber(created.policyNumber()).orElseThrow();
+
+        firstCopy.suspend();
+        Policy updated = repository.save(firstCopy);
+        assertThat(updated.version()).isEqualTo(created.version() + 1);
+
+        staleCopy.suspend();
+        assertThatThrownBy(() -> repository.save(staleCopy))
+                .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }
 
     private Policy policy() {

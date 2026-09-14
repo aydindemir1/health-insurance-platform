@@ -76,6 +76,48 @@ class PolicyTest {
                 .hasMessageContaining("Duplicate coverage");
     }
 
+    @Test
+    void rejectsInvalidValidityPeriodAndEmptyCoverage() {
+        assertThatThrownBy(() -> Policy.issue(
+                UUID.randomUUID(), "POL-100", MEMBER_ID,
+                LocalDate.parse("2026-12-31"), LocalDate.parse("2026-01-01"),
+                List.of(coverage())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("end date");
+
+        assertThatThrownBy(() -> Policy.issue(
+                UUID.randomUUID(), "POL-100", MEMBER_ID,
+                LocalDate.parse("2026-01-01"), LocalDate.parse("2026-12-31"),
+                List.of()))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("at least one coverage");
+    }
+
+    @Test
+    void rejectsNonPositiveCoverageLimitAndUtilization() {
+        assertThatThrownBy(() -> new Coverage(MRI, money("0"), money("0")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("limit must be positive");
+
+        assertThatThrownBy(() -> coverage().recordUtilization(money("0")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("utilization must be positive");
+    }
+
+    @Test
+    void enforcesSuspensionTransitionAndInactiveEvaluation() {
+        Policy policy = policy();
+        policy.suspend();
+
+        assertThat(policy.status()).isEqualTo(PolicyStatus.SUSPENDED);
+        assertThat(policy.evaluate(
+                MEMBER_ID, MRI, money("1.00"), LocalDate.parse("2026-09-03")).code())
+                .isEqualTo("POLICY_INACTIVE");
+        assertThatThrownBy(policy::suspend)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Only an active policy");
+    }
+
     private Policy policy() {
         return Policy.issue(
                 UUID.randomUUID(), "POL-100", MEMBER_ID,
