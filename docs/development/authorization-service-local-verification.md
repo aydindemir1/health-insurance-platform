@@ -86,6 +86,7 @@ docker compose exec -T rabbitmq rabbitmqctl -q list_queues name messages consume
 $env:AUTHORIZATION_SCREENSHOT_PRE_AUTHORIZATION_ID = "<synthetic-uuid>"
 Set-Location apps/operations-portal
 npm run screenshots:authorization
+npm run screenshots:authorization-infrastructure
 ```
 
 The Kafka native runtime image intentionally contains the broker executable,
@@ -103,6 +104,23 @@ work—these channels do not solve the same problem. Provider ownership is taken
 from the verified token, not client input. The test and screenshot checkpoint
 is portfolio evidence, not a production capacity, penetration, or availability
 claim.
+
+## Requirement-to-evidence traceability
+
+| Concern | Implementation boundary | Automated/live evidence |
+| --- | --- | --- |
+| provider ownership | verified JWT claim mapped to application `ActorContext` | controller/use-case tests and `401/403` runtime contract |
+| coverage before submission | `CoverageVerificationPort` and fail-closed REST adapter | adapter tests plus successful synthetic submission |
+| legal decisions | `PreAuthorization` aggregate | domain tests plus `PENDING -> APPROVED -> 409` runtime flow |
+| concurrent decisions | JPA optimistic version translated to application conflict | PostgreSQL integration test and persisted version evidence |
+| atomic decision side effects | transaction decorator enclosing state, audit and two outboxes | transaction integration test and matching committed rows |
+| Kafka business event | Kafka outbox relay | broker topic partitions and acknowledged outbox evidence |
+| RabbitMQ notification work | notification task outbox relay | durable queue/DLQ topology and acknowledged outbox evidence |
+| architecture direction | inner-layer dependency allowlists | ArchUnit suite |
+
+This table is the reading order for the service: start with the business rule,
+find its owning layer, run its focused test, and finally inspect the safe live
+evidence. A screenshot supplements executable verification; it never replaces it.
 
 For design details, see the
 [Authorization architecture](../architecture/authorization-service.md),

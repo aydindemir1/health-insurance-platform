@@ -50,6 +50,12 @@ Current portfolio evidence catalogue:
   evidence showing health, RFC 9457 authentication failure, PostgreSQL state,
   Liquibase/constraint counts, minimized audit actions, acknowledged Kafka and
   RabbitMQ outboxes, and durable RabbitMQ queue state.
+- `20-authorization-postgresql-runtime.png` — Authorization-owned PostgreSQL
+  aggregate, Liquibase history, lifecycle constraints and minimized audit rows.
+- `21-authorization-kafka-runtime.png` — healthy Kafka broker, persisted topic/DLT
+  partitions and producer-acknowledged integration-event outbox row.
+- `22-authorization-rabbitmq-runtime.png` — healthy RabbitMQ broker, durable
+  queue/DLQ topology, bindings and publisher-acknowledged notification outbox.
 
 ## Preview
 
@@ -90,6 +96,12 @@ Current portfolio evidence catalogue:
 ![Policy Service runtime](18-policy-service-runtime.png)
 
 ![Authorization Service runtime](19-authorization-service-runtime.png)
+
+![Authorization PostgreSQL runtime](20-authorization-postgresql-runtime.png)
+
+![Authorization Kafka runtime](21-authorization-kafka-runtime.png)
+
+![Authorization RabbitMQ runtime](22-authorization-rabbitmq-runtime.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
@@ -186,6 +198,7 @@ only the synthetic request UUID; no access token is required or persisted:
 $env:AUTHORIZATION_SCREENSHOT_PRE_AUTHORIZATION_ID = "<synthetic-pre-authorization-uuid>"
 Set-Location apps/operations-portal
 npm run screenshots:authorization
+npm run screenshots:authorization-infrastructure
 ```
 
 The image renders only operational metadata and minimized audit actions. It

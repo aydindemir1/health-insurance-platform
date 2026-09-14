@@ -893,6 +893,11 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 
 ![Authorization Service live local runtime](docs/screenshots/19-authorization-service-runtime.png)
 
+Authorization infrastructure evidence is captured separately for
+[PostgreSQL](docs/screenshots/20-authorization-postgresql-runtime.png),
+[Kafka](docs/screenshots/21-authorization-kafka-runtime.png), and
+[RabbitMQ](docs/screenshots/22-authorization-rabbitmq-runtime.png).
+
 - [Engineering documentation index](docs/README.md)
 - [Technical walkthrough and interview guide](docs/project-technical-walkthrough.md)
 - [C4 context](docs/architecture/c4-context.md) and
