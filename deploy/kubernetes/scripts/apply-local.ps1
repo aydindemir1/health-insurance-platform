@@ -9,7 +9,7 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot))
 $namespace = 'health-insurance'
 
-if (-not $AllowNonLocalContext -and $Context -notmatch '^(kind-|minikube$)') {
+if (-not $AllowNonLocalContext -and $Context -notmatch '^(kind-|minikube$|portfolio-ci$)') {
     throw "Refusing non-local context '$Context'. Use -AllowNonLocalContext only after review."
 }
 

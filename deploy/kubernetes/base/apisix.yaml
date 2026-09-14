@@ -38,11 +38,15 @@ spec:
               app.kubernetes.io/name: apisix
       initContainers:
         - name: prepare-config
-          image: busybox:1.37.0
+          image: apache/apisix:3.18.0-debian
+          imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:
-            - cp /config-source/config.yaml /config-write/config.yaml &&
-              cp /config-source/apisix.yaml /config-write/apisix.yaml
+            - cp -R /usr/local/apisix/conf/. /config-write/ &&
+              cp /config-source/config.yaml /config-write/config.yaml &&
+              cp /config-source/apisix.yaml /config-write/apisix.yaml &&
+              mkdir -p /nginx-temp/client-body /nginx-temp/proxy
+              /nginx-temp/fastcgi /nginx-temp/uwsgi /nginx-temp/scgi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -57,7 +61,7 @@ spec:
               memory: 8Mi
             limits:
               cpu: 50m
-              memory: 32Mi
+              memory: 64Mi
           volumeMounts:
             - name: config-source
               mountPath: /config-source
@@ -66,6 +70,8 @@ spec:
               mountPath: /config-write
             - name: tmp
               mountPath: /tmp
+            - name: nginx-temp
+              mountPath: /nginx-temp
       containers:
         - name: gateway
           image: apache/apisix:3.18.0-debian
@@ -118,6 +124,21 @@ spec:
               mountPath: /usr/local/apisix/logs
             - name: tmp
               mountPath: /tmp
+            - name: nginx-temp
+              mountPath: /usr/local/apisix/client_body_temp
+              subPath: client-body
+            - name: nginx-temp
+              mountPath: /usr/local/apisix/proxy_temp
+              subPath: proxy
+            - name: nginx-temp
+              mountPath: /usr/local/apisix/fastcgi_temp
+              subPath: fastcgi
+            - name: nginx-temp
+              mountPath: /usr/local/apisix/uwsgi_temp
+              subPath: uwsgi
+            - name: nginx-temp
+              mountPath: /usr/local/apisix/scgi_temp
+              subPath: scgi
       volumes:
         - name: config-source
           configMap:
@@ -129,6 +150,9 @@ spec:
           emptyDir:
             sizeLimit: 128Mi
         - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+        - name: nginx-temp
           emptyDir:
             sizeLimit: 64Mi
 ---

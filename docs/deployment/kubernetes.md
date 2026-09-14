@@ -53,6 +53,10 @@ deploy/kubernetes/
   disruption budgets and conservative CPU HPAs.
 - No HPA for Notification Worker: queue-depth scaling requires an external
   metric adapter and is safer than CPU-based consumer scaling.
+- The resource-constrained local overlay keeps every HPA at one replica and
+  uses `Recreate`, preventing cold-start CPU from causing a local scale-out
+  storm. The production-oriented base retains rolling updates and real HPA
+  ranges.
 
 ## Render and policy validation
 
@@ -62,20 +66,24 @@ kubectl kustomize deploy/kubernetes/base
 kubectl kustomize deploy/kubernetes/overlays/local
 ```
 
-For a live cluster API validation:
+For a live cluster API validation after the target namespace has been applied:
 
 ```powershell
-.\scripts\validate-kubernetes.ps1 -ServerDryRun -Context kind-health-insurance
+.\scripts\validate-kubernetes.ps1 -ServerDryRun -Context portfolio-ci
 ```
 
 ## Local overlay
 
 The local overlay expects the existing Compose databases, Redis, RabbitMQ,
-Elasticsearch, Keycloak and APM ports on `host.docker.internal`. Load the six
-locally built application images into Kind before applying:
+Elasticsearch, Keycloak and APM ports on `host.docker.internal`. The portfolio
+checkpoint uses the disposable `portfolio-ci` Minikube profile; Kind remains a
+supported alternative. Load the six locally built application images and the
+already-pulled APISIX image before applying:
 
 ```powershell
-kind create cluster --name health-insurance
+minikube start -p portfolio-ci --driver=docker --cpus=2 --memory=4096 `
+  --kubernetes-version=v1.35.1 `
+  --insecure-registry=host.minikube.internal:8088
 
 $images = @(
   'health-insurance/authorization-service:local',
@@ -83,12 +91,13 @@ $images = @(
   'health-insurance/claims-billing-service:local',
   'health-insurance/notification-worker:local',
   'health-insurance/search-service:local',
-  'health-insurance/operations-portal:local'
+  'health-insurance/operations-portal:local',
+  'apache/apisix:3.18.0-debian'
 )
-foreach ($image in $images) { kind load docker-image $image --name health-insurance }
+foreach ($image in $images) { minikube image load -p portfolio-ci $image }
 
-.\deploy\kubernetes\scripts\apply-local.ps1
-kubectl --context kind-health-insurance get pods -n health-insurance
+.\deploy\kubernetes\scripts\apply-local.ps1 -Context portfolio-ci
+kubectl --context portfolio-ci get pods -n health-insurance
 ```
 
 The helper refuses a non-local context unless `-AllowNonLocalContext` is
@@ -104,8 +113,8 @@ environment.
 Use port-forwarding instead of publishing every service:
 
 ```powershell
-kubectl --context kind-health-insurance port-forward -n health-insurance service/apisix 9080:9080
-kubectl --context kind-health-insurance port-forward -n health-insurance service/operations-portal 8088:8080
+kubectl --context portfolio-ci port-forward -n health-insurance service/apisix 9080:9080
+kubectl --context portfolio-ci port-forward -n health-insurance service/operations-portal 8088:8080
 ```
 
 ## Production integration

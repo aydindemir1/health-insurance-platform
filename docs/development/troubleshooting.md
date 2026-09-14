@@ -4,6 +4,21 @@ This guide covers reproducible local-development failures through Milestone 8.
 Never paste passwords, access tokens, message payloads, or real health data into
 commands, issues, screenshots, or logs.
 
+## The disposable Minikube profile has no API server
+
+If `portfolio-ci` was interrupted during its first bootstrap, kubelet may report
+a missing `bootstrap-kubelet.conf` or kubeadm may reject an empty certificate
+SAN. Do not edit generated profile JSON. Because this cluster is explicitly
+disposable, remove only that exact profile and recreate it with the command in
+the Kubernetes deployment guide:
+
+```powershell
+minikube delete -p portfolio-ci
+```
+
+This removes the cluster state, not repository files, Compose volumes or local
+application images. Let the following `minikube start` finish uninterrupted.
+
 ## A Compose port is already allocated
 
 Symptom:
