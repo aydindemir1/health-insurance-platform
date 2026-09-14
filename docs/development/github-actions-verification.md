@@ -8,6 +8,11 @@ CD; GitHub Actions does not duplicate those publication responsibilities.
 
 ## Verified on 15 September 2026
 
+- Hardened workflows were executed once against commit
+  `e9ccb414b4662e63694902b40fbad9e56f6d8573`; all three completed successfully:
+  [Backend CI run 34907516491](https://github.com/aydindemir1/health-insurance-platform/actions/runs/34907516491),
+  [Frontend CI run 34907516480](https://github.com/aydindemir1/health-insurance-platform/actions/runs/34907516480), and
+  [Gateway CI run 34907516501](https://github.com/aydindemir1/health-insurance-platform/actions/runs/34907516501).
 - Local `main` and `origin/main` both resolved to
   `fb84335ebf91ed856df0adbff33b0f24502ca8bc` before this CI hardening change.
 - Gateway CI run `34901588813` succeeded for the latest Compose/gateway change.
@@ -20,7 +25,8 @@ CD; GitHub Actions does not duplicate those publication responsibilities.
   Public metadata identifies the failing `Verify application` step, but GitHub
   requires an authenticated repository administrator to download its log. The
   evidence therefore supports a transient/flaky-run hypothesis, not a proven
-  code root cause; the run was deliberately not retried or described as green.
+  code root cause; the old run was deliberately not retried. The later full
+  backend matrix success on `e9ccb41` verifies the current source independently.
 
 ## Workflow controls
 
