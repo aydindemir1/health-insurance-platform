@@ -350,6 +350,12 @@ endpoint correction. The committed Jenkins configuration contains that fix. A
 single all-green rerun was intentionally not performed solely to recreate
 already-successful stages.
 
+The existing Jenkins/SonarQube stack was started again with `--no-build` on
+15 September 2026. All three quality containers were healthy, Jenkins-to-Sonar
+network access and the webhook were valid, and SonarQube reported Quality Gate
+`OK` for Build #7's exact Git revision. The authenticated evidence is recorded
+in the [Jenkins and SonarQube verification guide](docs/development/jenkins-sonarqube-local-verification.md).
+
 See the [Milestone 12 completion record](docs/milestones/milestone-12-ci-cd-software-supply-chain.md),
 [ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md), the
 [CI/CD architecture](docs/architecture/ci-cd-supply-chain.md), and the

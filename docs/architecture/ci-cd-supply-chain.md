@@ -27,6 +27,14 @@ flowchart LR
 | Argo CD | Seven control-plane pods became Ready; Application sync operation succeeded |
 | Kubernetes | Git revision `a56fff2a14405d3024b98f357b1c3b38edd8384b` rendered and synced |
 
+The quality stack was revalidated from its existing images and persistent
+volumes on 15 September 2026 without a rebuild or new pipeline run. Jenkins,
+SonarQube and Sonar PostgreSQL were healthy; authenticated APIs, internal DNS,
+the Sonar webhook and the `OK` gate for revision `7fc3ea6b...` were confirmed.
+Build #7 remains overall red because its final Harbor stage failed; its upstream
+quality, Nexus and SBOM stages remain successful stage-level evidence. See the
+[local verification record](../development/jenkins-sonarqube-local-verification.md).
+
 `Progressing` or `Degraded` after sync is expected locally because production-owned databases,
 brokers, IAM, TLS, and external secrets are not fabricated inside the GitOps
 repository. This is a deployment dependency boundary, not a failed sync.
