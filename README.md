@@ -898,6 +898,10 @@ Authorization infrastructure evidence is captured separately for
 [Kafka](docs/screenshots/21-authorization-kafka-runtime.png), and
 [RabbitMQ](docs/screenshots/22-authorization-rabbitmq-runtime.png).
 
+Claims/Billing live evidence covers the
+[PostgreSQL financial lifecycle](docs/screenshots/23-claims-billing-postgresql-runtime.png)
+and the [Kafka idempotent consumer](docs/screenshots/24-claims-billing-kafka-consumer-runtime.png).
+
 - [Engineering documentation index](docs/README.md)
 - [Technical walkthrough and interview guide](docs/project-technical-walkthrough.md)
 - [C4 context](docs/architecture/c4-context.md) and

@@ -56,6 +56,12 @@ Current portfolio evidence catalogue:
   partitions and producer-acknowledged integration-event outbox row.
 - `22-authorization-rabbitmq-runtime.png` — healthy RabbitMQ broker, durable
   queue/DLQ topology, bindings and publisher-acknowledged notification outbox.
+- `23-claims-billing-postgresql-runtime.png` — settled Claim/Invoice state,
+  optimistic versions, Liquibase history, minimized audit actions and search
+  projection outbox intent in the owner database.
+- `24-claims-billing-kafka-consumer-runtime.png` — Authorization source topic and
+  DLT partitions, Claims consumer inbox marker, and one Claim per approved
+  pre-authorization idempotency evidence.
 
 ## Preview
 
@@ -102,6 +108,10 @@ Current portfolio evidence catalogue:
 ![Authorization Kafka runtime](21-authorization-kafka-runtime.png)
 
 ![Authorization RabbitMQ runtime](22-authorization-rabbitmq-runtime.png)
+
+![Claims and Billing PostgreSQL runtime](23-claims-billing-postgresql-runtime.png)
+
+![Claims and Billing Kafka consumer runtime](24-claims-billing-kafka-consumer-runtime.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
@@ -204,3 +214,16 @@ npm run screenshots:authorization-infrastructure
 The image renders only operational metadata and minimized audit actions. It
 does not render business payloads, member/diagnosis identifiers, credentials,
 tokens, or broker message bodies.
+
+To recapture the Claims/Billing evidence after completing a synthetic claim and
+invoice lifecycle:
+
+```powershell
+$env:CLAIMS_SCREENSHOT_CLAIM_ID = "<synthetic-claim-uuid>"
+Set-Location apps/operations-portal
+npm run screenshots:claims
+```
+
+The script reads state and idempotency metadata only. Financial amounts,
+payment references, policy/member data, credentials, tokens, and Kafka payloads
+are deliberately excluded.

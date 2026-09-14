@@ -73,6 +73,30 @@ Separate PostgreSQL and Kafka screenshots should be generated from that live
 run. Tokens, message payloads, member/policy/service values, money, payment
 references, and credentials must not be rendered.
 
+## Verified live checkpoint
+
+A source-run service on port `8083` consumed the previously published synthetic
+Authorization approval and created exactly one `SUBMITTED` Claim with one
+`ISSUED` Invoice. Real role-bearing Keycloak tokens then drove:
+
+```text
+Claim:   SUBMITTED -> UNDER_REVIEW -> APPROVED
+Invoice: ISSUED -> MATCHED -> SETTLED
+```
+
+A repeated claim approval returned `409`. PostgreSQL recorded Claim and Invoice
+optimistic versions `2`, one payment row, six minimized audit actions, four
+successive search-projection outbox snapshots, and the processed-message inbox
+marker that links the Kafka event identity to `claims-pre-authorization-approved-v1`.
+
+Capture the safe evidence without repeating the workflow:
+
+```powershell
+$env:CLAIMS_SCREENSHOT_CLAIM_ID = "<synthetic-claim-uuid>"
+Set-Location apps/operations-portal
+npm run screenshots:claims
+```
+
 ## .NET comparison
 
 | Java/Spring | .NET analogue |

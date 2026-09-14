@@ -16,6 +16,7 @@
     "screenshots:policy": "node scripts/capture-policy-runtime-evidence.mjs",
     "screenshots:authorization": "node scripts/capture-authorization-runtime-evidence.mjs",
     "screenshots:authorization-infrastructure": "node scripts/capture-authorization-infrastructure-evidence.mjs",
+    "screenshots:claims": "node scripts/capture-claims-runtime-evidence.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test"

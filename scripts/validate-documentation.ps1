@@ -97,7 +97,9 @@ try {
         'docs/screenshots/19-authorization-service-runtime.png',
         'docs/screenshots/20-authorization-postgresql-runtime.png',
         'docs/screenshots/21-authorization-kafka-runtime.png',
-        'docs/screenshots/22-authorization-rabbitmq-runtime.png'
+        'docs/screenshots/22-authorization-rabbitmq-runtime.png',
+        'docs/screenshots/23-claims-billing-postgresql-runtime.png',
+        'docs/screenshots/24-claims-billing-kafka-consumer-runtime.png'
     )
     foreach ($screenshot in $expectedScreenshots) {
         Assert-Condition (Test-Path -LiteralPath $screenshot -PathType Leaf) "Missing screenshot: $screenshot"

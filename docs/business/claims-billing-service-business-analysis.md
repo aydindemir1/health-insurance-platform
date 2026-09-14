@@ -147,6 +147,13 @@ rules, use-case authorization, provider ownership, atomic state/audit/search
 outbox writes, JPA persistence and optimistic locking, Kafka duplicate delivery
 and DLT routing, REST contracts, Spring wiring, and ArchUnit boundaries.
 
+The focused live checkpoint also consumed a real synthetic Authorization event,
+created exactly one Claim/Invoice pair, and completed `UNDER_REVIEW -> APPROVED`
+plus `MATCHED -> SETTLED`. A repeated approval returned `409`; the owner database
+contained the matching processed-message marker, six minimized audit actions,
+four lifecycle search projections, and optimistic versions `2` on both
+aggregates.
+
 ## Explicit scope boundaries
 
 - No external payment provider or banking settlement integration is implemented.
