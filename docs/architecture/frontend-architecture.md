@@ -52,3 +52,9 @@ becomes a flow layout, forms and filters collapse to one column, and wide tables
 scroll inside their own container instead of widening the document. Focus rings,
 reduced-motion preferences, named table columns and WCAG AA table contrast are
 verified in a real 390px Chrome viewport with axe-core.
+
+All page components are route-level lazy imports. Vite also separates React,
+TanStack Query, forms/validation and Keycloak into stable vendor chunks so a
+page change does not invalidate every third-party dependency. The
+`build:budget` check rejects any JavaScript chunk above 100 KiB gzip; the current
+largest chunk is the React vendor bundle at 70.54 KiB gzip.

@@ -23,7 +23,7 @@ From `apps/operations-portal`:
 ```powershell
 npm run lint
 npm test
-npm run build
+npm run build:budget
 ```
 
 Verified on 2026-09-14:
@@ -32,6 +32,7 @@ Verified on 2026-09-14:
 Oxlint:          passed
 Vitest:          15 files, 27 tests passed
 TypeScript/Vite: production build passed, 258 modules transformed
+Bundle budget:   20 JavaScript chunks; largest 70.54 KiB gzip (limit 100 KiB)
 Playwright:      3 real Chrome scenarios passed across focused runs
 ```
 
@@ -60,6 +61,11 @@ The responsive/accessibility checkpoint adds a fourth real Chrome scenario. At
 overflow, and correct keyboard focus progression through the primary navigation.
 The work-queue action column has an explicit header and secondary table text
 meets WCAG AA contrast.
+
+The performance checkpoint verifies route-level lazy loading and stable vendor
+chunk separation. `npm run build:budget` performs the production TypeScript/Vite
+build and then fails if any JavaScript chunk exceeds 100 KiB gzip, making bundle
+growth visible in local development and CI.
 
 When APISIX is intentionally stopped during isolated frontend learning, set
 `VITE_API_BASE_URL=http://localhost:8081/api/v1` and
