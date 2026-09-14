@@ -20,6 +20,8 @@ test('authenticated operations page is accessible and usable on a mobile viewpor
   await signIn(page)
   await page.getByRole('link', { name: 'Pre-authorizations' }).click()
   await expect(page.getByRole('heading', { name: 'Pre-authorizations' })).toBeVisible()
+  await expect(page.getByRole('status')).toBeHidden()
+  await expect(page.getByRole('alert')).toHaveCount(0)
 
   await page.addScriptTag({ content: axe.source })
   const violations = await page.evaluate(async () => {

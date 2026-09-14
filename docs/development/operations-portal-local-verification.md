@@ -33,7 +33,7 @@ Oxlint:          passed
 Vitest:          15 files, 27 tests passed
 TypeScript/Vite: production build passed, 258 modules transformed
 Bundle budget:   20 JavaScript chunks; largest 70.54 KiB gzip (limit 100 KiB)
-Playwright:      3 real Chrome scenarios passed across focused runs
+Playwright:      4 real Chrome scenarios passed across focused runs
 ```
 
 The browser workflow used real Keycloak Authorization Code + PKCE and live
@@ -66,6 +66,12 @@ The performance checkpoint verifies route-level lazy loading and stable vendor
 chunk separation. `npm run build:budget` performs the production TypeScript/Vite
 build and then fails if any JavaScript chunk exceeds 100 KiB gzip, making bundle
 growth visible in local development and CI.
+
+The final portal smoke checkpoint ran the mobile scenario with the default API
+origin (`http://localhost:9080/api/v1`). It completed a real Keycloak login,
+loaded 59 provider-owned pre-authorizations through APISIX, rendered pagination,
+reported no API error, and passed the same axe, overflow and keyboard checks.
+Screenshot `27-operations-portal-apisix-mobile-smoke.png` records this state.
 
 When APISIX is intentionally stopped during isolated frontend learning, set
 `VITE_API_BASE_URL=http://localhost:8081/api/v1` and

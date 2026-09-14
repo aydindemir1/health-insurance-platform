@@ -82,6 +82,9 @@ evidence than adding a dense terminal collage for the same run.
   history, lifecycle constraints, and operational indexes.
 - `26-operations-portal-mobile-accessibility.png` — authenticated 390-pixel
   provider work queue after live axe, overflow and keyboard-focus verification.
+- `27-operations-portal-apisix-mobile-smoke.png` — authenticated mobile work
+  queue populated through APISIX, proving Keycloak login, gateway routing,
+  backend pagination and the accessible responsive UI in one live checkpoint.
 
 ## Preview
 
@@ -136,6 +139,8 @@ evidence than adding a dense terminal collage for the same run.
 ![Notification Worker runtime](25-notification-worker-runtime.png)
 
 ![Operations Portal mobile accessibility](26-operations-portal-mobile-accessibility.png)
+
+![Operations Portal through APISIX](27-operations-portal-apisix-mobile-smoke.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
