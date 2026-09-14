@@ -211,8 +211,8 @@ public class ElasticsearchSearchIndex implements SearchIndex, SearchRebuildIndex
                 .script(script -> script
                         .lang("painless")
                         .source(source -> source.scriptString(
-                                "if (ctx._source.sourceRevision == null || "
-                                        + "params.sourceRevision >= ctx._source.sourceRevision) "
+                                "if (ctx.op == 'create' || ctx._source.sourceRevision == null || "
+                                        + "params.sourceRevision > ctx._source.sourceRevision) "
                                         + "{ ctx._source = params.document } else { ctx.op = 'noop' }"))
                         .params("sourceRevision", JsonData.of(record.sourceRevision()))
                         .params("document", JsonData.of(

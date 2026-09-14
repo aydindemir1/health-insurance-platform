@@ -67,7 +67,7 @@ sequenceDiagram
     O->>DB: Mark published
     K->>S: At-least-once delivery
     S->>E: Conditional upsert by deterministic ID + sourceRevision
-    Note right of S: Equal or newer replaces and stale revisions are ignored
+    Note right of S: Create or newer replaces; equal/older revisions are no-ops
 ```
 
 Search documents contain only operational identifiers and financial workflow
@@ -118,7 +118,9 @@ alias. Physical candidates use `healthcare-operations-v{schema}-{opaqueRunId}`.
 Activation never deletes an index. Authorization uses its aggregate revision;
 Claims/Billing combines Claim and Invoice revisions so either transition advances
 the projection. Legacy documents without the new field map to revision 1 until
-a rebuild replaces them.
+a rebuild replaces them. Equal-revision delivery is deliberately a no-op: this
+keeps ordinary duplicates idempotent and prevents a divergent duplicate from
+winning only because it arrived later.
 
 Candidate count mismatch or concurrent alias movement returns RFC 9457 `409`
 and leaves the current read path untouched. The initial run registry is

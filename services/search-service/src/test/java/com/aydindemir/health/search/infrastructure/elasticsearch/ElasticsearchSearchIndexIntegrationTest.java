@@ -87,6 +87,24 @@ class ElasticsearchSearchIndexIntegrationTest {
     }
 
     @Test
+    void ignoresAConflictingProjectionAtTheSameSourceRevision() {
+        UUID providerId = UUID.randomUUID();
+        UUID claimId = UUID.randomUUID();
+        index.save(record(providerId, claimId, "SETTLED", 4));
+        index.save(record(providerId, claimId, "ISSUED", 4));
+
+        await().untilAsserted(() -> {
+            var page = index.search("POL-SEARCH", RecordType.CLAIM, "APPROVED", providerId, 0, 10);
+            assertThat(page.content()).filteredOn(record -> record.sourceId().equals(claimId))
+                    .singleElement()
+                    .satisfies(record -> {
+                        assertThat(record.invoiceStatus()).isEqualTo("SETTLED");
+                        assertThat(record.sourceRevision()).isEqualTo(4);
+                    });
+        });
+    }
+
+    @Test
     void readsLegacyDocumentsWithoutASourceRevisionAtTheBaselineRevision() throws Exception {
         UUID sourceId = UUID.randomUUID();
         UUID providerId = UUID.randomUUID();

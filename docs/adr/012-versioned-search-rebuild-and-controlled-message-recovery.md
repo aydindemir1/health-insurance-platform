@@ -68,7 +68,9 @@ Deterministic IDs prevent duplicates but do not prevent an older event from
 overwriting a newer snapshot. Before online rebuild activation, every projection
 will carry an owner-defined monotonic `sourceRevision`. Normal event handling and
 rebuild ingestion use conditional upsert semantics: a document is replaced only
-when the incoming revision is greater than or equal to the stored revision.
+when the incoming revision is greater than the stored revision. An equal
+revision is an idempotent no-op, so a divergent duplicate cannot win by arrival
+order.
 
 Authorization derives the revision from its aggregate version. Claims/Billing
 defines one monotonic projection revision for the combined Claim/Invoice view;
