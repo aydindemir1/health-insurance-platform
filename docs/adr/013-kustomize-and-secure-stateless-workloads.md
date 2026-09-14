@@ -30,6 +30,9 @@ temporary volumes. The namespace enforces the Restricted Pod Security Standard.
 Default-deny NetworkPolicies are opened only for known callers and dependency
 ports. HTTP workloads have startup, readiness and liveness probes. The worker
 exposes Actuator health on port 8085 rather than using a process-only probe.
+The namespace has ResourceQuota and LimitRange guardrails. Third-party workload
+images are pinned by registry digest; application image immutability is supplied
+by the CI/CD promotion flow.
 
 Credentials are never rendered by Kustomize. Deployments reference named
 Secrets that must be supplied by an operator or an external secret controller.
@@ -43,6 +46,9 @@ the Kubernetes API and never writes a generated Secret manifest to disk.
   responsibilities of their owning operators or managed services.
 - CPU HPAs require Metrics Server. Rabbit consumer scaling should eventually
   use queue-depth metrics rather than CPU, so the worker is not given an HPA.
+- The local overlay fixes HPA minimum and maximum replicas at one and uses
+  `Recreate`; this prevents cold-start scale-out on a resource-constrained
+  single-node cluster without weakening production rollout semantics.
 - Port-bounded IP egress is useful defence in depth but is not identity-aware.
   Production clusters should add workload identity, TLS and an egress gateway.
 - The local overlay disables Kafka-driven application paths because the Compose

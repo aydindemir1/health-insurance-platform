@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: health-insurance
 resources:
   - namespace.yaml
+  - namespace-resource-policy.yaml
   - runtime-config.yaml
   - service-accounts.yaml
   - authorization-service.yaml

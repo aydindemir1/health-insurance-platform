@@ -41,9 +41,10 @@ evidence than adding a dense terminal collage for the same run.
   operations query using synthetic policy and financial records.
 - `08-kibana-apm-services.png` — live Kibana APM services inventory populated by
   externally attached Java agents.
-- `09-apisix-gateway-problem-details.png` — live unauthenticated gateway
-  rejection rendered as RFC 9457 JSON with a correlation ID; the executable
-  demo separately verifies the non-visual wrong-audience rejection.
+- `09-apisix-gateway-problem-details.png` — refreshed from the live Kubernetes
+  APISIX Service: unauthenticated RFC 9457 rejection with a correlation ID; the
+  executable demo also verifies audience, routing, CORS, payload and rate-limit
+  policies.
 - `10-audit-trail.png` — `SYSTEM_ADMIN`-only service selector, bounded filters,
   paginated minimized state-change evidence, actor context, and correlation ID.
 - `11-search-rebuild-recovery.png` — live stable alias target, current document

@@ -49,9 +49,13 @@ try {
     Assert-Condition (([regex]::Matches($base, '(?m)^kind: NetworkPolicy$')).Count -ge 10) 'Network policy set is incomplete.'
     Assert-Condition (([regex]::Matches($base, '(?m)^kind: PodDisruptionBudget$')).Count -eq 7) 'PDB set is incomplete.'
     Assert-Condition (([regex]::Matches($base, '(?m)^kind: HorizontalPodAutoscaler$')).Count -eq 6) 'HPA set is incomplete.'
+    Assert-Condition (([regex]::Matches($base, '(?m)^kind: ResourceQuota$')).Count -eq 1) 'Namespace ResourceQuota is missing.'
+    Assert-Condition (([regex]::Matches($base, '(?m)^kind: LimitRange$')).Count -eq 1) 'Namespace LimitRange is missing.'
+    Assert-Condition (([regex]::Matches($base, 'apache/apisix:3\.18\.0-debian@sha256:[a-f0-9]{64}')).Count -eq 2) 'APISIX images must use one immutable registry digest.'
     Assert-Condition ($base -notmatch '(?m)^kind: Secret$') 'Rendered base must not contain Secrets.'
     Assert-Condition ($base -notmatch '(?i)(password|client-secret):\s+[^\s]') 'A literal credential may be present.'
     Assert-Condition (([regex]::Matches($local, '(?m)^  replicas: 1$')).Count -eq 7) 'Local overlay must use one replica per deployment.'
+    Assert-Condition ($local -match '(?ms)kind: Service\s+metadata:.*?name: keycloak.*?namespace: health-insurance.*?type: ExternalName') 'Local Keycloak ExternalName Service must use the health-insurance namespace.'
 
     foreach ($dockerfile in Get-ChildItem 'services' -File -Recurse -Filter 'Dockerfile') {
         $content = Get-Content -LiteralPath $dockerfile.FullName -Raw

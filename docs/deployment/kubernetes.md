@@ -48,6 +48,9 @@ deploy/kubernetes/
   escalation and read-only root filesystems.
 - Dedicated ServiceAccounts with token automount disabled and no RBAC grants.
 - Default-deny ingress/egress plus caller- and port-specific NetworkPolicies.
+- ResourceQuota bounds aggregate namespace consumption; LimitRange supplies
+  safe defaults and per-container ceilings for future workloads.
+- Both APISIX containers use the same immutable registry digest.
 - Startup, readiness and liveness probes on all seven workloads.
 - Requests/limits, graceful Spring shutdown, rolling updates, topology spread,
   disruption budgets and conservative CPU HPAs.
@@ -105,6 +108,9 @@ explicitly provided. It reads ignored `.env` values and does not print or write
 Secret payloads. APISIX's bearer-only compatibility value is generated in
 memory when it is absent.
 
+The overlay declares `namespace: health-insurance` itself so its local
+ExternalName Service and NetworkPolicy cannot accidentally land in `default`.
+
 Local Kafka consumers and outbox relays are disabled because Compose advertises
 `localhost:9092` to clients. This avoids claiming a working cross-runtime Kafka
 path. Kafka/RabbitMQ behavior remains verified in the dedicated integration
@@ -116,6 +122,24 @@ Use port-forwarding instead of publishing every service:
 kubectl --context portfolio-ci port-forward -n health-insurance service/apisix 9080:9080
 kubectl --context portfolio-ci port-forward -n health-insurance service/operations-portal 8088:8080
 ```
+
+## Verified gateway checkpoint
+
+The 2026-09-15 Minikube checkpoint verified the Kubernetes APISIX Service with
+the committed `demo/verify-api-gateway.ps1` contract:
+
+```text
+missing/invalid token: 401
+wrong audience:         403
+authorized routing:     200
+CORS preflight:         200
+oversized payload:      413
+rate limit:             429
+correlation preserved:  true
+```
+
+The test used runtime-only Keycloak credentials. No backend Service port was
+published to the host; APISIX was reached through a temporary port-forward.
 
 ## Production integration
 

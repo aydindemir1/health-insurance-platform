@@ -304,6 +304,8 @@ domain concern.
   shutdown, rolling updates, topology spread, PDBs, and conservative HPAs make
   availability behavior explicit. Notification Worker deliberately has no
   CPU-only HPA because queue-depth scaling requires an external metric.
+- Namespace ResourceQuota/LimitRange policies bound runaway consumption, and
+  APISIX is pinned to a verified registry digest rather than a mutable tag.
 - Secrets are referenced by name and never rendered by Kustomize. The guarded
   local helper reads ignored environment values and sends them directly to the
   Kubernetes API without writing Secret YAML to disk.

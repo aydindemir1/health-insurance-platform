@@ -220,6 +220,8 @@ The script creates and verifies:
   quota returns `429` with rate-limit headers.
 - Direct host access to ports `8081`–`8084` fails because API services are only
   exposed on the Compose network.
+- The Kubernetes variant exposes no backend Service port either; it reaches
+  APISIX only through a temporary local port-forward.
 
 - A hospital token with another provider cannot read the records: `403`.
 - A hospital token cannot approve a pre-authorization or claim: `403`.

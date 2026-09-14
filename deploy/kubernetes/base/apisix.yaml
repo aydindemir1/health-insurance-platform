@@ -38,7 +38,7 @@ spec:
               app.kubernetes.io/name: apisix
       initContainers:
         - name: prepare-config
-          image: apache/apisix:3.18.0-debian
+          image: apache/apisix:3.18.0-debian@sha256:84e6b5e787e9f889ebff88161cb9a16599bafcffa236c6b54c7f779a0655940d
           imagePullPolicy: IfNotPresent
           command: ["/bin/sh", "-c"]
           args:
@@ -74,7 +74,7 @@ spec:
               mountPath: /nginx-temp
       containers:
         - name: gateway
-          image: apache/apisix:3.18.0-debian
+          image: apache/apisix:3.18.0-debian@sha256:84e6b5e787e9f889ebff88161cb9a16599bafcffa236c6b54c7f779a0655940d
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
