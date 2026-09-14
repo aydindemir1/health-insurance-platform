@@ -45,3 +45,7 @@ empty results are not treated as errors, RFC 9457 details retain their safe
 correlation reference, retry is explicit, unauthorized sessions return to
 Keycloak, and an unexpected render failure replaces the page with a data-free
 recovery screen.
+
+The authenticated work queue remains operable at a 390-pixel mobile width:
+navigation stays reachable, filters collapse to one column, wide records remain
+inside their own scroll region, and keyboard focus is visible and ordered.

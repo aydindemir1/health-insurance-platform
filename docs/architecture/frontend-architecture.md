@@ -46,3 +46,9 @@ Zod contract. A `401` invokes centralized Keycloak session recovery. Query-level
 errors render safe retry controls; unexpected render failures stop at the app
 Error Boundary, whose console metadata excludes exception messages and component
 details.
+
+Responsive behavior uses 820px and 520px breakpoints: the fixed desktop shell
+becomes a flow layout, forms and filters collapse to one column, and wide tables
+scroll inside their own container instead of widening the document. Focus rings,
+reduced-motion preferences, named table columns and WCAG AA table contrast are
+verified in a real 390px Chrome viewport with axe-core.

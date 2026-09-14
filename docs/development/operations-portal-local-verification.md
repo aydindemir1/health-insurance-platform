@@ -55,6 +55,12 @@ retryable error UI and the render-level Error Boundary. Fatal render logging is
 minimized to the error class and presence of a component stack; error messages,
 component details and healthcare data are not written to the browser console.
 
+The responsive/accessibility checkpoint adds a fourth real Chrome scenario. At
+390 × 844 it reports zero axe violations (including color contrast), no document
+overflow, and correct keyboard focus progression through the primary navigation.
+The work-queue action column has an explicit header and secondary table text
+meets WCAG AA contrast.
+
 When APISIX is intentionally stopped during isolated frontend learning, set
 `VITE_API_BASE_URL=http://localhost:8081/api/v1` and
 `VITE_SEARCH_API_BASE_URL=http://localhost:8084/api/v1`. The portfolio demo uses

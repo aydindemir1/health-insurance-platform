@@ -156,7 +156,7 @@ export function PreAuthorizationsPage() {
           <div className="table-scroll">
             <table>
               <caption>Filtered pre-authorization work queue</caption>
-              <thead><tr><th>Policy</th><th>Member</th><th>Amount</th><th>Status</th><th>Submitted</th><th /></tr></thead>
+              <thead><tr><th>Policy</th><th>Member</th><th>Amount</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead>
               <tbody>{query.data.content.map((item) => (
                 <tr key={item.id}>
                   <td><strong>{item.policyNumber}</strong><small>{item.serviceCode} · {item.diagnosisCode}</small></td>

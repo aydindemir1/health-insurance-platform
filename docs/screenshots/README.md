@@ -80,6 +80,8 @@ evidence than adding a dense terminal collage for the same run.
 - `25-notification-worker-runtime.png` — live RabbitMQ delivery/DLQ state,
   durable bindings, Notification-owned PostgreSQL delivery rows, Liquibase
   history, lifecycle constraints, and operational indexes.
+- `26-operations-portal-mobile-accessibility.png` — authenticated 390-pixel
+  provider work queue after live axe, overflow and keyboard-focus verification.
 
 ## Preview
 
@@ -132,6 +134,8 @@ evidence than adding a dense terminal collage for the same run.
 ![Claims and Billing Kafka consumer runtime](24-claims-billing-kafka-consumer-runtime.png)
 
 ![Notification Worker runtime](25-notification-worker-runtime.png)
+
+![Operations Portal mobile accessibility](26-operations-portal-mobile-accessibility.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
