@@ -29,7 +29,9 @@ public final class NotificationDeliveryService implements DeliverNotificationUse
     @Override
     public void deliver(DeliverNotificationCommand command) {
         Objects.requireNonNull(command);
-        var existing = deliveries.findByTaskId(Objects.requireNonNull(command.taskId()));
+        var taskId = Objects.requireNonNull(command.taskId());
+        deliveries.lockTask(taskId);
+        var existing = deliveries.findByTaskId(taskId);
         existing.filter(delivery -> !delivery.representsSameIntent(
                         command.causationId(), command.businessReferenceId(), command.type(),
                         command.recipient(), command.templateKey()))

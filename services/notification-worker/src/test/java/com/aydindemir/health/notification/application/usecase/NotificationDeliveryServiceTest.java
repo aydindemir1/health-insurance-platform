@@ -80,6 +80,11 @@ class NotificationDeliveryServiceTest {
         private final Map<UUID, NotificationDelivery> entries = new HashMap<>();
 
         @Override
+        public void lockTask(UUID taskId) {
+            // The in-memory unit-test adapter executes synchronously.
+        }
+
+        @Override
         public Optional<NotificationDelivery> findByTaskId(UUID taskId) {
             return Optional.ofNullable(entries.get(taskId));
         }

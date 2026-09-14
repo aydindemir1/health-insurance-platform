@@ -32,6 +32,9 @@ approved or rejected.
   no member, policy, diagnosis, token, email, or phone value.
 - Notification Worker owns delivery records in its own PostgreSQL database.
   `taskId` is the broker-consumer and downstream-provider idempotency key.
+- The worker obtains a PostgreSQL transaction advisory lock derived from
+  `taskId` before its idempotency lookup. Same-task consumers are serialized
+  before the sender side effect; unrelated tasks remain concurrent.
 - The worker acknowledges manually only after the transactional application
   use case returns. Unsupported contracts and failed processing are rejected
   without requeue so broker dead-letter routing can quarantine them.
@@ -60,6 +63,9 @@ approved or rejected.
 - Retry happens outside the transaction decorator. Every transient attempt gets
   a new transaction: failed attempts roll back, the successful attempt commits,
   and only then does the listener acknowledge the broker delivery.
+- The advisory lock deliberately couples this infrastructure adapter to
+  PostgreSQL. A 64-bit hash collision may serialize unrelated tasks but cannot
+  corrupt data; the lock is transaction-scoped and needs no cleanup table.
 - The relay currently waits for confirms while holding a pessimistic database
   lock. This is deliberately simple and safe for the current workload, but
   asynchronous batching is a future throughput optimization.

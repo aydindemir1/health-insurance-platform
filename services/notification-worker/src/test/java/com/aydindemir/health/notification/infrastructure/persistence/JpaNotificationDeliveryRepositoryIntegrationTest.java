@@ -14,6 +14,8 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -22,6 +24,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +47,7 @@ class JpaNotificationDeliveryRepositoryIntegrationTest {
 
     @Autowired NotificationDeliveryRepository deliveries;
     @Autowired JdbcTemplate jdbc;
+    @Autowired PlatformTransactionManager transactionManager;
 
     @Test
     void appliesMigrationAndRoundTripsDeliveryState() {
@@ -96,6 +102,47 @@ class JpaNotificationDeliveryRepositoryIntegrationTest {
         assertThat(deliveries.findByTaskId(command.taskId()))
                 .hasValueSatisfying(delivery ->
                         assertThat(delivery.status()).isEqualTo(NotificationStatus.DELIVERED));
+    }
+
+    @Test
+    void serializesConcurrentDeliveryOfTheSameTaskBeforeCallingTheSender() {
+        var sends = new AtomicInteger();
+        var command = new DeliverNotificationCommand(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                NotificationType.PRE_AUTHORIZATION_APPROVED,
+                new Recipient(Recipient.RecipientKind.PROVIDER, UUID.randomUUID()),
+                "pre-authorization-approved-v1");
+        var start = new CountDownLatch(1);
+        var transaction = new TransactionTemplate(transactionManager);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = CompletableFuture.runAsync(
+                    () -> deliverAfter(start, transaction, command, sends), executor);
+            var second = CompletableFuture.runAsync(
+                    () -> deliverAfter(start, transaction, command, sends), executor);
+            start.countDown();
+            CompletableFuture.allOf(first, second).join();
+        }
+
+        assertThat(sends).hasValue(1);
+        assertThat(jdbc.queryForObject(
+                "select count(*) from notification_deliveries where task_id = ?",
+                Integer.class, command.taskId())).isEqualTo(1);
+    }
+
+    private void deliverAfter(
+            CountDownLatch start,
+            TransactionTemplate transaction,
+            DeliverNotificationCommand command,
+            AtomicInteger sends) {
+        try {
+            start.await();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while starting concurrent delivery", exception);
+        }
+        transaction.executeWithoutResult(ignored -> new NotificationDeliveryService(
+                deliveries, message -> sends.incrementAndGet(), RECEIVED_CLOCK).deliver(command));
     }
 
     private NotificationDelivery newDelivery() {

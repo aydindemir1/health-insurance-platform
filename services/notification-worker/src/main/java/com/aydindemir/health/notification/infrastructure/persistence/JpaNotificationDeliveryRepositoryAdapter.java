@@ -3,6 +3,7 @@ package com.aydindemir.health.notification.infrastructure.persistence;
 import com.aydindemir.health.notification.application.port.out.NotificationDeliveryRepository;
 import com.aydindemir.health.notification.domain.model.NotificationDelivery;
 import com.aydindemir.health.notification.domain.valueobject.Recipient;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -11,9 +12,21 @@ import java.util.UUID;
 @Repository
 class JpaNotificationDeliveryRepositoryAdapter implements NotificationDeliveryRepository {
     private final SpringDataNotificationDeliveryRepository repository;
+    private final EntityManager entityManager;
 
-    JpaNotificationDeliveryRepositoryAdapter(SpringDataNotificationDeliveryRepository repository) {
+    JpaNotificationDeliveryRepositoryAdapter(
+            SpringDataNotificationDeliveryRepository repository,
+            EntityManager entityManager) {
         this.repository = repository;
+        this.entityManager = entityManager;
+    }
+
+    @Override
+    public void lockTask(UUID taskId) {
+        entityManager.createNativeQuery(
+                        "select pg_advisory_xact_lock(hashtextextended(?1, 0))")
+                .setParameter(1, taskId.toString())
+                .getSingleResult();
     }
 
     @Override

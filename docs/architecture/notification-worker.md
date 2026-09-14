@@ -33,6 +33,13 @@ flowchart LR
     SenderPort --> Sender
 ```
 
+Before the use case reads the delivery row, the PostgreSQL adapter acquires a
+transaction-scoped advisory lock derived from `taskId`. Concurrent consumers of
+the same task are therefore serialized before either can call the sender. The
+lock is released automatically at commit or rollback; unrelated task IDs still
+run concurrently. This complements the primary key: uniqueness protects stored
+data, while the lock protects the external side-effect window.
+
 ## Retry and acknowledgement boundary
 
 ```mermaid
@@ -113,8 +120,9 @@ consistent even if a future adapter bypasses the aggregate accidentally.
 
 The Java 21 suite uses PostgreSQL 17 and RabbitMQ 4.1 Testcontainers. Persistence
 tests apply Liquibase, let Hibernate validate the schema, round-trip both states,
-and inspect operational indexes. Application tests prove delivered replay is a
-no-op and conflicting reuse of a task ID fails. Listener tests prove transient
+inspect operational indexes, and run two same-task transactions concurrently.
+That concurrency test proves one row and one sender invocation. Application
+tests prove delivered replay is a no-op and conflicting reuse of a task ID fails. Listener tests prove transient
 success after retry, exhaustion after three attempts, immediate permanent
 failure, unsupported-version quarantine, and commit-before-ack ordering.
 
@@ -122,8 +130,8 @@ The broker integration test sends real persistent messages through the declared
 exchange. Two identical messages create one `DELIVERED` row and leave both
 queues empty; an unsupported v99 message creates no delivery row and appears in
 `health.notifications.delivery.v1.dlq`. Compose repeats the complete producer to
-consumer path with independent PostgreSQL ownership. On 8 September 2026 the
-worker suite passed 23/23 tests.
+consumer path with independent PostgreSQL ownership. On 14 September 2026 the
+worker suite passed 24/24 tests on Java 21.0.8.
 
 The local sender logs only the task identifier, notification type, recipient
 kind, and opaque provider reference. It demonstrates the output port and

@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface NotificationDeliveryRepository {
+    void lockTask(UUID taskId);
     Optional<NotificationDelivery> findByTaskId(UUID taskId);
     NotificationDelivery save(NotificationDelivery delivery);
 }
