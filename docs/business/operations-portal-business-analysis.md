@@ -35,3 +35,7 @@ flowchart LR
 Current visual evidence is catalogued in screenshots `01`–`05` for the primary
 workflow, `07` for cross-context search, and `10` for administrator audit access.
 
+The live browser checkpoint also proves that a hospital cannot discover or open
+the audit route, while `SYSTEM_ADMIN` can load the service-owned journal. A
+policy filter returns the expected provider queue, an exact policy search
+returns indexed records, and a unique query renders the deliberate empty state.

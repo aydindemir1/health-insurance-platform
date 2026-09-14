@@ -32,13 +32,21 @@ Verified on 2026-09-14:
 Oxlint:          passed
 Vitest:          13 files, 22 tests passed
 TypeScript/Vite: production build passed, 258 modules transformed
-Playwright:      1 real Chrome workflow passed
+Playwright:      3 real Chrome scenarios passed across focused runs
 ```
 
 The browser workflow used real Keycloak Authorization Code + PKCE and live
 Authorization/Policy services. A hospital user submitted a covered request,
 saw `PENDING`, signed out, and an insurance specialist approved the same request
 to `APPROVED`. Passwords and tokens existed only in process memory.
+
+`e2e/operations-portal-access.spec.ts` additionally verifies:
+
+- provider-scoped, policy-filtered pre-authorization listing;
+- exact Elasticsearch-backed policy search;
+- a no-result query rendering the explicit empty state;
+- absence of the Audit navigation item and `/forbidden` routing for a hospital;
+- visible, populated Authorization audit evidence for `SYSTEM_ADMIN`.
 
 When APISIX is intentionally stopped during isolated frontend learning, set
 `VITE_API_BASE_URL=http://localhost:8081/api/v1` and
@@ -72,4 +80,3 @@ can depend on `shared`, while the architecture test rejects upward imports.
 | Error boundary | Blazor error boundary or top-level UI exception boundary |
 | `ApiError`/Problem Details | `ProblemDetails` client mapping |
 | FSD architecture test | project-reference/dependency architecture test |
-
