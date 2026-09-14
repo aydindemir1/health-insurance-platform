@@ -30,7 +30,7 @@ Verified on 2026-09-14:
 
 ```text
 Oxlint:          passed
-Vitest:          13 files, 22 tests passed
+Vitest:          15 files, 27 tests passed
 TypeScript/Vite: production build passed, 258 modules transformed
 Playwright:      3 real Chrome scenarios passed across focused runs
 ```
@@ -47,6 +47,13 @@ to `APPROVED`. Passwords and tokens existed only in process memory.
 - a no-result query rendering the explicit empty state;
 - absence of the Audit navigation item and `/forbidden` routing for a hospital;
 - visible, populated Authorization audit evidence for `SYSTEM_ADMIN`.
+
+The failure-path checkpoint verifies generated and caller-supplied correlation
+IDs, RFC 9457 detail preservation, runtime response-schema rejection, caller
+cancellation, bounded timeout cancellation, `401` session recovery invocation,
+retryable error UI and the render-level Error Boundary. Fatal render logging is
+minimized to the error class and presence of a component stack; error messages,
+component details and healthcare data are not written to the browser console.
 
 When APISIX is intentionally stopped during isolated frontend learning, set
 `VITE_API_BASE_URL=http://localhost:8081/api/v1` and

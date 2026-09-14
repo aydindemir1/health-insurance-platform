@@ -39,3 +39,9 @@ The live browser checkpoint also proves that a hospital cannot discover or open
 the audit route, while `SYSTEM_ADMIN` can load the service-owned journal. A
 policy filter returns the expected provider queue, an exact policy search
 returns indexed records, and a unique query renders the deliberate empty state.
+
+Operational failures remain distinguishable: loading communicates pending work,
+empty results are not treated as errors, RFC 9457 details retain their safe
+correlation reference, retry is explicit, unauthorized sessions return to
+Keycloak, and an unexpected render failure replaces the page with a data-free
+recovery screen.

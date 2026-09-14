@@ -12,7 +12,10 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, State> 
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Unhandled portal error', error, errorInfo)
+    console.error('Unhandled portal render error', {
+      errorName: error.name,
+      componentStackAvailable: Boolean(errorInfo.componentStack),
+    })
   }
 
   render() {

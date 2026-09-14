@@ -18,6 +18,9 @@ describe('apiRequest', () => {
 
     const request = fetchMock.mock.calls[0]![1] as RequestInit
     expect(new Headers(request.headers).get('Authorization')).toBe('Bearer verified-token')
+    expect(new Headers(request.headers).get('X-Correlation-ID')).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    )
   })
 
   it('preserves RFC 9457 details on failed requests', async () => {
@@ -59,5 +62,23 @@ describe('apiRequest', () => {
     controller.abort()
 
     await expect(request).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('aborts a request when its bounded timeout expires', async () => {
+    vi.stubGlobal('fetch', vi.fn((_url: string, init?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true })
+    })))
+
+    await expect(apiRequest('/slow', { timeoutMs: 1 })).rejects.toMatchObject({ name: 'TimeoutError' })
+  })
+
+  it('preserves a caller-provided correlation identifier', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await apiRequest('/resource', { headers: { 'X-Correlation-ID': 'workflow-123' } })
+
+    const request = fetchMock.mock.calls[0]![1] as RequestInit
+    expect(new Headers(request.headers).get('X-Correlation-ID')).toBe('workflow-123')
   })
 })

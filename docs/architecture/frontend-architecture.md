@@ -38,3 +38,11 @@ enforces provider ownership.
 Canonical identifiers use the shared `javaUuid()` Zod schema. It mirrors the
 text accepted by backend `java.util.UUID` without incorrectly requiring RFC
 version bits, and is reused by forms, URL filters and API response schemas.
+
+The shared HTTP boundary applies a ten-second default timeout, composes caller
+cancellation, refreshes the bearer token, propagates a bounded correlation ID,
+preserves RFC 9457 failures and rejects successful payloads that violate their
+Zod contract. A `401` invokes centralized Keycloak session recovery. Query-level
+errors render safe retry controls; unexpected render failures stop at the app
+Error Boundary, whose console metadata excludes exception messages and component
+details.
