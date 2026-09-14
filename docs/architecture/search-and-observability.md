@@ -128,6 +128,12 @@ in-memory and therefore supports a local rehearsal, not a restart-resumable
 production job. See the
 [recovery runbook](../operations/search-and-messaging-recovery.md).
 
+Search authentication and method-authorization failures also use RFC 9457
+`application/problem+json`. `@EnableMethodSecurity` enforces the rebuild
+controller role before invocation, while the application use case repeats the
+`SYSTEM_ADMIN` check as defense in depth. Normal hospital queries derive their
+provider scope from the signed JWT and cannot broaden it with request input.
+
 ## Correlation propagation
 
 ```mermaid
