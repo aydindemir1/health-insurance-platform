@@ -38,6 +38,15 @@ class PolicyTest {
     }
 
     @Test
+    void rejectsPolicyBeforeEffectiveDate() {
+        var decision = policy().evaluate(
+                MEMBER_ID, MRI, money("2500.00"), LocalDate.parse("2025-12-31"));
+
+        assertThat(decision.eligible()).isFalse();
+        assertThat(decision.code()).isEqualTo("POLICY_NOT_YET_EFFECTIVE");
+    }
+
+    @Test
     void rejectsServiceOutsideCoverage() {
         var decision = policy().evaluate(
                 MEMBER_ID, new ServiceCode("DENTAL-IMPLANT"),
@@ -53,6 +62,19 @@ class PolicyTest {
 
         assertThat(decision.code()).isEqualTo("LIMIT_EXCEEDED");
         assertThat(decision.remaining().amount()).isEqualByComparingTo("8000.00");
+    }
+
+    @Test
+    void rejectsRequestedCurrencyDifferentFromCoverageCurrency() {
+        var decision = policy().evaluate(
+                MEMBER_ID, MRI,
+                new Money(new BigDecimal("100.00"), Currency.getInstance("USD")),
+                LocalDate.parse("2026-09-03"));
+
+        assertThat(decision.eligible()).isFalse();
+        assertThat(decision.code()).isEqualTo("CURRENCY_MISMATCH");
+        assertThat(decision.remaining().amount()).isEqualByComparingTo("8000.00");
+        assertThat(decision.remaining().currency()).isEqualTo(TRY);
     }
 
     @Test
