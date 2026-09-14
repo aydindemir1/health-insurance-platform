@@ -42,6 +42,12 @@ and was disabled; metadata now returns `403` without credentials and `200` for
 the least-privilege publisher. See the
 [Nexus verification record](../development/nexus-local-verification.md).
 
+Harbor was rebuilt only at the runtime-metadata boundary: no application image
+was rebuilt. Its private project, anonymous `401`, 90-day four-permission robot,
+six SHA-tagged repositories and exact manifest digests were verified. Docker
+Desktop bind-mount ownership/type defects were corrected without deleting data.
+See the [Harbor verification record](../development/harbor-local-verification.md).
+
 `Progressing` or `Degraded` after sync is expected locally because production-owned databases,
 brokers, IAM, TLS, and external secrets are not fabricated inside the GitOps
 repository. This is a deployment dependency boundary, not a failed sync.

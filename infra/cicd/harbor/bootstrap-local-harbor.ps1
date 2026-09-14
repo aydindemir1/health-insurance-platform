@@ -8,6 +8,7 @@ $qualityCompose = Join-Path $cicdDirectory 'compose.quality.yaml'
 $harborUrl = 'http://localhost:8088'
 $projectName = 'health-insurance'
 $robotName = 'jenkins-publisher'
+$robotDurationSeconds = 90 * 24 * 60 * 60
 
 $values = [ordered]@{}
 Get-Content $environmentFile | ForEach-Object {
@@ -46,7 +47,7 @@ if ($values.HARBOR_ROBOT_ID) {
 $robot = Invoke-RestMethod @request -Method Post -Uri "$harborUrl/api/v2.0/robots" -Body (@{
     name = $robotName
     description = 'Jenkins push/pull account for immutable project images'
-    duration = -1
+    duration = $robotDurationSeconds
     disable = $false
     level = 'project'
     permissions = @(@{
@@ -69,6 +70,6 @@ $values.HARBOR_ROBOT_ID = $robot.id
     @($values.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" })
 )
 
-docker compose --env-file $environmentFile -f $qualityCompose up --detach --build --force-recreate jenkins
+docker compose --env-file $environmentFile -f $qualityCompose up --detach --no-build --force-recreate jenkins
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-Write-Host 'Harbor private project, scan-on-push and least-privilege Jenkins robot: OK'
+Write-Host 'Harbor private project and 90-day least-privilege Jenkins robot: OK (automatic scanning disabled)'

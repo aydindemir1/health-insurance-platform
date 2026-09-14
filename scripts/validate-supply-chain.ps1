@@ -21,11 +21,26 @@ if ($LASTEXITCODE -ne 0 -or $argo -notmatch 'kind: Application' -or $argo -notma
 }
 
 $jenkinsfile = Get-Content (Join-Path $root 'Jenkinsfile') -Raw
+$harborBootstrap = Get-Content (Join-Path $root 'infra/cicd/harbor/bootstrap-local-harbor.ps1') -Raw
+$harborStart = Get-Content (Join-Path $root 'infra/cicd/harbor/start-local-harbor.ps1') -Raw
 foreach ($control in @('nexus-publisher', 'harbor-publisher', '${GIT_COMMIT}', 'PUBLISH_ARTIFACTS')) {
     if (-not $jenkinsfile.Contains($control)) { throw "Missing supply-chain control: $control" }
 }
 
 if ($jenkinsfile -match '(?i):latest') { throw 'The publication pipeline must not use latest tags.' }
+foreach ($control in @('$robotDurationSeconds = 90 * 24 * 60 * 60',
+        "metadata = @{ public = 'false'; auto_scan = 'false' }",
+        'up --detach --no-build --force-recreate jenkins')) {
+    if (-not $harborBootstrap.Contains($control)) {
+        throw "Harbor bootstrap is missing required control: $control"
+    }
+}
+foreach ($control in @('rmdir /data/secret/registry/root.crt',
+        'chown 999:999 /data/database')) {
+    if (-not $harborStart.Contains($control)) {
+        throw "Harbor Docker Desktop preflight is missing: $control"
+    }
+}
 Write-Host 'Nexus publication contract: OK'
-Write-Host 'Harbor immutable-tag contract: OK'
+Write-Host 'Harbor private-project, bounded-robot and immutable-tag contract: OK'
 Write-Host 'Argo CD restricted GitOps resources: OK'

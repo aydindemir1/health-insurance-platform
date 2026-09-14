@@ -57,6 +57,12 @@ $configDirectory = Join-Path $harborDirectory 'common/config'
 New-Item -ItemType Directory -Force -Path $inputDirectory, $configDirectory | Out-Null
 Copy-Item (Join-Path $harborDirectory 'harbor.yml') (Join-Path $inputDirectory 'harbor.yml') -Force
 
+docker run --rm --entrypoint /bin/sh `
+    --volume "/data:/data" `
+    "goharbor/prepare:$version" -c `
+    'if [ -d /data/secret/registry/root.crt ]; then rmdir /data/secret/registry/root.crt; fi; mkdir -p /data/database; chown 999:999 /data/database'
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 docker run --rm --privileged `
     --volume "$($inputDirectory.Replace('\', '/')):/input" `
     --volume "/data:/data" `

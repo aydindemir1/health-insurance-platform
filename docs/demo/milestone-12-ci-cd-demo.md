@@ -15,7 +15,8 @@ stages unnecessarily or exposing credentials.
    that anonymous metadata access returns `403` while `jenkins-publisher` can
    browse and download through its repository-scoped role.
 4. Open Harbor project `health-insurance` and show six repositories with the
-   immutable tag `7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d`.
+   immutable tag `7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d`. Show that the
+   project is private and the 90-day robot has only push/pull/read/create access.
 5. Render `deploy/gitops/environments/staging` and point to the same tag.
 6. Show Argo CD Application `health-insurance-staging`: `Synced`, operation
    `Succeeded`, revision `a56fff2a14405d3024b98f357b1c3b38edd8384b`.
@@ -33,3 +34,5 @@ already-successful test suite.”
 Stop the disposable cluster with `minikube stop -p portfolio-ci`. Nexus, Harbor,
 Jenkins, and SonarQube data live in local Docker volumes. Do not commit
 `infra/cicd/.env`, generated Harbor runtime files, tokens, or passwords.
+Automatic Trivy scanning is intentionally disabled for this portfolio flow and
+must not be presented as a completed mandatory gate.

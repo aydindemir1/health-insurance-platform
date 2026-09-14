@@ -363,6 +363,13 @@ authenticated artifact download remained successful. Coordinates, the sampled
 JAR hash and the remaining Git-SHA metadata gap are recorded in the
 [Nexus verification guide](docs/development/nexus-local-verification.md).
 
+Harbor was then restored from existing 2.15.2 images without rebuilding any
+application image. The private project rejects anonymous access, a 90-day
+least-privilege robot pushed and pulled successfully, and all six repositories
+expose the same full Git SHA tag with recorded manifest digests. The Docker
+Desktop mount fixes and runtime evidence are in the
+[Harbor verification guide](docs/development/harbor-local-verification.md).
+
 See the [Milestone 12 completion record](docs/milestones/milestone-12-ci-cd-software-supply-chain.md),
 [ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md), the
 [CI/CD architecture](docs/architecture/ci-cd-supply-chain.md), and the
