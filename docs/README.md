@@ -18,6 +18,7 @@ the end of the project.
 - [Local deployment](architecture/local-deployment.md)
 - [Kubernetes deployment and security](deployment/kubernetes.md)
 - [CI/CD and software supply chain](architecture/ci-cd-supply-chain.md)
+- [GitHub Actions verification](development/github-actions-verification.md)
 - [Local troubleshooting](development/troubleshooting.md)
 - [Policy Service local learning and verification](development/policy-service-local-verification.md)
 - [Authorization Service local learning and verification](development/authorization-service-local-verification.md)

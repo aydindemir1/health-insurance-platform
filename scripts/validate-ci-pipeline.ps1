@@ -5,6 +5,9 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $jenkinsfile = Get-Content (Join-Path $root 'Jenkinsfile') -Raw
 $sonar = Get-Content (Join-Path $root 'sonar-project.properties') -Raw
+$backendCi = Get-Content (Join-Path $root '.github/workflows/backend-ci.yml') -Raw
+$frontendCi = Get-Content (Join-Path $root '.github/workflows/frontend-ci.yml') -Raw
+$gatewayCi = Get-Content (Join-Path $root '.github/workflows/gateway-ci.yml') -Raw
 
 $requiredPipelineTokens = @(
     "agent { label 'java21-node24-docker' }",
@@ -44,6 +47,25 @@ foreach ($service in $services) {
     }
 }
 
+$githubWorkflows = @($backendCi, $frontendCi, $gatewayCi)
+foreach ($workflow in $githubWorkflows) {
+    foreach ($control in @('permissions:', 'contents: read', 'concurrency:',
+            'cancel-in-progress: true', 'timeout-minutes:', '$GITHUB_SHA')) {
+        if (-not $workflow.Contains($control)) {
+            throw "GitHub Actions workflow is missing required control: $control"
+        }
+    }
+}
+
+if (-not $frontendCi.Contains('npm run build:budget')) {
+    throw 'Frontend CI must enforce the production bundle budget.'
+}
+
+$apisixDigest = 'apache/apisix:3.18.0-debian@sha256:84e6b5e787e9f889ebff88161cb9a16599bafcffa236c6b54c7f779a0655940d'
+if (-not $gatewayCi.Contains($apisixDigest)) {
+    throw 'Gateway CI must pin the verified APISIX image digest.'
+}
+
 if ($jenkinsfile -match '(?i)(password|token|secret)\s*=\s*["''][^"'']+["'']') {
     throw 'Jenkinsfile appears to contain a literal credential.'
 }
@@ -59,4 +81,5 @@ if (-not $mavenSettings.Contains('${env.NEXUS_USERNAME}') -or
 }
 
 Write-Host 'Jenkins stages: OK (backend, frontend, SonarQube, blocking Quality Gate)'
+Write-Host 'GitHub Actions: OK (least privilege, concurrency, timeout, revision trace, bundle budget, APISIX digest)'
 Write-Host 'Credential policy: OK (no committed Jenkins/SonarQube credential values)'

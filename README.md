@@ -416,6 +416,13 @@ Jenkins demonstrates the vacancy-aligned local delivery and publication chain.
 Neither system stores committed credentials; publication identities are
 bootstrapped into runtime-only credential stores.
 
+The GitHub workflows use read-only permissions, path-scoped triggers, bounded
+timeouts, per-ref concurrency cancellation and full Git SHA run summaries.
+Backend runs as a five-service Java 21 matrix; frontend enforces lint, tests and
+the production bundle budget; Gateway CI starts the digest-pinned APISIX image.
+The latest evidence and one honestly classified historical matrix failure are
+recorded in the [GitHub Actions verification guide](docs/development/github-actions-verification.md).
+
 Each backend service applies the same dependency rule:
 
 ```text

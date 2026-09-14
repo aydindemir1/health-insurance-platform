@@ -39,6 +39,12 @@ Secrets that must be supplied by an operator or an external secret controller.
 The local helper reads ignored `.env` values, submits base64 data directly to
 the Kubernetes API and never writes a generated Secret manifest to disk.
 
+The local portfolio overlay does not introduce self-signed TLS. It would test
+local certificate-distribution mechanics rather than the intended production
+control and would complicate browser, JVM and APISIX trust stores. Production
+must terminate an automatically issued trusted certificate at APISIX and obtain
+private material from the organization's external secret/workload-identity path.
+
 ## Consequences
 
 - Application manifests are reviewable and render without Helm.

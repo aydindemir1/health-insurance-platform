@@ -147,7 +147,12 @@ Replace example DNS names and local image tags through an environment overlay.
 Create Secrets through the organization's approved external secret controller;
 do not commit generated Secret YAML. Configure Metrics Server before expecting
 HPA decisions, use trusted TLS for Keycloak and dependencies, and use immutable
-registry digests supplied by the CI/CD milestone.
+registry digests supplied by the CI/CD milestone. The portfolio local overlay
+intentionally remains HTTP: adding a self-signed certificate would add trust-store
+and browser exceptions without proving a production control. A production
+environment should terminate an automatically issued, trusted certificate at
+APISIX and source certificate/private-key material through the approved external
+secret controller or workload identity; no private key belongs in Git.
 
 ## GitOps checkpoint
 

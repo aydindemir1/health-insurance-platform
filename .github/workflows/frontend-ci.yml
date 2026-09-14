@@ -1,4 +1,5 @@
 name: Frontend CI
+run-name: Frontend CI · ${{ github.ref_name }} · ${{ github.sha }}
 
 on:
   push:
@@ -15,10 +16,15 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   operations-portal:
     name: Operations portal
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: apps/operations-portal
@@ -26,6 +32,11 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+
+      - name: Record immutable source revision
+        run: |
+          test "${#GITHUB_SHA}" -eq 40
+          echo "Source revision: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Node.js 24
         uses: actions/setup-node@v5
@@ -44,4 +55,4 @@ jobs:
         run: npm test
 
       - name: Build
-        run: npm run build
+        run: npm run build:budget

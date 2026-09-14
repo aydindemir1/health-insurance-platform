@@ -1,4 +1,5 @@
 name: Gateway CI
+run-name: Gateway CI · ${{ github.ref_name }} · ${{ github.sha }}
 
 on:
   push:
@@ -17,12 +18,22 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: gateway-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   declarative-config:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
+
+      - name: Record immutable source revision
+        run: |
+          test "${#GITHUB_SHA}" -eq 40
+          echo "Source revision: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Validate Compose model
         run: |
@@ -33,11 +44,12 @@ jobs:
         run: |
           docker run --detach --name health-gateway-ci \
             --publish 9080:9080 \
+            --label org.opencontainers.image.revision="$GITHUB_SHA" \
             --env APISIX_OIDC_CLIENT_SECRET=ci-jwks-compatibility-value \
             --volume "$PWD/infra/apisix/config.yaml:/usr/local/apisix/conf/config.yaml:ro" \
             --volume "$PWD/infra/apisix/apisix.yaml:/usr/local/apisix/conf/apisix.yaml:ro" \
             --volume "$PWD/infra/apisix/plugins/problem-details.lua:/usr/local/apisix/apisix/plugins/problem-details.lua:ro" \
-            apache/apisix:3.18.0-debian
+            apache/apisix:3.18.0-debian@sha256:84e6b5e787e9f889ebff88161cb9a16599bafcffa236c6b54c7f779a0655940d
 
       - name: Verify gateway-native security response
         run: |
@@ -57,4 +69,3 @@ jobs:
       - name: Show APISIX logs on failure
         if: failure()
         run: docker logs health-gateway-ci
-
