@@ -659,6 +659,12 @@ docker compose up --build
 | Claims/Billing PostgreSQL | `localhost:5435` |
 | Notification PostgreSQL | `localhost:5436` |
 
+Compose healthchecks call each HTTP service's Spring Boot readiness endpoint.
+APISIX and synchronous service dependencies wait for `service_healthy`, not
+merely a started container. Notification Worker intentionally has no HTTP
+listener, so its container healthcheck verifies the PID 1 JVM process while
+RabbitMQ and its PostgreSQL dependency retain their own readiness checks.
+
 The imported `health-insurance` realm defines roles and the public
 `health-insurance-web` client. Create local users through the Keycloak admin UI.
 A hospital user needs a synthetic UUID `providerId` attribute; the realm maps it
