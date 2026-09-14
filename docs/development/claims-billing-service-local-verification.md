@@ -24,7 +24,7 @@ From `services/claims-billing-service`:
 Verified checkpoint:
 
 - Java: `21.0.8`
-- tests: `53`
+- tests: `57`
 - failures/errors/skips: `0/0/0`
 - PostgreSQL integration runtime: Testcontainers `postgres:17-alpine`
 - Kafka integration runtime: Testcontainers `apache/kafka-native:4.1.1`
@@ -46,9 +46,10 @@ failed business or integration test.
 | poison event recovery | bounded retry and DLT | Kafka integration test reads original invalid payload from DLT |
 | recoverable search indexing | claim-search transactional outbox | application and transaction tests |
 | append-only minimized audit | audit port/JDBC adapter/Liquibase guards | audit use-case and transaction tests |
+| synchronous Authorization boundary | token-relaying REST adapter plus validated application record | seven adapter contract/failure tests |
 | dependency direction | Clean Architecture package rules | four ArchUnit tests |
 
-## What the 53-test result means
+## What the 57-test result means
 
 The result demonstrates deterministic domain behavior, dependency wiring, real
 PostgreSQL mappings/migrations, and real Kafka consumer retry/idempotency. It
@@ -59,6 +60,25 @@ The hardening checkpoint additionally proves five Liquibase migrations against
 both a fresh Testcontainer and the existing local dataset, 13 owner-table
 lifecycle constraints, invalid rehydration rejection, allowlist-based inner
 layer ArchUnit rules, and RFC 9457 filter-level `401/403` responses.
+
+`prepare-and-seed-local-demo.ps1 -SkipDataSeed` also prepares
+`hospital-other-provider-demo` with a second synthetic `provider_id`. Use it to
+prove that a valid `HOSPITAL_USER` token still receives `403` when reading the
+first provider's Claim. This separates authentication success from resource
+ownership authorization.
+
+The live ownership check was executed with a valid token for the second
+synthetic provider against the first provider's Claim. It returned `403` with
+`application/problem+json` and disclosed no Claim data. An unauthenticated
+request independently returned `401` with the same media type.
+
+The synchronous manual-claim adapter is verified fail closed: it relays the
+bearer token and accepts only a complete, identity-matching, positive-money
+Authorization contract with an allowlisted status. Network/`5xx` failures,
+malformed JSON, missing fields, a mismatched response ID, invalid values, and a
+missing bearer token map to dependency unavailability (`503` at the API
+boundary) before any Claim can be created. Authorization `404` remains the
+separate not-approved/not-found business path.
 
 ## Next live-runtime checkpoint
 

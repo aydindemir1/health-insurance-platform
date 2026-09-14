@@ -67,6 +67,15 @@ submission compatibility and still verifies Authorization synchronously. New
 approvals normally enter through Kafka and can be observed through the
 provider-scoped `/claims/by-pre-authorization/{id}` query.
 
+The synchronous adapter relays the caller's bearer token and uses bounded HTTP
+timeouts. Its anti-corruption boundary validates response identity, required
+fields, status, positive amount, and currency before constructing the
+application record. Transport/`5xx`, deserialization, incomplete-contract,
+identity-mismatch, invalid-value, and missing-token failures are normalized as
+dependency unavailability and exposed as `503`. Only a genuine Authorization
+`404` becomes an empty lookup. This prevents malformed or untrusted upstream
+data from creating financial aggregates.
+
 Spring Security JWT failures and method-security denials return RFC 9457
 `application/problem+json`, matching controller/application failures. Domain
 and Application packages use dependency allowlists in ArchUnit, so an unknown

@@ -80,4 +80,55 @@ class RestApprovedPreAuthorizationAdapterTest {
                 .isInstanceOf(AuthorizationServiceUnavailableException.class)
                 .hasMessageContaining("claim was not created");
     }
+
+    @Test
+    void failsClosedOnMalformedJson() {
+        server.expect(once(), requestTo("http://authorization-service:8081/api/v1/pre-authorizations/" + ID))
+                .andRespond(withSuccess("not-json", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> adapter.findById(ID))
+                .isInstanceOf(AuthorizationServiceUnavailableException.class)
+                .hasMessageContaining("claim was not created");
+    }
+
+    @Test
+    void failsClosedOnIncompleteContract() {
+        server.expect(once(), requestTo("http://authorization-service:8081/api/v1/pre-authorizations/" + ID))
+                .andRespond(withSuccess("""
+                        {"id":"10000000-0000-0000-0000-000000000001",
+                         "memberId":"20000000-0000-0000-0000-000000000001",
+                         "providerId":"30000000-0000-0000-0000-000000000001",
+                         "policyNumber":"","serviceCode":"IMG-MRI",
+                         "requestedAmount":1250.00,"currency":"TRY","status":"APPROVED"}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> adapter.findById(ID))
+                .isInstanceOf(AuthorizationServiceUnavailableException.class)
+                .hasMessageContaining("claim was not created");
+    }
+
+    @Test
+    void failsClosedOnMismatchedResourceIdentity() {
+        server.expect(once(), requestTo("http://authorization-service:8081/api/v1/pre-authorizations/" + ID))
+                .andRespond(withSuccess("""
+                        {"id":"10000000-0000-0000-0000-000000000099",
+                         "memberId":"20000000-0000-0000-0000-000000000001",
+                         "providerId":"30000000-0000-0000-0000-000000000001",
+                         "policyNumber":"POL-100","serviceCode":"IMG-MRI",
+                         "requestedAmount":1250.00,"currency":"TRY","status":"APPROVED"}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> adapter.findById(ID))
+                .isInstanceOf(AuthorizationServiceUnavailableException.class)
+                .hasMessageContaining("mismatched resource identity");
+    }
+
+    @Test
+    void failsClosedWhenBearerTokenIsUnavailable() {
+        SecurityContextHolder.clearContext();
+
+        assertThatThrownBy(() -> adapter.findById(ID))
+                .isInstanceOf(AuthorizationServiceUnavailableException.class)
+                .hasMessageContaining("bearer token is unavailable");
+    }
 }

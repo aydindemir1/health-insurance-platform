@@ -56,10 +56,13 @@ repeat quality stages that already passed for the same commit.
 
 1. Copy `.env.example` to the ignored `.env` and replace placeholders.
 2. Start the current stack with `docker compose up --build`.
-3. In Keycloak, create four temporary local users without committing their
+3. In Keycloak, create five temporary local users without committing their
    credentials:
    - hospital user: `HOSPITAL_USER`, user attribute
      `providerId=30000000-0000-0000-0000-000000000001`
+   - other-provider hospital user: `HOSPITAL_USER`, user attribute
+     `providerId=30000000-0000-0000-0000-000000000002`, used only for
+     ownership-denial evidence
    - insurance user: `INSURANCE_SPECIALIST`
    - claim user: `CLAIM_APPROVER`
    - governance user: `SYSTEM_ADMIN`

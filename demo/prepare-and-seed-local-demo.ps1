@@ -211,6 +211,9 @@ function Set-DemoUser {
 Set-DemoUser -Username "hospital-demo" -Role "HOSPITAL_USER" -Attributes @{
     providerId = @("30000000-0000-0000-0000-000000000001")
 }
+Set-DemoUser -Username "hospital-other-provider-demo" -Role "HOSPITAL_USER" -Attributes @{
+    providerId = @("30000000-0000-0000-0000-000000000002")
+}
 Set-DemoUser -Username "insurance-demo" -Role "INSURANCE_SPECIALIST"
 Set-DemoUser -Username "claim-approver-demo" -Role "CLAIM_APPROVER"
 Set-DemoUser -Username "system-admin-demo" -Role "SYSTEM_ADMIN"

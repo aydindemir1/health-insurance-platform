@@ -6,8 +6,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.math.BigDecimal;
@@ -35,6 +35,10 @@ class RestApprovedPreAuthorizationAdapter implements ApprovedPreAuthorizationPor
                 throw new AuthorizationServiceUnavailableException(
                         "Authorization Service returned an empty response");
             }
+            if (!id.equals(response.id())) {
+                throw new AuthorizationServiceUnavailableException(
+                        "Authorization Service returned a mismatched resource identity");
+            }
             return Optional.of(new PreAuthorizationSnapshot(
                     response.id(), response.memberId(), response.providerId(),
                     response.policyNumber(), response.serviceCode(), response.requestedAmount(),
@@ -44,7 +48,7 @@ class RestApprovedPreAuthorizationAdapter implements ApprovedPreAuthorizationPor
                 return Optional.empty();
             }
             throw unavailable(exception);
-        } catch (ResourceAccessException exception) {
+        } catch (RestClientException | IllegalArgumentException exception) {
             throw unavailable(exception);
         }
     }

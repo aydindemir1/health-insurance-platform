@@ -117,6 +117,8 @@ earlier and Kafka provides eventual consistency between bounded contexts.
 | Situation | Expected result |
 | --- | --- |
 | unapproved/missing authorization on manual path | fail closed; claim is not created |
+| Authorization timeout, `5xx`, malformed/incomplete response, identifier mismatch, or invalid amount/status | `503`; claim is not created |
+| missing bearer token on the synchronous manual path | `503`; no anonymous service-to-service fallback |
 | hospital provider mismatch | `403`; no disclosure or mutation |
 | duplicate pre-authorization claim | conflict; unique database rule protects races |
 | decision outside legal state | `409`; first committed state remains authoritative |
@@ -142,7 +144,7 @@ shared audit database that would violate data ownership.
 
 ## Verified checkpoint
 
-The complete service suite currently passes 53 tests. Evidence covers aggregate
+The complete service suite currently passes 57 tests. Evidence covers aggregate
 rules, use-case authorization, provider ownership, atomic state/audit/search
 outbox writes, JPA persistence and optimistic locking, Kafka duplicate delivery
 and DLT routing, REST contracts, Spring wiring, and ArchUnit boundaries.
@@ -153,6 +155,15 @@ plus `MATCHED -> SETTLED`. A repeated approval returned `409`; the owner databas
 contained the matching processed-message marker, six minimized audit actions,
 four lifecycle search projections, and optimistic versions `2` on both
 aggregates.
+
+The synchronous manual-creation adapter relays the caller's bearer token and
+validates the complete Authorization snapshot before it reaches the use case.
+It rejects a missing token, transport/server failure, unreadable JSON, missing
+fields, mismatched pre-authorization identity, unknown status, non-positive
+amount, or invalid currency as an unavailable dependency. This deliberately
+fails closed with `503`; only a well-formed `APPROVED` snapshot can create a
+Claim. A genuine Authorization `404` remains a missing approval and is handled
+as a business conflict without exposing another context's storage.
 
 Rehydration rejects impossible Claim and Invoice lifecycle combinations, not
 only invalid new commands. Liquibase changeset `005` mirrors critical status,
