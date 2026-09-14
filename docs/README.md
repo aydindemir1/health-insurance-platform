@@ -22,6 +22,7 @@ the end of the project.
 - [Policy Service local learning and verification](development/policy-service-local-verification.md)
 - [Authorization Service local learning and verification](development/authorization-service-local-verification.md)
 - [Claims and Billing Service local learning and verification](development/claims-billing-service-local-verification.md)
+- [Backend end-to-end local verification](development/backend-end-to-end-local-verification.md)
 - [Search and messaging recovery runbook](operations/search-and-messaging-recovery.md)
 - [Event-driven messaging](architecture/event-driven-messaging.md)
 - [Search, cache, and observability](architecture/search-and-observability.md)

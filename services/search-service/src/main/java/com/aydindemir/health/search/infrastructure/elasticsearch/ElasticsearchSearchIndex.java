@@ -135,9 +135,10 @@ public class ElasticsearchSearchIndex implements SearchIndex, SearchRebuildIndex
                     .sort(sort -> sort.field(field -> field.field("occurredAt").order(SortOrder.Desc)))
                     .query(query -> query.bool(bool -> {
                         if (text != null) {
-                            bool.must(clause -> clause.simpleQueryString(simple -> simple
+                            bool.must(clause -> clause.multiMatch(multi -> multi
                                     .query(text)
-                                    .fields("policyNumber", "serviceCode", "invoiceNumber", "reason")));
+                                    .fields("policyNumber", "serviceCode", "invoiceNumber", "reason")
+                                    .operator(co.elastic.clients.elasticsearch._types.query_dsl.Operator.And)));
                         }
                         if (type != null) {
                             bool.filter(clause -> clause.term(term -> term.field("type").value(type.name())));

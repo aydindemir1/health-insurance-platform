@@ -22,7 +22,7 @@ class SearchProjectionListenersTest {
     void mapsPreAuthorizationDecisionToIdempotentDocumentId() {
         UUID id = UUID.randomUUID();
         listeners.consumePreAuthorization("""
-                {"eventId":"%s","eventType":"PreAuthorizationDecided","eventVersion":1,
+                {"eventId":"%s","eventType":"PreAuthorizationApproved","eventVersion":1,
                  "preAuthorizationId":"%s","memberId":"%s","providerId":"%s",
                  "policyNumber":"POL-100","serviceCode":"IMG-MRI","requestedAmount":1250.00,
                  "currency":"TRY","decision":"APPROVED","reason":null,
@@ -71,7 +71,7 @@ class SearchProjectionListenersTest {
     @Test
     void rejectsAMissingEventIdentifierBeforeAddingCorrelationContext() {
         assertThatThrownBy(() -> listeners.consumePreAuthorization("""
-                {"eventType":"PreAuthorizationDecided","eventVersion":1,
+                {"eventType":"PreAuthorizationApproved","eventVersion":1,
                  "preAuthorizationId":"%s","memberId":"%s","providerId":"%s",
                  "policyNumber":"POL-100","serviceCode":"IMG-MRI","requestedAmount":1250.00,
                  "currency":"TRY","decision":"APPROVED","occurredAt":"2026-09-09T00:00:00Z"}

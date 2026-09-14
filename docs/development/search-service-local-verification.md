@@ -27,9 +27,10 @@ Verified components:
 
 - Java `21.0.8`
 - Elasticsearch Testcontainer `9.5.3`
-- `20/20` tests passed; failures `0`, errors `0`, skipped `0`
+- `21/21` tests passed; failures `0`, errors `0`, skipped `0`
 - stable alias creation and legacy-index attachment
 - filtering and pagination
+- hyphenated identifiers treated as plain AND search input
 - newer/older/equal source-revision behavior
 - versioned candidate activation and rollback
 - provider/application authorization and filter-level RFC 9457

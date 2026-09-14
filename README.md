@@ -918,6 +918,7 @@ and the [Kafka idempotent consumer](docs/screenshots/24-claims-billing-kafka-con
 - [Policy Service local learning and verification](docs/development/policy-service-local-verification.md)
 - [Authorization Service local learning and verification](docs/development/authorization-service-local-verification.md)
 - [Claims and Billing Service local learning and verification](docs/development/claims-billing-service-local-verification.md)
+- [Backend end-to-end local verification](docs/development/backend-end-to-end-local-verification.md)
 - [Claims and Billing Service business analysis](docs/business/claims-billing-service-business-analysis.md)
 - [Search and messaging recovery runbook](docs/operations/search-and-messaging-recovery.md)
 - [Demo scenario](docs/demo/demo-scenario.md)

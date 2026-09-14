@@ -15,6 +15,11 @@ implemented in a later milestone.
 
 Current portfolio evidence catalogue:
 
+The verified backend end-to-end chain is represented by `07` and `19`–`25`:
+Search, both service-owned PostgreSQL stores, Kafka, RabbitMQ and Notification
+Worker. Reusing these focused, token-free views provides stronger readable
+evidence than adding a dense terminal collage for the same run.
+
 - `01-dashboard.png` — role-aware landing page and operational summary.
 - `02-pre-authorization-work-queue.png` — filter, sort, and pagination UI.
 - `03-submit-pre-authorization.png` — validated hospital submission form.

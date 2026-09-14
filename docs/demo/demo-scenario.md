@@ -259,6 +259,15 @@ The script creates and verifies:
 - DLT/DLQ replay without `Transient` classification and `-ConfirmReplay` stops
   before publishing; originals remain quarantined.
 
+## Latest verified backend checkpoint
+
+The API-only run `20260914231932` completed on 2026-09-14 against real local
+PostgreSQL, Kafka, RabbitMQ, Notification Worker, Elasticsearch and Keycloak
+instances. The content-aware Search assertion returned exactly five records for
+the generated policy. Detailed results and defects found during the rehearsal
+are recorded in the
+[backend end-to-end verification guide](../development/backend-end-to-end-local-verification.md).
+
 ## Reset
 
 Demo data is stored in disposable local Docker volumes. To retain it, stop with

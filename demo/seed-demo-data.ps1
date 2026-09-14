@@ -121,7 +121,8 @@ function Wait-SearchProjection {
         $result = Invoke-DemoApi -Method GET `
             -Uri "$SearchBaseUrl/search?q=$escapedPolicyNumber&page=0&size=50" `
             -Token $InsuranceToken
-        if ($result.totalElements -ge 4) {
+        $matchingRecords = @($result.content | Where-Object policyNumber -eq $PolicyNumber)
+        if ($matchingRecords.Count -ge 4 -and $matchingRecords.Count -eq $result.totalElements) {
             return $result
         }
         Start-Sleep -Milliseconds 500

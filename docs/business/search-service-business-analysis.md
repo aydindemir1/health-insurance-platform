@@ -70,8 +70,8 @@ durable production workflow engine.
 
 ## Verified checkpoint
 
-The final Java 21 suite passed `20/20` with failures `0`, errors `0`, and skipped
-`0`. Six tests ran against a real Elasticsearch 9.5.3 Testcontainer, including
+The final Java 21 suite passed `21/21` with failures `0`, errors `0`, and skipped
+`0`. Seven tests ran against a real Elasticsearch 9.5.3 Testcontainer, including
 the equal-revision convergence scenario. Filter-level security is covered by
 MVC tests, and Spring Kafka listener/error-handler tests cover contract
 validation plus permanent-versus-transient failure classification.

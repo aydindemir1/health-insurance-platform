@@ -55,6 +55,21 @@ class ElasticsearchSearchIndexIntegrationTest {
     }
 
     @Test
+    void treatsHyphenatedFreeTextAsPlainUserInput() {
+        UUID providerId = UUID.randomUUID();
+        index.save(record(providerId, "POL-DEMO-20260914"));
+        index.save(record(providerId, "POL-OTHER-20260914"));
+
+        await().untilAsserted(() -> {
+            var page = index.search("POL-DEMO-20260914", null, null, providerId, 0, 10);
+            assertThat(page.totalElements()).isEqualTo(1);
+            assertThat(page.content()).singleElement()
+                    .extracting(SearchRecord::policyNumber)
+                    .isEqualTo("POL-DEMO-20260914");
+        });
+    }
+
+    @Test
     void attachesTheStableAliasToAnExistingLegacyIndexWithoutDeletingIt() throws Exception {
         String suffix = UUID.randomUUID().toString().replace("-", "");
         String legacyIndex = "healthcare-operations-v1-" + suffix;
@@ -156,6 +171,16 @@ class ElasticsearchSearchIndexIntegrationTest {
 
     private SearchRecord record(UUID providerId) {
         return record(providerId, UUID.randomUUID(), "RECONCILED", 1);
+    }
+
+    private SearchRecord record(UUID providerId, String policyNumber) {
+        SearchRecord value = record(providerId);
+        return new SearchRecord(
+                value.id(), value.type(), value.sourceId(), value.preAuthorizationId(),
+                value.memberId(), value.providerId(), policyNumber, value.serviceCode(),
+                value.status(), value.invoiceStatus(), value.invoiceNumber(), value.amount(),
+                value.approvedAmount(), value.paidAmount(), value.currency(), value.reason(),
+                value.sourceRevision(), value.occurredAt());
     }
 
     private SearchRecord record(UUID providerId, UUID claimId, String invoiceStatus, long sourceRevision) {

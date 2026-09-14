@@ -26,7 +26,7 @@ class SearchProjectionListeners {
         var message = read(payload, PreAuthorizationDecisionMessage.class);
         withCorrelation(requireId(message.eventId(), "eventId"), () -> {
             requireVersion(message.eventVersion());
-            requireEventType(message.eventType(), "PreAuthorizationDecided");
+            requireDecisionEventType(message.eventType(), message.decision());
             indexer.index(new SearchRecord(
                 "PRE_AUTHORIZATION:" + message.preAuthorizationId(), RecordType.PRE_AUTHORIZATION,
                 message.preAuthorizationId(), message.preAuthorizationId(), message.memberId(),
@@ -67,6 +67,16 @@ class SearchProjectionListeners {
         if (!expected.equals(actual)) {
             throw new IllegalArgumentException("Unsupported search projection event type: " + actual);
         }
+    }
+
+    private void requireDecisionEventType(String actual, String decision) {
+        String expected = switch (decision) {
+            case "APPROVED" -> "PreAuthorizationApproved";
+            case "REJECTED" -> "PreAuthorizationRejected";
+            default -> throw new IllegalArgumentException(
+                    "Unsupported pre-authorization decision: " + decision);
+        };
+        requireEventType(actual, expected);
     }
 
     private java.util.UUID requireId(java.util.UUID value, String field) {
