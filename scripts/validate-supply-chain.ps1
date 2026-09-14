@@ -14,10 +14,26 @@ if ($LASTEXITCODE -ne 0 -or $staging -notmatch 'host\.minikube\.internal:8088/he
 if (($staging | Select-String -Pattern 'image: .*:[0-9a-f]{40}' -AllMatches).Matches.Count -lt 6) {
     throw 'Staging GitOps overlay must use immutable full Git SHA image tags.'
 }
+if (($staging | Select-String -Pattern 'name: harbor-registry' -AllMatches).Matches.Count -lt 7) {
+    throw 'Every staging ServiceAccount must reference the runtime Harbor pull secret.'
+}
 
 $argo = (kubectl kustomize (Join-Path $root 'deploy/gitops/argocd')) -join "`n"
 if ($LASTEXITCODE -ne 0 -or $argo -notmatch 'kind: Application' -or $argo -notmatch 'kind: AppProject') {
     throw 'Argo CD resources do not render.'
+}
+if ($argo -match '(?ms)namespaceResourceWhitelist:.*?group: [''"]?\*[''"]?.*?kind: [''"]?\*[''"]?') {
+    throw 'Argo CD AppProject must not allow every namespace resource kind.'
+}
+foreach ($kind in @('ConfigMap', 'Deployment', 'HorizontalPodAutoscaler',
+        'LimitRange', 'NetworkPolicy', 'PodDisruptionBudget', 'ResourceQuota',
+        'Service', 'ServiceAccount')) {
+    if ($argo -notmatch "kind: $kind") {
+        throw "Argo CD AppProject allowlist is missing required kind: $kind"
+    }
+}
+if ($argo -match 'kind: (Secret|Role|RoleBinding)') {
+    throw 'Argo CD AppProject must not manage Secrets or namespace RBAC.'
 }
 
 $jenkinsfile = Get-Content (Join-Path $root 'Jenkinsfile') -Raw

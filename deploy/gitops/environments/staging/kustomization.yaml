@@ -3,6 +3,15 @@ kind: Kustomization
 resources:
   - ../../../kubernetes/base
 
+patches:
+  - target:
+      kind: ServiceAccount
+    patch: |-
+      - op: add
+        path: /imagePullSecrets
+        value:
+          - name: harbor-registry
+
 images:
   - name: health-insurance/authorization-service
     newName: host.minikube.internal:8088/health-insurance/authorization-service
