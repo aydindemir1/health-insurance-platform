@@ -8,6 +8,7 @@ $sonar = Get-Content (Join-Path $root 'sonar-project.properties') -Raw
 $backendCi = Get-Content (Join-Path $root '.github/workflows/backend-ci.yml') -Raw
 $frontendCi = Get-Content (Join-Path $root '.github/workflows/frontend-ci.yml') -Raw
 $gatewayCi = Get-Content (Join-Path $root '.github/workflows/gateway-ci.yml') -Raw
+$artifactBootstrap = Get-Content (Join-Path $root 'infra/cicd/bootstrap-artifact-stack.ps1') -Raw
 
 $requiredPipelineTokens = @(
     "agent { label 'java21-node24-docker' }",
@@ -66,6 +67,11 @@ if (-not $gatewayCi.Contains($apisixDigest)) {
     throw 'Gateway CI must pin the verified APISIX image digest.'
 }
 
+if (-not $artifactBootstrap.Contains('/service/rest/v1/security/anonymous') -or
+    -not $artifactBootstrap.Contains('enabled = $false')) {
+    throw 'Nexus bootstrap must disable anonymous artifact access.'
+}
+
 if ($jenkinsfile -match '(?i)(password|token|secret)\s*=\s*["''][^"'']+["'']') {
     throw 'Jenkinsfile appears to contain a literal credential.'
 }
@@ -82,4 +88,4 @@ if (-not $mavenSettings.Contains('${env.NEXUS_USERNAME}') -or
 
 Write-Host 'Jenkins stages: OK (backend, frontend, SonarQube, blocking Quality Gate)'
 Write-Host 'GitHub Actions: OK (least privilege, concurrency, timeout, revision trace, bundle budget, APISIX digest)'
-Write-Host 'Credential policy: OK (no committed Jenkins/SonarQube credential values)'
+Write-Host 'Credential policy: OK (no committed credentials, Nexus anonymous access disabled)'

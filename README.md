@@ -356,6 +356,13 @@ network access and the webhook were valid, and SonarQube reported Quality Gate
 `OK` for Build #7's exact Git revision. The authenticated evidence is recorded
 in the [Jenkins and SonarQube verification guide](docs/development/jenkins-sonarqube-local-verification.md).
 
+The persisted Nexus instance was also revalidated without building, pulling or
+republishing. Six Maven snapshot components were available through the scoped
+publisher role. Anonymous repository access was disabled and verified as `403`;
+authenticated artifact download remained successful. Coordinates, the sampled
+JAR hash and the remaining Git-SHA metadata gap are recorded in the
+[Nexus verification guide](docs/development/nexus-local-verification.md).
+
 See the [Milestone 12 completion record](docs/milestones/milestone-12-ci-cd-software-supply-chain.md),
 [ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md), the
 [CI/CD architecture](docs/architecture/ci-cd-supply-chain.md), and the

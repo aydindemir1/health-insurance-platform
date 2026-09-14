@@ -11,7 +11,9 @@ stages unnecessarily or exposing credentials.
    Harbor publication execute in dependency order.
 2. Show Jenkins Build #7: quality, Nexus, and SBOM stages succeeded. Explain
    that its Harbor HTTPS/HTTP endpoint mismatch was resumed independently.
-3. Query Nexus and show Maven components under `maven-snapshots`.
+3. Query Nexus and show six Maven components under `maven-snapshots`. Demonstrate
+   that anonymous metadata access returns `403` while `jenkins-publisher` can
+   browse and download through its repository-scoped role.
 4. Open Harbor project `health-insurance` and show six repositories with the
    immutable tag `7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d`.
 5. Render `deploy/gitops/environments/staging` and point to the same tag.

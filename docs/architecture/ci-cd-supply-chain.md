@@ -35,6 +35,13 @@ Build #7 remains overall red because its final Harbor stage failed; its upstream
 quality, Nexus and SBOM stages remain successful stage-level evidence. See the
 [local verification record](../development/jenkins-sonarqube-local-verification.md).
 
+Nexus was independently revalidated from its persisted volume without a build,
+pull or publication. Its EULA state, six Maven components and eight repository-
+scoped publisher privileges were confirmed. Anonymous access was found enabled
+and was disabled; metadata now returns `403` without credentials and `200` for
+the least-privilege publisher. See the
+[Nexus verification record](../development/nexus-local-verification.md).
+
 `Progressing` or `Degraded` after sync is expected locally because production-owned databases,
 brokers, IAM, TLS, and external secrets are not fabricated inside the GitOps
 repository. This is a deployment dependency boundary, not a failed sync.

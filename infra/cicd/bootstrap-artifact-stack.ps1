@@ -50,6 +50,19 @@ Invoke-RestMethod -Method Post -Uri "$nexusUrl/service/rest/v1/security/users" `
     -Authentication Basic -AllowUnencryptedAuthentication -Credential $admin `
     -ContentType 'application/json' -Body $user | Out-Null
 
+$anonymous = Invoke-RestMethod -Uri "$nexusUrl/service/rest/v1/security/anonymous" `
+    -Authentication Basic -AllowUnencryptedAuthentication -Credential $admin
+if ($anonymous.enabled) {
+    $anonymousPolicy = @{
+        enabled = $false
+        userId = $anonymous.userId
+        realmName = $anonymous.realmName
+    } | ConvertTo-Json
+    Invoke-RestMethod -Method Put -Uri "$nexusUrl/service/rest/v1/security/anonymous" `
+        -Authentication Basic -AllowUnencryptedAuthentication -Credential $admin `
+        -ContentType 'application/json' -Body $anonymousPolicy | Out-Null
+}
+
 Invoke-RestMethod -Method Put -Uri "$nexusUrl/service/rest/v1/security/users/admin/change-password" `
     -Authentication Basic -AllowUnencryptedAuthentication -Credential $admin `
     -ContentType 'text/plain' -Body $adminPassword | Out-Null
