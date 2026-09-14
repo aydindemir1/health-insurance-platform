@@ -57,10 +57,21 @@ REST, OAuth/JWT mapping, and transaction annotations live in infrastructure or
 presentation. ArchUnit verifies these dependencies. PostgreSQL uniqueness
 constraints prevent duplicate claims per pre-authorization and duplicate
 invoice/payment references under concurrency; `@Version` protects updates.
+Changeset `005` also mirrors aggregate lifecycle invariants at the database
+boundary: allowlisted states, uppercase three-letter currencies, non-negative
+versions, legal decision/reconciliation shapes, timestamp ordering, nonblank
+payment references, and valid search-outbox counters. Aggregate rehydration
+rejects inconsistent historical rows before they enter a use case.
 The existing authenticated `POST /claims` path remains available for manual
 submission compatibility and still verifies Authorization synchronously. New
 approvals normally enter through Kafka and can be observed through the
 provider-scoped `/claims/by-pre-authorization/{id}` query.
+
+Spring Security JWT failures and method-security denials return RFC 9457
+`application/problem+json`, matching controller/application failures. Domain
+and Application packages use dependency allowlists in ArchUnit, so an unknown
+outer framework cannot enter an inner layer merely because it was absent from
+a denylist.
 
 Every create/review/decision/reconciliation/payment transition also appends a
 complete `ClaimSearchProjection` to `claim_search_outbox` inside the same local

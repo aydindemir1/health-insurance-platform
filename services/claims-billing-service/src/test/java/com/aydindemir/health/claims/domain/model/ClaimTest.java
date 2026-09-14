@@ -66,6 +66,17 @@ class ClaimTest {
         assertThatThrownBy(() -> claim.reject(" ", CLOCK))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("rejectionReason");
+        assertThat(claim.status()).isEqualTo(ClaimStatus.UNDER_REVIEW);
+    }
+
+    @Test
+    void rejectsInconsistentRehydratedLifecycle() {
+        assertThatThrownBy(() -> Claim.rehydrate(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(),
+                "POL-100", "IMG-MRI", money("1000.00"), ClaimStatus.APPROVED,
+                null, null, NOW, NOW, NOW, 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Approved claim requires");
     }
 
     private Claim claim() {

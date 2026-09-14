@@ -24,7 +24,7 @@ From `services/claims-billing-service`:
 Verified checkpoint:
 
 - Java: `21.0.8`
-- tests: `51`
+- tests: `53`
 - failures/errors/skips: `0/0/0`
 - PostgreSQL integration runtime: Testcontainers `postgres:17-alpine`
 - Kafka integration runtime: Testcontainers `apache/kafka-native:4.1.1`
@@ -48,12 +48,17 @@ failed business or integration test.
 | append-only minimized audit | audit port/JDBC adapter/Liquibase guards | audit use-case and transaction tests |
 | dependency direction | Clean Architecture package rules | four ArchUnit tests |
 
-## What the 51-test result means
+## What the 53-test result means
 
 The result demonstrates deterministic domain behavior, dependency wiring, real
 PostgreSQL mappings/migrations, and real Kafka consumer retry/idempotency. It
 does not claim production load capacity, external bank integration, or complete
 end-to-end deployment health.
+
+The hardening checkpoint additionally proves five Liquibase migrations against
+both a fresh Testcontainer and the existing local dataset, 13 owner-table
+lifecycle constraints, invalid rehydration rejection, allowlist-based inner
+layer ArchUnit rules, and RFC 9457 filter-level `401/403` responses.
 
 ## Next live-runtime checkpoint
 

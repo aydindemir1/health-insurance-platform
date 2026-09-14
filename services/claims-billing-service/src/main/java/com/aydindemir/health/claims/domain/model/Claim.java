@@ -58,6 +58,7 @@ public final class Claim {
         this.decidedAt = decidedAt;
         if (revision < 0) throw new IllegalArgumentException("revision must not be negative");
         this.revision = revision;
+        validateLifecycle();
     }
 
     public static Claim submit(
@@ -117,9 +118,47 @@ public final class Claim {
 
     public void reject(String reason, Clock clock) {
         requireStatus(ClaimStatus.UNDER_REVIEW, "Only a claim under review can be rejected");
+        String normalizedReason = requireText(reason, "rejectionReason");
+        Instant decisionTime = Objects.requireNonNull(clock).instant();
         status = ClaimStatus.REJECTED;
-        rejectionReason = requireText(reason, "rejectionReason");
-        decidedAt = Objects.requireNonNull(clock).instant();
+        rejectionReason = normalizedReason;
+        decidedAt = decisionTime;
+    }
+
+    private void validateLifecycle() {
+        if (reviewStartedAt != null && reviewStartedAt.isBefore(submittedAt)) {
+            throw new IllegalArgumentException("Review cannot start before submission");
+        }
+        if (decidedAt != null && (reviewStartedAt == null || decidedAt.isBefore(reviewStartedAt))) {
+            throw new IllegalArgumentException("Decision cannot precede review");
+        }
+        switch (status) {
+            case SUBMITTED -> requireState(reviewStartedAt == null && decidedAt == null
+                    && approvedAmount == null && rejectionReason == null,
+                    "Submitted claim cannot contain review or decision data");
+            case UNDER_REVIEW -> requireState(reviewStartedAt != null && decidedAt == null
+                    && approvedAmount == null && rejectionReason == null,
+                    "Claim under review has inconsistent decision data");
+            case APPROVED -> {
+                requireState(reviewStartedAt != null && decidedAt != null
+                        && approvedAmount != null && rejectionReason == null,
+                        "Approved claim requires review, amount and decision time");
+                if (approvedAmount.amount().signum() <= 0) {
+                    throw new IllegalArgumentException("Approved amount must be positive");
+                }
+                claimedAmount.requireSameCurrency(approvedAmount);
+                if (approvedAmount.isGreaterThan(claimedAmount)) {
+                    throw new IllegalArgumentException("Approved amount cannot exceed claimed amount");
+                }
+            }
+            case REJECTED -> requireState(reviewStartedAt != null && decidedAt != null
+                    && approvedAmount == null && rejectionReason != null && !rejectionReason.isBlank(),
+                    "Rejected claim requires review, reason and decision time");
+        }
+    }
+
+    private static void requireState(boolean valid, String message) {
+        if (!valid) throw new IllegalArgumentException(message);
     }
 
     private void requireStatus(ClaimStatus expected, String message) {

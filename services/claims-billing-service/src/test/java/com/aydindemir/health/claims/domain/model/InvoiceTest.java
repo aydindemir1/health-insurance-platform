@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Currency;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -82,6 +83,16 @@ class InvoiceTest {
         assertThatThrownBy(() -> invoice().recordPayment("PAY-001", money("100.00"), CLOCK))
                 .isInstanceOf(InvalidInvoiceStateException.class)
                 .hasMessageContaining("matched invoice");
+    }
+
+    @Test
+    void rejectsInconsistentRehydratedLifecycle() {
+        assertThatThrownBy(() -> Invoice.rehydrate(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "INV-100",
+                money("1000.00"), InvoiceStatus.SETTLED, money("1000.00"),
+                List.of(), NOW, NOW, NOW, 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("payments must equal");
     }
 
     private Invoice invoice() {

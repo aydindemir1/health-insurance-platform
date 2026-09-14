@@ -56,7 +56,10 @@ class ClaimsBillingControllerTest {
     @Test
     void requiresAuthentication() throws Exception {
         mvc.perform(post("/api/v1/claims").contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Authentication required"))
+                .andExpect(jsonPath("$.status").value(401));
     }
 
     @Test
@@ -83,7 +86,10 @@ class ClaimsBillingControllerTest {
         mvc.perform(post("/api/v1/claims/{id}/approval", CLAIM_ID).with(hospitalJwt())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"amount\":800.00,\"currency\":\"TRY\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Operation not permitted"))
+                .andExpect(jsonPath("$.status").value(403));
         verify(reviewClaim, never()).approve(any());
     }
 

@@ -1,0 +1,43 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-add-lifecycle-invariant-constraints
+      author: aydin-demir
+      changes:
+        - sql:
+            sql: |
+              alter table claims add constraint chk_claim_status_allowed
+                check (status in ('SUBMITTED','UNDER_REVIEW','APPROVED','REJECTED'));
+              alter table claims add constraint chk_claim_currency_shape
+                check (currency = upper(currency) and currency ~ '^[A-Z]{3}$');
+              alter table claims add constraint chk_claim_version_nonnegative check (version >= 0);
+              alter table claims add constraint chk_claim_lifecycle_shape check (
+                (status = 'SUBMITTED' and review_started_at is null and decided_at is null and approved_amount is null and rejection_reason is null)
+                or (status = 'UNDER_REVIEW' and review_started_at is not null and decided_at is null and approved_amount is null and rejection_reason is null)
+                or (status = 'APPROVED' and review_started_at is not null and decided_at is not null and approved_amount > 0 and approved_amount <= claimed_amount and rejection_reason is null)
+                or (status = 'REJECTED' and review_started_at is not null and decided_at is not null and approved_amount is null and nullif(btrim(rejection_reason),'') is not null)
+              );
+              alter table claims add constraint chk_claim_timeline
+                check ((review_started_at is null or review_started_at >= submitted_at)
+                  and (decided_at is null or (review_started_at is not null and decided_at >= review_started_at)));
+
+              alter table invoices add constraint chk_invoice_status_allowed
+                check (status in ('ISSUED','MATCHED','DISPUTED','SETTLED','VOID'));
+              alter table invoices add constraint chk_invoice_currency_shape
+                check (currency = upper(currency) and currency ~ '^[A-Z]{3}$');
+              alter table invoices add constraint chk_invoice_version_nonnegative check (version >= 0);
+              alter table invoices add constraint chk_invoice_lifecycle_shape check (
+                (status = 'ISSUED' and payable_amount is null and reconciled_at is null and settled_at is null)
+                or (status = 'MATCHED' and payable_amount > 0 and payable_amount <= total_amount and reconciled_at is not null and settled_at is null)
+                or (status = 'DISPUTED' and payable_amount > 0 and payable_amount < total_amount and reconciled_at is not null and settled_at is null)
+                or (status = 'SETTLED' and payable_amount > 0 and payable_amount <= total_amount and reconciled_at is not null and settled_at is not null)
+                or (status = 'VOID' and payable_amount is null and settled_at is null)
+              );
+              alter table invoices add constraint chk_invoice_timeline
+                check ((reconciled_at is null or reconciled_at >= issued_at)
+                  and (settled_at is null or (reconciled_at is not null and settled_at >= reconciled_at)));
+              alter table invoice_payments add constraint chk_payment_reference_nonblank
+                check (nullif(btrim(payment_reference),'') is not null);
+              alter table claim_search_outbox add constraint chk_claim_outbox_attempts_nonnegative
+                check (publish_attempts >= 0);
+              alter table claim_search_outbox add constraint chk_claim_outbox_event_version_positive
+                check (event_version > 0);

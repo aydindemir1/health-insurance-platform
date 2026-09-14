@@ -142,7 +142,7 @@ shared audit database that would violate data ownership.
 
 ## Verified checkpoint
 
-The complete service suite currently passes 51 tests. Evidence covers aggregate
+The complete service suite currently passes 53 tests. Evidence covers aggregate
 rules, use-case authorization, provider ownership, atomic state/audit/search
 outbox writes, JPA persistence and optimistic locking, Kafka duplicate delivery
 and DLT routing, REST contracts, Spring wiring, and ArchUnit boundaries.
@@ -153,6 +153,12 @@ plus `MATCHED -> SETTLED`. A repeated approval returned `409`; the owner databas
 contained the matching processed-message marker, six minimized audit actions,
 four lifecycle search projections, and optimistic versions `2` on both
 aggregates.
+
+Rehydration rejects impossible Claim and Invoice lifecycle combinations, not
+only invalid new commands. Liquibase changeset `005` mirrors critical status,
+amount, currency, version, timestamp, and decision/reconciliation shape rules
+with 13 PostgreSQL check constraints. Spring Security filter failures use the
+same RFC 9457 `application/problem+json` contract as application errors.
 
 ## Explicit scope boundaries
 

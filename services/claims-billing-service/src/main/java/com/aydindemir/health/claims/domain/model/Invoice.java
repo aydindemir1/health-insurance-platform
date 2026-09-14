@@ -55,6 +55,7 @@ public final class Invoice {
         if (revision < 0) throw new IllegalArgumentException("revision must not be negative");
         this.revision = revision;
         validatePayments();
+        validateLifecycle();
     }
 
     public static Invoice issue(
@@ -163,6 +164,48 @@ public final class Invoice {
         if (payableAmount != null && paid.isGreaterThan(payableAmount)) {
             throw new IllegalArgumentException("Payments cannot exceed the payable amount");
         }
+    }
+
+    private void validateLifecycle() {
+        if (reconciledAt != null && reconciledAt.isBefore(issuedAt)) {
+            throw new IllegalArgumentException("Reconciliation cannot precede invoice issuance");
+        }
+        if (settledAt != null && (reconciledAt == null || settledAt.isBefore(reconciledAt))) {
+            throw new IllegalArgumentException("Settlement cannot precede reconciliation");
+        }
+        switch (status) {
+            case ISSUED -> requireState(payableAmount == null && reconciledAt == null
+                    && settledAt == null && payments.isEmpty(),
+                    "Issued invoice cannot contain reconciliation or payment data");
+            case MATCHED -> {
+                requirePayableLifecycle("Matched invoice requires a payable amount and reconciliation time");
+                requireState(settledAt == null
+                                && paidAmount().amount().compareTo(payableAmount.amount()) < 0,
+                        "Matched invoice must remain partially unpaid");
+            }
+            case DISPUTED -> {
+                requirePayableLifecycle("Disputed invoice requires a payable amount and reconciliation time");
+                requireState(settledAt == null && payments.isEmpty()
+                                && payableAmount.amount().compareTo(totalAmount.amount()) < 0,
+                        "Disputed invoice must be unpaid and below invoice total");
+            }
+            case SETTLED -> {
+                requirePayableLifecycle("Settled invoice requires a payable amount and reconciliation time");
+                requireState(settledAt != null && paidAmount().isEqualTo(payableAmount),
+                        "Settled invoice payments must equal the payable amount");
+            }
+            case VOID -> requireState(payableAmount == null && settledAt == null && payments.isEmpty(),
+                    "Void invoice cannot contain payable or payment data");
+        }
+    }
+
+    private void requirePayableLifecycle(String message) {
+        requireState(payableAmount != null && reconciledAt != null, message);
+        validatePayableAmount(payableAmount);
+    }
+
+    private static void requireState(boolean valid, String message) {
+        if (!valid) throw new IllegalArgumentException(message);
     }
 
     private void requireStatus(InvoiceStatus expected, String message) {

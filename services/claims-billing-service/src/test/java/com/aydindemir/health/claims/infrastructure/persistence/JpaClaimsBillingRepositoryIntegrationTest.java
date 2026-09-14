@@ -68,7 +68,7 @@ class JpaClaimsBillingRepositoryIntegrationTest {
                     assertThat(payment.reference()).isEqualTo("PAY-001"));
         });
         assertThat(jdbc.queryForObject("select count(*) from databasechangelog", Integer.class))
-                .isEqualTo(4);
+                .isEqualTo(5);
     }
 
     @Test
@@ -78,6 +78,16 @@ class JpaClaimsBillingRepositoryIntegrationTest {
                 String.class);
         assertThat(indexes).contains("uk_claims_pre_authorization", "uk_invoices_claim",
                 "uk_invoices_number_lower", "idx_claims_provider_status", "idx_invoices_provider_status");
+
+        var constraints = jdbc.queryForList(
+                "select constraint_name from information_schema.table_constraints " +
+                        "where table_name in ('claims','invoices','invoice_payments','claim_search_outbox') " +
+                        "and constraint_name like 'chk_%'",
+                String.class);
+        assertThat(constraints).contains(
+                "chk_claim_lifecycle_shape", "chk_claim_timeline", "chk_claim_currency_shape",
+                "chk_invoice_lifecycle_shape", "chk_invoice_timeline", "chk_invoice_currency_shape",
+                "chk_payment_reference_nonblank", "chk_claim_outbox_attempts_nonnegative");
     }
 
     @Test
