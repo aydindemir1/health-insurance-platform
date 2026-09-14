@@ -62,6 +62,9 @@ Current portfolio evidence catalogue:
 - `24-claims-billing-kafka-consumer-runtime.png` — Authorization source topic and
   DLT partitions, Claims consumer inbox marker, and one Claim per approved
   pre-authorization idempotency evidence.
+- `25-notification-worker-runtime.png` — live RabbitMQ delivery/DLQ state,
+  durable bindings, Notification-owned PostgreSQL delivery rows, Liquibase
+  history, lifecycle constraints, and operational indexes.
 
 ## Preview
 
@@ -112,6 +115,8 @@ Current portfolio evidence catalogue:
 ![Claims and Billing PostgreSQL runtime](23-claims-billing-postgresql-runtime.png)
 
 ![Claims and Billing Kafka consumer runtime](24-claims-billing-kafka-consumer-runtime.png)
+
+![Notification Worker runtime](25-notification-worker-runtime.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
@@ -227,3 +232,15 @@ npm run screenshots:claims
 The script reads state and idempotency metadata only. Financial amounts,
 payment references, policy/member data, credentials, tokens, and Kafka payloads
 are deliberately excluded.
+
+Capture Notification Worker evidence after a synthetic task has been delivered
+and an unsupported contract version has reached the DLQ:
+
+```powershell
+Set-Location apps/operations-portal
+npm run screenshots:notification
+```
+
+The image contains only opaque synthetic identifiers, delivery lifecycle,
+migration/constraint/index metadata, bindings, and queue counts. It never reads
+or renders message bodies, credentials, tokens, or contact addresses.

@@ -38,6 +38,14 @@ try {
     name: "health.notifications.delivery.v1.dlq",
     exact: true,
   }).waitFor();
+  await page.evaluate((username) => {
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node.nodeValue?.includes(username)) {
+        node.nodeValue = node.nodeValue.replaceAll(username, "runtime-monitor");
+      }
+    }
+  }, process.env.RABBITMQ_SCREENSHOT_USERNAME);
   await page.screenshot({
     path: path.join(screenshotsDirectory, "06-rabbitmq-notification-queues.png"),
     fullPage: true,

@@ -136,3 +136,7 @@ worker suite passed 24/24 tests on Java 21.0.8.
 The local sender logs only the task identifier, notification type, recipient
 kind, and opaque provider reference. It demonstrates the output port and
 idempotency flow but does not claim to send email or SMS.
+
+For implemented business semantics and repeatable evidence, see the
+[business analysis](../business/notification-worker-business-analysis.md) and
+[local verification guide](../development/notification-worker-local-verification.md).
