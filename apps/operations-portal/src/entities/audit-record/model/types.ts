@@ -1,3 +1,6 @@
+import { z } from 'zod'
+import { javaUuid } from '@/shared/lib/validation'
+
 export type AuditService = 'authorization' | 'policy' | 'claims-billing'
 
 export interface AuditRecord {
@@ -35,13 +38,13 @@ export interface AuditSearchCriteria {
 
 export const auditPageResultSchema = z.object({
   content: z.array(z.object({
-    auditId: z.uuid(),
+    auditId: javaUuid(),
     aggregateType: z.string(),
-    aggregateId: z.uuid(),
+    aggregateId: javaUuid(),
     action: z.string(),
     actorSubject: z.string(),
     actorRoles: z.array(z.string()),
-    providerId: z.uuid().nullish(),
+    providerId: javaUuid().nullish(),
     correlationId: z.string(),
     occurredAt: z.string().min(1),
     reasonCode: z.string(),
@@ -58,4 +61,3 @@ export const auditPageResultSchema = z.object({
   first: z.boolean(),
   last: z.boolean(),
 })
-import { z } from 'zod'

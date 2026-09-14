@@ -3,10 +3,11 @@ import { type FormEvent } from 'react'
 import { useSearchParams } from 'react-router'
 import { z } from 'zod'
 import { searchApi, type SearchCriteria, type SearchRecordType } from '@/entities/search-record'
+import { javaUuid } from '@/shared/lib/validation'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/AsyncState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 
-const optionalIdSchema = z.union([z.literal(''), z.uuid()])
+const optionalIdSchema = z.union([z.literal(''), javaUuid()])
 const recordTypes = new Set<SearchRecordType>(['PRE_AUTHORIZATION', 'CLAIM'])
 
 function nonNegativeInteger(value: string | null, fallback: number) {

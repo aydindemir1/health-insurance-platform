@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { javaUuid } from '@/shared/lib/validation'
 
 export type PreAuthorizationStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
@@ -50,9 +51,9 @@ export interface PageResult<T> {
 }
 
 export const preAuthorizationSchema = z.object({
-  id: z.uuid(),
-  memberId: z.uuid(),
-  providerId: z.uuid(),
+  id: javaUuid(),
+  memberId: javaUuid(),
+  providerId: javaUuid(),
   policyNumber: z.string(),
   serviceCode: z.string(),
   diagnosisCode: z.string(),

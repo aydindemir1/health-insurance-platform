@@ -4,11 +4,12 @@ import { Navigate, useSearchParams } from 'react-router'
 import { z } from 'zod'
 import { auditApi, type AuditSearchCriteria, type AuditService } from '@/entities/audit-record'
 import { useAuth } from '@/features/authentication'
+import { javaUuid } from '@/shared/lib/validation'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/AsyncState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 
 const services = new Set<AuditService>(['authorization', 'policy', 'claims-billing'])
-const optionalIdSchema = z.union([z.literal(''), z.uuid()])
+const optionalIdSchema = z.union([z.literal(''), javaUuid()])
 const actions: Record<AuditService, string[]> = {
   authorization: ['PRE_AUTHORIZATION_SUBMITTED', 'PRE_AUTHORIZATION_APPROVED', 'PRE_AUTHORIZATION_REJECTED'],
   policy: ['POLICY_ISSUED'],

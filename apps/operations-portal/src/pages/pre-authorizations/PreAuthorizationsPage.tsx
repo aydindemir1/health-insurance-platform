@@ -12,10 +12,11 @@ import {
   type SortDirection,
 } from '@/entities/pre-authorization'
 import { useAuth } from '@/features/authentication'
+import { javaUuid } from '@/shared/lib/validation'
 import { EmptyState, ErrorState, LoadingState } from '@/shared/ui/AsyncState'
 import { PageHeader } from '@/shared/ui/PageHeader'
 
-const optionalIdSchema = z.union([z.literal(''), z.uuid()])
+const optionalIdSchema = z.union([z.literal(''), javaUuid()])
 const allowedStatuses = new Set<PreAuthorizationStatus>(['PENDING', 'APPROVED', 'REJECTED'])
 const allowedSortFields = new Set<PreAuthorizationSortField>(['createdAt', 'requestedAmount', 'status'])
 
@@ -76,7 +77,7 @@ export function PreAuthorizationsPage() {
   const openById = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const id = String(new FormData(event.currentTarget).get('authorizationId') ?? '').trim()
-    if (z.uuid().safeParse(id).success) navigate(`/pre-authorizations/${id}`)
+    if (javaUuid().safeParse(id).success) navigate(`/pre-authorizations/${id}`)
   }
 
   const moveToPage = (nextPage: number) => {

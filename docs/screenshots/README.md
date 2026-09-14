@@ -15,6 +15,11 @@ implemented in a later milestone.
 
 Current portfolio evidence catalogue:
 
+The Operations Portal journey is represented by `01`–`05`, with `07` proving
+secured cross-context search and `10` proving administrator-only audit access.
+These views correspond to the real Keycloak-backed Playwright workflow recorded
+in the frontend local verification guide.
+
 The verified backend end-to-end chain is represented by `07` and `19`–`25`:
 Search, both service-owned PostgreSQL stores, Kafka, RabbitMQ and Notification
 Worker. Reusing these focused, token-free views provides stronger readable

@@ -4,10 +4,11 @@ import { useForm } from 'react-hook-form'
 import { useNavigate } from 'react-router'
 import { z } from 'zod'
 import { preAuthorizationApi } from '@/entities/pre-authorization'
+import { javaUuid } from '@/shared/lib/validation'
 import { ErrorState } from '@/shared/ui/AsyncState'
 
 const schema = z.object({
-  memberId: z.uuid('Enter a valid member UUID.'),
+  memberId: javaUuid('Enter a valid member UUID.'),
   policyNumber: z.string().trim().min(1, 'Policy number is required.').max(50),
   serviceCode: z.string().trim().min(1, 'Service code is required.').max(40),
   diagnosisCode: z.string().trim().min(1, 'Diagnosis code is required.').max(20),

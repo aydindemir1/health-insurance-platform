@@ -34,3 +34,7 @@ shared HTTP client supplies the same Keycloak access token and a fresh bounded
 correlation ID. Search filters and pagination are URL state, while TanStack Query
 keeps results in its server-state cache. The Search Service, not the browser,
 enforces provider ownership.
+
+Canonical identifiers use the shared `javaUuid()` Zod schema. It mirrors the
+text accepted by backend `java.util.UUID` without incorrectly requiring RFC
+version bits, and is reused by forms, URL filters and API response schemas.

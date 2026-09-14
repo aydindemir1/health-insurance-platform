@@ -1,3 +1,6 @@
+import { z } from 'zod'
+import { javaUuid } from '@/shared/lib/validation'
+
 export type SearchRecordType = 'PRE_AUTHORIZATION' | 'CLAIM'
 
 export interface SearchRecord {
@@ -40,10 +43,10 @@ export const searchPageResultSchema = z.object({
   content: z.array(z.object({
     id: z.string().min(1),
     type: z.enum(['PRE_AUTHORIZATION', 'CLAIM']),
-    sourceId: z.uuid(),
-    preAuthorizationId: z.uuid().nullish(),
-    memberId: z.uuid(),
-    providerId: z.uuid(),
+    sourceId: javaUuid(),
+    preAuthorizationId: javaUuid().nullish(),
+    memberId: javaUuid(),
+    providerId: javaUuid(),
     policyNumber: z.string(),
     serviceCode: z.string(),
     status: z.string(),
@@ -60,4 +63,3 @@ export const searchPageResultSchema = z.object({
   size: z.number().int().positive(),
   totalElements: z.number().int().nonnegative(),
 })
-import { z } from 'zod'
