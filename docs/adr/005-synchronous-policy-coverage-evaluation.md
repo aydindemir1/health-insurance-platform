@@ -3,6 +3,19 @@
 - Status: Accepted
 - Date: 2026-09-03
 
+## Implementation status update (2026-09-14)
+
+The later event-driven milestone did not introduce benefit reservation;
+coverage evaluation intentionally remains read-only. Event delivery alone does
+not make concurrent benefit consumption safe. A future implementation would
+need idempotent reservation and release commands, optimistic concurrency, and
+explicit compensation or process coordination.
+
+The local portfolio topology also continues to relay the end-user bearer token.
+The gateway milestone added edge security policies but did not introduce
+workload identity. OAuth 2.0 client credentials or token exchange therefore
+remains a production-hardening decision rather than a completed capability.
+
 ## Context
 
 A hospital must know whether a member's policy covers the requested healthcare
@@ -53,4 +66,3 @@ deferred to the event-driven milestone.
 - **Fully asynchronous validation:** removes the synchronous dependency but
   requires a `PENDING_VALIDATION` state and process manager before the hospital
   receives a final response.
-

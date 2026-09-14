@@ -889,6 +889,8 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 
 ![Kubernetes and Argo CD runtime](docs/screenshots/17-kubernetes-argocd-runtime.png)
 
+![Policy Service live local runtime](docs/screenshots/18-policy-service-runtime.png)
+
 - [Engineering documentation index](docs/README.md)
 - [Technical walkthrough and interview guide](docs/project-technical-walkthrough.md)
 - [C4 context](docs/architecture/c4-context.md) and
@@ -902,6 +904,7 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 - [Kubernetes deployment and security](docs/deployment/kubernetes.md)
 - [CI/CD and software supply chain](docs/architecture/ci-cd-supply-chain.md)
 - [Local troubleshooting](docs/development/troubleshooting.md)
+- [Policy Service local learning and verification](docs/development/policy-service-local-verification.md)
 - [Search and messaging recovery runbook](docs/operations/search-and-messaging-recovery.md)
 - [Demo scenario](docs/demo/demo-scenario.md)
 - [Milestone 12 CI/CD demo](docs/demo/milestone-12-ci-cd-demo.md)

@@ -93,6 +93,7 @@ try {
         'docs/screenshots/09-apisix-gateway-problem-details.png',
         'docs/screenshots/10-audit-trail.png',
         'docs/screenshots/11-search-rebuild-recovery.png'
+        'docs/screenshots/18-policy-service-runtime.png'
     )
     foreach ($screenshot in $expectedScreenshots) {
         Assert-Condition (Test-Path -LiteralPath $screenshot -PathType Leaf) "Missing screenshot: $screenshot"

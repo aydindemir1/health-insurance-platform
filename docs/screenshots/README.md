@@ -41,6 +41,11 @@ Screenshots retained through the Milestone 10 documentation checkpoint:
 - `15-nexus-maven-artifacts.png` — Nexus Maven snapshot repository evidence.
 - `16-docker-cicd-runtime.png` — live local CI/CD container inventory.
 - `17-kubernetes-argocd-runtime.png` — live Kubernetes and Argo CD resource state.
+- `18-policy-service-runtime.png` — isolated live Policy Service evidence showing
+  health, Keycloak OIDC metadata, signed-token positive/negative coverage
+  decisions, RFC 9457 validation, PostgreSQL policy/audit rows, applied
+  migrations, policy/coverage invariant constraints, audit constraint/trigger,
+  and hashed Redis keys with bounded TTL.
 
 ## Preview
 
@@ -77,6 +82,8 @@ Screenshots retained through the Milestone 10 documentation checkpoint:
 ![Docker CI/CD runtime](16-docker-cicd-runtime.png)
 
 ![Kubernetes and Argo CD runtime](17-kubernetes-argocd-runtime.png)
+
+![Policy Service runtime](18-policy-service-runtime.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
@@ -147,3 +154,20 @@ not query or render document payloads.
 
 The local Compose stack disables Elastic security for developer convenience and
 binds Elastic ports to loopback. That setting is not a production security model.
+
+To recapture the Policy-only evidence, start Policy Service with its PostgreSQL,
+Redis, and Keycloak dependencies, then provide a short-lived specialist token
+and the synthetic policy identity only through the current process:
+
+```powershell
+$env:POLICY_SCREENSHOT_TOKEN = "<short-lived-token>"
+$env:POLICY_SCREENSHOT_POLICY_NUMBER = "<synthetic-policy-number>"
+$env:POLICY_SCREENSHOT_MEMBER_ID = "<synthetic-member-uuid>"
+Set-Location apps/operations-portal
+npm run screenshots:policy
+```
+
+The script warms the real coverage cache, queries only the matching synthetic
+PostgreSQL policy/audit evidence, and renders only hashed Redis keys. It never
+renders or persists the token, database password, or Keycloak administrator
+credential.

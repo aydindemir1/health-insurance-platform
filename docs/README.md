@@ -19,6 +19,7 @@ the end of the project.
 - [Kubernetes deployment and security](deployment/kubernetes.md)
 - [CI/CD and software supply chain](architecture/ci-cd-supply-chain.md)
 - [Local troubleshooting](development/troubleshooting.md)
+- [Policy Service local learning and verification](development/policy-service-local-verification.md)
 - [Search and messaging recovery runbook](operations/search-and-messaging-recovery.md)
 - [Event-driven messaging](architecture/event-driven-messaging.md)
 - [Search, cache, and observability](architecture/search-and-observability.md)
