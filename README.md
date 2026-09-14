@@ -913,6 +913,8 @@ Authorization infrastructure evidence is captured separately for
 - [Local troubleshooting](docs/development/troubleshooting.md)
 - [Policy Service local learning and verification](docs/development/policy-service-local-verification.md)
 - [Authorization Service local learning and verification](docs/development/authorization-service-local-verification.md)
+- [Claims and Billing Service local learning and verification](docs/development/claims-billing-service-local-verification.md)
+- [Claims and Billing Service business analysis](docs/business/claims-billing-service-business-analysis.md)
 - [Search and messaging recovery runbook](docs/operations/search-and-messaging-recovery.md)
 - [Demo scenario](docs/demo/demo-scenario.md)
 - [Milestone 12 CI/CD demo](docs/demo/milestone-12-ci-cd-demo.md)

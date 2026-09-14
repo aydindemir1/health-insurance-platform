@@ -21,6 +21,7 @@ the end of the project.
 - [Local troubleshooting](development/troubleshooting.md)
 - [Policy Service local learning and verification](development/policy-service-local-verification.md)
 - [Authorization Service local learning and verification](development/authorization-service-local-verification.md)
+- [Claims and Billing Service local learning and verification](development/claims-billing-service-local-verification.md)
 - [Search and messaging recovery runbook](operations/search-and-messaging-recovery.md)
 - [Event-driven messaging](architecture/event-driven-messaging.md)
 - [Search, cache, and observability](architecture/search-and-observability.md)
@@ -31,6 +32,7 @@ the end of the project.
 
 - [Policy Service business analysis](business/policy-service-business-analysis.md)
 - [Authorization Service business analysis](business/authorization-service-business-analysis.md)
+- [Claims and Billing Service business analysis](business/claims-billing-service-business-analysis.md)
 - [Technical walkthrough](project-technical-walkthrough.md)
 - [Demo scenario](demo/demo-scenario.md)
 - [Milestone 12 CI/CD demo](demo/milestone-12-ci-cd-demo.md)
