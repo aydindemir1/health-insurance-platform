@@ -27,11 +27,14 @@ Verified components:
 
 - Java `21.0.8`
 - Elasticsearch Testcontainer `9.5.3`
+- `20/20` tests passed; failures `0`, errors `0`, skipped `0`
 - stable alias creation and legacy-index attachment
 - filtering and pagination
 - newer/older/equal source-revision behavior
 - versioned candidate activation and rollback
 - provider/application authorization and filter-level RFC 9457
+- permanent contract failures bypass retry; transient failures retain the
+  configured bounded retry budget before DLT recovery
 - Clean Architecture dependency rule
 
 ## Live verification result
@@ -60,6 +63,12 @@ The admin rehearsal created
 synthetic record, activated it after count `1`, and then rolled back. The stable
 alias returned to the original 71-document v2 index; both candidate and
 predecessor remained retained.
+
+The locally available `apache/kafka-native:4.1.1` image does not include the
+Kafka CLI producer/offset scripts, so no artificial poison message was injected
+into the running broker. Retry classification is instead verified directly at
+the Spring Kafka error-handler boundary; the production listener/DLT topology
+remains unchanged.
 
 ## Screenshot evidence
 

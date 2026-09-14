@@ -24,8 +24,9 @@ class SearchProjectionListeners {
     @KafkaListener(topics = "health.authorization.pre-authorization.v1", groupId = "search-pre-authorization-v1")
     void consumePreAuthorization(String payload) {
         var message = read(payload, PreAuthorizationDecisionMessage.class);
-        withCorrelation(message.eventId(), () -> {
+        withCorrelation(requireId(message.eventId(), "eventId"), () -> {
             requireVersion(message.eventVersion());
+            requireEventType(message.eventType(), "PreAuthorizationDecided");
             indexer.index(new SearchRecord(
                 "PRE_AUTHORIZATION:" + message.preAuthorizationId(), RecordType.PRE_AUTHORIZATION,
                 message.preAuthorizationId(), message.preAuthorizationId(), message.memberId(),
@@ -40,8 +41,9 @@ class SearchProjectionListeners {
     @KafkaListener(topics = "health.claims.search-projection.v1", groupId = "search-claims-v1")
     void consumeClaim(String payload) {
         var message = read(payload, ClaimSearchProjectionMessage.class);
-        withCorrelation(message.eventId(), () -> {
+        withCorrelation(requireId(message.eventId(), "eventId"), () -> {
             requireVersion(message.eventVersion());
+            requireEventType(message.eventType(), "ClaimSearchProjectionUpdated");
             indexer.index(new SearchRecord(
                 "CLAIM:" + message.claimId(), RecordType.CLAIM, message.claimId(),
                 message.preAuthorizationId(), message.memberId(), message.providerId(),
@@ -59,6 +61,17 @@ class SearchProjectionListeners {
 
     private void requireVersion(int version) {
         if (version != 1) throw new IllegalArgumentException("Unsupported search projection version: " + version);
+    }
+
+    private void requireEventType(String actual, String expected) {
+        if (!expected.equals(actual)) {
+            throw new IllegalArgumentException("Unsupported search projection event type: " + actual);
+        }
+    }
+
+    private java.util.UUID requireId(java.util.UUID value, String field) {
+        if (value == null) throw new IllegalArgumentException(field + " is required");
+        return value;
     }
 
     private long revision(Long sourceRevision) {

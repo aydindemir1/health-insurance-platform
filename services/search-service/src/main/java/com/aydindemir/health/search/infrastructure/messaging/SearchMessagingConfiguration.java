@@ -48,8 +48,10 @@ class SearchMessagingConfiguration {
         var recoverer = new DeadLetterPublishingRecoverer(
                 template,
                 (record, exception) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
-        return new DefaultErrorHandler(
+        var errorHandler = new DefaultErrorHandler(
                 recoverer,
                 new FixedBackOff(retryDelay.toMillis(), Math.max(0, maxAttempts - 1)));
+        errorHandler.addNotRetryableExceptions(IllegalArgumentException.class);
+        return errorHandler;
     }
 }

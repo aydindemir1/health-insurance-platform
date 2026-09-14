@@ -64,15 +64,17 @@ durable production workflow engine.
 | invalid type/page/size | RFC 9457 `400` |
 | stale/equal projection | Elasticsearch no-op |
 | count or alias compare mismatch | `409`; active alias unchanged |
-| poison Kafka projection | bounded retry then source-topic DLT |
+| malformed/wrong-type/version Kafka projection | immediate source-topic DLT |
+| transient projection failure | bounded retry then source-topic DLT |
 | Elasticsearch unavailable | owner writes remain committed in their outboxes |
 
 ## Verified checkpoint
 
-The Java 21 baseline suite passed 13/13 with five real Elasticsearch tests. The
-revision hardening added an equal-revision integration scenario, and filter-level
-security added two MVC tests. The effective suite is 16 tests; the final full
-run is recorded in the local verification guide.
+The final Java 21 suite passed `20/20` with failures `0`, errors `0`, and skipped
+`0`. Six tests ran against a real Elasticsearch 9.5.3 Testcontainer, including
+the equal-revision convergence scenario. Filter-level security is covered by
+MVC tests, and Spring Kafka listener/error-handler tests cover contract
+validation plus permanent-versus-transient failure classification.
 
 Live evidence proved 71 indexed synthetic documents, hospital provider scoping,
 specialist pagination, RFC 9457 authentication failure, administrator-only

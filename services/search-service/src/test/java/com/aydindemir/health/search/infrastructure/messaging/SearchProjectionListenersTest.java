@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SearchProjectionListenersTest {
     private SearchRecord indexed;
@@ -52,5 +53,31 @@ class SearchProjectionListenersTest {
         assertThat(indexed.invoiceStatus()).isEqualTo("SETTLED");
         assertThat(indexed.paidAmount()).isEqualByComparingTo("800.00");
         assertThat(indexed.sourceRevision()).isEqualTo(4);
+    }
+
+    @Test
+    void rejectsAnUnexpectedEventTypeBeforeIndexing() {
+        assertThatThrownBy(() -> listeners.consumePreAuthorization("""
+                {"eventId":"%s","eventType":"ClaimSearchProjectionUpdated","eventVersion":1,
+                 "preAuthorizationId":"%s","memberId":"%s","providerId":"%s",
+                 "policyNumber":"POL-100","serviceCode":"IMG-MRI","requestedAmount":1250.00,
+                 "currency":"TRY","decision":"APPROVED","occurredAt":"2026-09-09T00:00:00Z"}
+                """.formatted(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("event type");
+        assertThat(indexed).isNull();
+    }
+
+    @Test
+    void rejectsAMissingEventIdentifierBeforeAddingCorrelationContext() {
+        assertThatThrownBy(() -> listeners.consumePreAuthorization("""
+                {"eventType":"PreAuthorizationDecided","eventVersion":1,
+                 "preAuthorizationId":"%s","memberId":"%s","providerId":"%s",
+                 "policyNumber":"POL-100","serviceCode":"IMG-MRI","requestedAmount":1250.00,
+                 "currency":"TRY","decision":"APPROVED","occurredAt":"2026-09-09T00:00:00Z"}
+                """.formatted(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("eventId");
+        assertThat(indexed).isNull();
     }
 }

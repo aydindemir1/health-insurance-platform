@@ -74,10 +74,12 @@ Search documents contain only operational identifiers and financial workflow
 fields required by the portal. Search does not authorize commands and cannot be
 used to reconstruct an aggregate. A rebuild uses current, bounded snapshots
 from the Authorization and Claims/Billing owner APIs; it never reads their
-databases or assumes Kafka retention contains a complete history. Consumer failures receive three total
-fixed-backoff attempts by default and then the original record is sent to the
-source topic's `.DLT`; invalid versions and malformed projections therefore do
-not block a partition forever.
+databases or assumes Kafka retention contains a complete history. Transient
+consumer failures receive three total fixed-backoff attempts by default and
+then the original record is sent to the source topic's `.DLT`. Malformed JSON,
+missing event identity, unexpected event type/version, and invalid projection
+invariants are permanent `IllegalArgumentException` failures and go directly to
+the DLT without wasteful retries.
 
 ## Versioned rebuild and rollback
 
