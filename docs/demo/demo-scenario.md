@@ -121,6 +121,22 @@ It also registers `providerId` as a managed user-profile attribute that users
 can view but only administrators can edit; Keycloak 26 otherwise ignores
 undeclared custom attributes by default.
 
+### Authorization-only learning checkpoint
+
+When learning Authorization Service, avoid starting or reseeding unrelated
+Claims/Search workflows. Prepare only the local Keycloak identities:
+
+```powershell
+.\demo\prepare-and-seed-local-demo.ps1 -SkipDataSeed
+```
+
+Run Policy and Authorization with their PostgreSQL, Kafka, and RabbitMQ
+dependencies; then execute submit, detail, approve, and repeat-approve requests.
+The expected states are `PENDING`, `APPROVED`, and finally RFC 9457 `409` for the
+repeat decision. Inspect the matching aggregate, minimized audit actions, and
+acknowledged broker outbox rows using the
+[focused verification guide](../development/authorization-service-local-verification.md).
+
 ## Data created
 
 The source definitions live in [demo-data.json](../../demo/demo-data.json).

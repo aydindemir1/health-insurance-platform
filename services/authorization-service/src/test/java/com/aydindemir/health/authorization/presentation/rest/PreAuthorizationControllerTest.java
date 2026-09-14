@@ -67,7 +67,10 @@ class PreAuthorizationControllerTest {
     @Test
     void requiresAuthentication() throws Exception {
         mockMvc.perform(get("/api/v1/pre-authorizations/{id}", PRE_AUTHORIZATION_ID))
-                .andExpect(status().isUnauthorized());
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Authentication required"))
+                .andExpect(jsonPath("$.status").value(401));
     }
 
     @Test
@@ -129,7 +132,10 @@ class PreAuthorizationControllerTest {
                         .content("""
                                 {"reason": "Coverage verified"}
                                 """))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(header().string("Content-Type", "application/problem+json"))
+                .andExpect(jsonPath("$.title").value("Operation not permitted"))
+                .andExpect(jsonPath("$.status").value(403));
 
         verify(decideUseCase, never()).approve(any());
     }
@@ -216,6 +222,18 @@ class PreAuthorizationControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail")
                         .value("Page size must be between 1 and 100"));
+
+        verify(searchUseCase, never()).search(any());
+    }
+
+    @Test
+    void rejectsUnboundedPolicyNumberFilter() throws Exception {
+        mockMvc.perform(get("/api/v1/pre-authorizations")
+                        .with(specialistJwt())
+                        .param("policyNumber", "P".repeat(51)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail")
+                        .value("Policy number must not exceed 50 characters"));
 
         verify(searchUseCase, never()).search(any());
     }

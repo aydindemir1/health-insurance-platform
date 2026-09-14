@@ -1,0 +1,27 @@
+databaseChangeLog:
+  - changeSet:
+      id: 008-add-pre-authorization-invariant-constraints
+      author: aydin-demir
+      changes:
+        - sql:
+            splitStatements: false
+            sql: |
+              ALTER TABLE pre_authorizations
+                ADD CONSTRAINT ck_pre_auth_requested_amount_positive
+                  CHECK (requested_amount > 0),
+                ADD CONSTRAINT ck_pre_auth_status_allowed
+                  CHECK (status IN ('PENDING', 'APPROVED', 'REJECTED')),
+                ADD CONSTRAINT ck_pre_auth_version_nonnegative
+                  CHECK (version >= 0),
+                ADD CONSTRAINT ck_pre_auth_currency_shape
+                  CHECK (currency ~ '^[A-Z]{3}$'),
+                ADD CONSTRAINT ck_pre_auth_decision_shape
+                  CHECK (
+                    (status = 'PENDING' AND decision_reason IS NULL AND decided_at IS NULL)
+                    OR
+                    (status = 'APPROVED' AND decided_at IS NOT NULL AND decided_at >= created_at)
+                    OR
+                    (status = 'REJECTED' AND decision_reason IS NOT NULL
+                      AND btrim(decision_reason) <> '' AND decided_at IS NOT NULL
+                      AND decided_at >= created_at)
+                  );

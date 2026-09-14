@@ -81,6 +81,28 @@ class RestCoverageVerificationAdapterTest {
         server.verify();
     }
 
+    @Test
+    void failsClosedWhenPolicyServiceReturnsAnInvalidContract() {
+        server.expect(once(), requestTo("http://policy-service:8082/api/v1/coverage-evaluations"))
+                .andRespond(withSuccess("""
+                        {"eligible": false, "code": "", "reason": null}
+                        """, MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> adapter.verify(request()))
+                .isInstanceOf(PolicyServiceUnavailableException.class)
+                .hasMessageContaining("invalid coverage response");
+        server.verify();
+    }
+
+    @Test
+    void failsClosedWhenBearerTokenIsUnavailable() {
+        SecurityContextHolder.clearContext();
+
+        assertThatThrownBy(() -> adapter.verify(request()))
+                .isInstanceOf(PolicyServiceUnavailableException.class)
+                .hasMessageContaining("bearer token");
+    }
+
     private CoverageVerificationPort.CoverageVerificationRequest request() {
         return new CoverageVerificationPort.CoverageVerificationRequest(
                 "POL-100", UUID.fromString("20000000-0000-0000-0000-000000000001"),

@@ -56,6 +56,7 @@ public final class PreAuthorization {
         this.decidedAt = decidedAt;
         if (revision < 0) throw new IllegalArgumentException("revision must not be negative");
         this.revision = revision;
+        validateDecisionState();
     }
 
     public static PreAuthorization submit(
@@ -120,6 +121,25 @@ public final class PreAuthorization {
 
     private static String normalize(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private void validateDecisionState() {
+        if (status == PreAuthorizationStatus.PENDING) {
+            if (decisionReason != null || decidedAt != null) {
+                throw new IllegalArgumentException(
+                        "A pending pre-authorization cannot contain decision data");
+            }
+            return;
+        }
+        if (decidedAt == null || decidedAt.isBefore(createdAt)) {
+            throw new IllegalArgumentException(
+                    "A decided pre-authorization requires a valid decision timestamp");
+        }
+        if (status == PreAuthorizationStatus.REJECTED
+                && (decisionReason == null || decisionReason.isBlank())) {
+            throw new IllegalArgumentException(
+                    "A rejected pre-authorization requires a decision reason");
+        }
     }
 
     public UUID id() { return id; }

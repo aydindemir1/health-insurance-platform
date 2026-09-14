@@ -891,6 +891,8 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 
 ![Policy Service live local runtime](docs/screenshots/18-policy-service-runtime.png)
 
+![Authorization Service live local runtime](docs/screenshots/19-authorization-service-runtime.png)
+
 - [Engineering documentation index](docs/README.md)
 - [Technical walkthrough and interview guide](docs/project-technical-walkthrough.md)
 - [C4 context](docs/architecture/c4-context.md) and
@@ -905,6 +907,7 @@ The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
 - [CI/CD and software supply chain](docs/architecture/ci-cd-supply-chain.md)
 - [Local troubleshooting](docs/development/troubleshooting.md)
 - [Policy Service local learning and verification](docs/development/policy-service-local-verification.md)
+- [Authorization Service local learning and verification](docs/development/authorization-service-local-verification.md)
 - [Search and messaging recovery runbook](docs/operations/search-and-messaging-recovery.md)
 - [Demo scenario](docs/demo/demo-scenario.md)
 - [Milestone 12 CI/CD demo](docs/demo/milestone-12-ci-cd-demo.md)

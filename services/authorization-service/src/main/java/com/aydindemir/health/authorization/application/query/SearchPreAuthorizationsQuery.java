@@ -18,6 +18,7 @@ public record SearchPreAuthorizationsQuery(
         SortDirection direction) {
 
     public static final int MAX_PAGE_SIZE = 100;
+    public static final int MAX_POLICY_NUMBER_LENGTH = 50;
 
     public SearchPreAuthorizationsQuery {
         actor = Objects.requireNonNull(actor);
@@ -30,6 +31,10 @@ public record SearchPreAuthorizationsQuery(
         if (size < 1 || size > MAX_PAGE_SIZE) {
             throw new IllegalArgumentException(
                     "Page size must be between 1 and " + MAX_PAGE_SIZE);
+        }
+        if (policyNumber != null && policyNumber.length() > MAX_POLICY_NUMBER_LENGTH) {
+            throw new IllegalArgumentException(
+                    "Policy number must not exceed " + MAX_POLICY_NUMBER_LENGTH + " characters");
         }
     }
 

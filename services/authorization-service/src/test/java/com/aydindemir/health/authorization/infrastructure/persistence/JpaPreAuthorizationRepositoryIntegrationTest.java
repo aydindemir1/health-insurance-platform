@@ -63,7 +63,7 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
 
         repository.save(submitted);
 
-        assertThat(appliedChangeSets).isEqualTo(7);
+        assertThat(appliedChangeSets).isEqualTo(8);
         assertThat(repository.findById(submitted.id()))
                 .hasValueSatisfying(reloaded -> {
                     assertThat(reloaded.memberId()).isEqualTo(submitted.memberId());
@@ -90,9 +90,12 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
                     PreAuthorizationJpaEntity.class, submitted.id());
 
             firstCopy.status = PreAuthorizationStatus.APPROVED;
+            firstCopy.decidedAt = FIXED_CLOCK.instant();
             firstEntityManager.getTransaction().commit();
 
             staleCopy.status = PreAuthorizationStatus.REJECTED;
+            staleCopy.decisionReason = "Rejected after review";
+            staleCopy.decidedAt = FIXED_CLOCK.instant();
             assertThatThrownBy(secondEntityManager.getTransaction()::commit)
                     .isInstanceOfAny(RollbackException.class, OptimisticLockException.class);
         } finally {
@@ -160,6 +163,28 @@ class JpaPreAuthorizationRepositoryIntegrationTest {
                 "notification_task_outbox_pkey",
                 "uk_notification_task_causation",
                 "idx_notification_task_unpublished");
+    }
+
+    @Test
+    void installsAndEnforcesPreAuthorizationInvariantConstraints() {
+        var constraints = jdbcTemplate.queryForList(
+                "select conname from pg_constraint "
+                        + "where conrelid = 'pre_authorizations'::regclass and contype = 'c'",
+                String.class);
+        PreAuthorization submitted = repository.save(newPreAuthorization());
+
+        assertThat(constraints).contains(
+                "ck_pre_auth_requested_amount_positive",
+                "ck_pre_auth_status_allowed",
+                "ck_pre_auth_version_nonnegative",
+                "ck_pre_auth_currency_shape",
+                "ck_pre_auth_decision_shape");
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "update pre_authorizations set requested_amount = 0 where id = ?",
+                submitted.id())).hasMessageContaining("ck_pre_auth_requested_amount_positive");
+        assertThatThrownBy(() -> jdbcTemplate.update(
+                "update pre_authorizations set status = 'APPROVED' where id = ?",
+                submitted.id())).hasMessageContaining("ck_pre_auth_decision_shape");
     }
 
     private PreAuthorization newPreAuthorization() {

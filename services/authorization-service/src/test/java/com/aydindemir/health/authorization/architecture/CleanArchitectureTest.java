@@ -5,6 +5,7 @@ import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
 
+import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
 @AnalyzeClasses(
@@ -12,23 +13,16 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
         importOptions = ImportOption.DoNotIncludeTests.class)
 class CleanArchitectureTest {
     @ArchTest
-    static final ArchRule domain_has_no_outer_layer_dependencies = noClasses()
+    static final ArchRule domain_depends_only_on_domain_and_java = classes()
             .that().resideInAPackage("..domain..")
-            .should().dependOnClassesThat().resideInAnyPackage(
-                    "..application..",
-                    "..infrastructure..",
-                    "..presentation..",
-                    "org.springframework..",
-                    "jakarta.persistence..");
+            .should().onlyDependOnClassesThat().resideInAnyPackage(
+                    "java..", "..domain..");
 
     @ArchTest
-    static final ArchRule application_is_framework_independent = noClasses()
+    static final ArchRule application_depends_only_on_inner_layers_and_java = classes()
             .that().resideInAPackage("..application..")
-            .should().dependOnClassesThat().resideInAnyPackage(
-                    "..infrastructure..",
-                    "..presentation..",
-                    "org.springframework..",
-                    "jakarta..");
+            .should().onlyDependOnClassesThat().resideInAnyPackage(
+                    "java..", "..domain..", "..application..");
 
     @ArchTest
     static final ArchRule presentation_does_not_bypass_application = noClasses()

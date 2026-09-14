@@ -39,7 +39,8 @@ import static org.mockito.Mockito.when;
 @Testcontainers
 @SpringBootTest(properties = {
         "app.messaging.outbox.enabled=false",
-        "app.messaging.notification-outbox.enabled=false"
+        "app.messaging.notification-outbox.enabled=false",
+        "spring.autoconfigure.exclude=org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration"
 })
 class DecisionOutboxTransactionIntegrationTest {
     @Container

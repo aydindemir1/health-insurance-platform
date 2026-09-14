@@ -5,9 +5,8 @@ import com.aydindemir.health.authorization.application.port.out.CoverageVerifica
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.RestClientException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -33,16 +32,20 @@ class RestCoverageVerificationAdapter implements CoverageVerificationPort {
                             request.serviceDate()))
                     .retrieve()
                     .body(CoverageEvaluationResponse.class);
-            if (response == null) {
+            if (response == null || isBlank(response.code()) || isBlank(response.reason())) {
                 throw new PolicyServiceUnavailableException(
-                        "Policy Service returned an empty coverage response");
+                        "Policy Service returned an invalid coverage response");
             }
             return new CoverageVerificationResult(
                     response.eligible(), response.code(), response.reason());
-        } catch (ResourceAccessException | RestClientResponseException exception) {
+        } catch (RestClientException exception) {
             throw new PolicyServiceUnavailableException(
                     "Policy Service is unavailable; pre-authorization was not created", exception);
         }
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private String currentAccessToken() {

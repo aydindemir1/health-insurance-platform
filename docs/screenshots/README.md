@@ -13,7 +13,7 @@ privileged service-owned audit view. Policy and Claims/Billing command workflows
 are demonstrated through the API script until their operational screens are
 implemented in a later milestone.
 
-Screenshots retained through the Milestone 10 documentation checkpoint:
+Current portfolio evidence catalogue:
 
 - `01-dashboard.png` — role-aware landing page and operational summary.
 - `02-pre-authorization-work-queue.png` — filter, sort, and pagination UI.
@@ -46,6 +46,10 @@ Screenshots retained through the Milestone 10 documentation checkpoint:
   decisions, RFC 9457 validation, PostgreSQL policy/audit rows, applied
   migrations, policy/coverage invariant constraints, audit constraint/trigger,
   and hashed Redis keys with bounded TTL.
+- `19-authorization-service-runtime.png` — isolated live Authorization Service
+  evidence showing health, RFC 9457 authentication failure, PostgreSQL state,
+  Liquibase/constraint counts, minimized audit actions, acknowledged Kafka and
+  RabbitMQ outboxes, and durable RabbitMQ queue state.
 
 ## Preview
 
@@ -84,6 +88,8 @@ Screenshots retained through the Milestone 10 documentation checkpoint:
 ![Kubernetes and Argo CD runtime](17-kubernetes-argocd-runtime.png)
 
 ![Policy Service runtime](18-policy-service-runtime.png)
+
+![Authorization Service runtime](19-authorization-service-runtime.png)
 
 To recapture them, start the local stack and portal, seed synthetic demo data as
 described in the [demo scenario](../demo/demo-scenario.md), sign in using a
@@ -171,3 +177,17 @@ The script warms the real coverage cache, queries only the matching synthetic
 PostgreSQL policy/audit evidence, and renders only hashed Redis keys. It never
 renders or persists the token, database password, or Keycloak administrator
 credential.
+
+To recapture the Authorization-only evidence, keep Authorization Service and
+its PostgreSQL, Kafka, RabbitMQ, Keycloak and Policy dependencies running. Pass
+only the synthetic request UUID; no access token is required or persisted:
+
+```powershell
+$env:AUTHORIZATION_SCREENSHOT_PRE_AUTHORIZATION_ID = "<synthetic-pre-authorization-uuid>"
+Set-Location apps/operations-portal
+npm run screenshots:authorization
+```
+
+The image renders only operational metadata and minimized audit actions. It
+does not render business payloads, member/diagnosis identifiers, credentials,
+tokens, or broker message bodies.

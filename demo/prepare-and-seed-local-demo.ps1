@@ -5,6 +5,7 @@ param(
     [string]$DemoUserPassword = $env:DEMO_USER_PASSWORD,
     [string]$KeycloakNetworkUrl = "http://127.0.0.1:8080",
     [string]$KeycloakPublicUrl = "http://localhost:8080",
+    [switch]$SkipDataSeed,
     [switch]$SkipNotificationVerification,
     [switch]$SkipGatewayVerification,
     [string]$RunId = (Get-Date -Format "yyyyMMddHHmmss")
@@ -232,23 +233,25 @@ function Get-DemoAccessToken {
     $response.access_token
 }
 
-$hospitalToken = Get-DemoAccessToken -Username "hospital-demo"
-$insuranceToken = Get-DemoAccessToken -Username "insurance-demo"
-$claimApproverToken = Get-DemoAccessToken -Username "claim-approver-demo"
-$systemAdminToken = Get-DemoAccessToken -Username "system-admin-demo"
+if (-not $SkipDataSeed) {
+    $hospitalToken = Get-DemoAccessToken -Username "hospital-demo"
+    $insuranceToken = Get-DemoAccessToken -Username "insurance-demo"
+    $claimApproverToken = Get-DemoAccessToken -Username "claim-approver-demo"
+    $systemAdminToken = Get-DemoAccessToken -Username "system-admin-demo"
 
-& (Join-Path $PSScriptRoot "seed-demo-data.ps1") `
-    -HospitalToken $hospitalToken `
-    -InsuranceToken $insuranceToken `
-    -ClaimApproverToken $claimApproverToken `
-    -SystemAdminToken $systemAdminToken `
-    -VerifyNotificationDelivery:(-not $SkipNotificationVerification) `
-    -RunId $RunId
-
-if (-not $SkipGatewayVerification) {
-    $wrongAudienceToken = Get-DemoAccessToken -Username "insurance-demo" -ClientId "admin-cli"
-    & (Join-Path $PSScriptRoot "verify-api-gateway.ps1") `
+    & (Join-Path $PSScriptRoot "seed-demo-data.ps1") `
         -HospitalToken $hospitalToken `
         -InsuranceToken $insuranceToken `
-        -WrongAudienceToken $wrongAudienceToken
+        -ClaimApproverToken $claimApproverToken `
+        -SystemAdminToken $systemAdminToken `
+        -VerifyNotificationDelivery:(-not $SkipNotificationVerification) `
+        -RunId $RunId
+
+    if (-not $SkipGatewayVerification) {
+        $wrongAudienceToken = Get-DemoAccessToken -Username "insurance-demo" -ClientId "admin-cli"
+        & (Join-Path $PSScriptRoot "verify-api-gateway.ps1") `
+            -HospitalToken $hospitalToken `
+            -InsuranceToken $insuranceToken `
+            -WrongAudienceToken $wrongAudienceToken
+    }
 }

@@ -49,6 +49,12 @@ The application service remains framework-free. An infrastructure decorator
 wraps its input ports in Spring-managed transactions: commands use read/write
 transactions and queries use read-only transactions.
 
+`CleanArchitectureTest` uses allowlists for the inner layers: Domain may depend
+only on Java and Domain, while Application may depend only on Java, Domain, and
+Application. Presentation cannot bypass Application to reach Domain or
+Infrastructure, and Infrastructure cannot depend on Presentation. This fails
+fast when a future framework dependency accidentally enters an inner layer.
+
 ## Paginated work queue
 
 The list operation uses application-owned `SearchPreAuthorizationsQuery`,
@@ -78,6 +84,16 @@ and system administrators can search across providers. Sort fields are
 explicitly allow-listed, and `id` is added as a deterministic tie-breaker so
 records do not move unpredictably between pages when primary sort values match.
 
+Query inputs are bounded before persistence: pages cannot be negative, page
+size is `1..100`, status/sort/direction values use allowlists, and policy number
+filters are capped at the persisted 50-character limit. PostgreSQL provides a
+composite `(provider_id, status, created_at)` index for the default hospital
+work queue, a functional `lower(policy_number)` index for case-insensitive exact
+matching, and member/status access indexes. The integration test proves filter,
+scope, sort, and pagination semantics against PostgreSQL. These are query-design
+controls, not a claim of measured throughput; no load benchmark is attached to
+this service.
+
 ## Concurrent decisions
 
 The JPA entity has a version column. If two specialists load the same pending
@@ -87,6 +103,36 @@ transaction boundary and translates Spring's optimistic-lock exception into an
 application conflict. The REST boundary returns an RFC 9457 `409 Conflict`
 response with the `concurrent-update` problem type.
 
+## Persistence integrity
+
+The aggregate validates positive monetary requests and consistent lifecycle
+data when it is created or rehydrated. Liquibase changeset `008` repeats the
+critical invariants at the PostgreSQL boundary: allowed statuses, positive
+amount, non-negative optimistic-lock version, uppercase three-letter currency,
+and the relationship between status, decision reason, and decision timestamp.
+Domain validation remains the first line of defense; database constraints also
+protect direct SQL, maintenance scripts, and future persistence adapters.
+
+JPA uses a zero-based `@Version`. Integration/search contracts deliberately
+publish `sourceRevision = version + 1`, giving an issued request business
+revision `1` and its first decision revision `2`. Rebuild exports use the same
+mapping, so live events and reconstructed search records remain comparable.
+
+## REST security and error contract
+
+Keycloak realm roles are mapped to Spring `ROLE_*` authorities, while the
+signed `provider_id` claim becomes the application actor's provider scope.
+Hospital-owned reads and submissions therefore never trust a provider supplied
+in JSON or query parameters. Endpoint annotations reject invalid roles before
+the use case, and the framework-free application layer repeats capability and
+ownership checks for defense in depth.
+
+Both Spring Security filter failures and controller/application failures use
+RFC 9457 `application/problem+json`. Missing authentication returns `401` with
+the `authentication-required` problem type; an authenticated caller lacking a
+required role returns `403` with `operation-not-permitted`. This keeps browser,
+gateway, and direct API clients on one predictable error contract.
+
 ## Decision event flow
 
 Approval/rejection, its Kafka event, and its minimal notification task are part
@@ -94,6 +140,11 @@ of the same transaction. Separate output ports and tables prevent the Kafka
 relay from accidentally publishing a RabbitMQ command. Broker relays remain
 outside the domain; the application depends only on outbox ports.
 See the [event-driven messaging view](event-driven-messaging.md).
+
+The PostgreSQL transaction integration test disables Kafka auto-configuration
+because it verifies durable outbox intent rather than broker delivery. Kafka and
+RabbitMQ relay behavior is covered separately. This keeps the test boundary
+explicit and prevents unrelated broker retries from slowing the suite.
 
 ## Transactional audit evidence
 
@@ -197,3 +248,10 @@ sequenceDiagram
     App-->>REST: Application result
     REST-->>Client: 201 Created
 ```
+
+The Policy REST adapter relays the initiating bearer token and correlation ID,
+uses bounded two-second connect and three-second read timeouts, and fails closed.
+HTTP/network failures, unreadable JSON, an empty body, or a response without a
+stable decision code and reason are treated as Policy dependency failures; no
+`PENDING` pre-authorization is persisted. A valid business denial remains a
+domain outcome and is translated by Authorization to `422` Problem Details.

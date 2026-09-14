@@ -68,6 +68,25 @@ class PreAuthorizationTest {
                 .hasMessageContaining("positive");
     }
 
+    @Test
+    void rejectsInconsistentRehydratedDecisionState() {
+        assertThatThrownBy(() -> PreAuthorization.rehydrate(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "POL-100",
+                "IMG-MRI", "J18.9", new BigDecimal("1250.00"),
+                Currency.getInstance("TRY"), PreAuthorizationStatus.APPROVED,
+                "Approved", NOW, null, 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("decision timestamp");
+
+        assertThatThrownBy(() -> PreAuthorization.rehydrate(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "POL-100",
+                "IMG-MRI", "J18.9", new BigDecimal("1250.00"),
+                Currency.getInstance("TRY"), PreAuthorizationStatus.REJECTED,
+                null, NOW, NOW, 1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("decision reason");
+    }
+
     private PreAuthorization newRequest() {
         return PreAuthorization.submit(
                 UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "POL-100",

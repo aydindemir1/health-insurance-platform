@@ -14,6 +14,7 @@
     "screenshots:gateway": "node scripts/capture-apisix-gateway-screenshot.mjs",
     "screenshots:recovery": "node scripts/capture-search-recovery-screenshot.mjs",
     "screenshots:policy": "node scripts/capture-policy-runtime-evidence.mjs",
+    "screenshots:authorization": "node scripts/capture-authorization-runtime-evidence.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
