@@ -6,7 +6,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5434/policy}
     username: ${DB_USERNAME:policy}
-    password: ${DB_PASSWORD:}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: validate

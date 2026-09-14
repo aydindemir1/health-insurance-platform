@@ -5,6 +5,7 @@ import com.aydindemir.health.policy.application.command.EvaluateCoverageCommand;
 import com.aydindemir.health.policy.application.port.in.CreatePolicyUseCase;
 import com.aydindemir.health.policy.application.port.in.EvaluateCoverageUseCase;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -12,7 +13,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.util.Currency;
 
@@ -45,9 +45,7 @@ class PolicyController {
         var created = createPolicy.create(new CreatePolicyCommand(
                 actorMapper.from(authentication), request.policyNumber(), request.memberId(),
                 request.validFrom(), request.validUntil(), coverageDefinitions));
-        var location = ServletUriComponentsBuilder.fromCurrentContextPath()
-                .path("/api/v1/policies/{id}").buildAndExpand(created.id()).toUri();
-        return ResponseEntity.created(location).body(PolicyResponse.from(created));
+        return ResponseEntity.status(HttpStatus.CREATED).body(PolicyResponse.from(created));
     }
 
     @PostMapping("/coverage-evaluations")
