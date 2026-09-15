@@ -23,6 +23,9 @@ stages unnecessarily or exposing credentials.
 7. Show that AppProject has an explicit resource allowlist and cannot manage
    Secrets or namespace RBAC. Then show SHA-tagged pods with `harbor-registry`
    and compare their runtime image IDs with Harbor manifest digests.
+8. For the final pipeline revision, open the Nexus `provenance.json` attachment,
+   inspect the OCI `revision` label, and compare both with the Kustomize
+   source-revision annotation and the deployed image tag.
 
 ## Interview explanation
 

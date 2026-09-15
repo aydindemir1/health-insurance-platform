@@ -67,3 +67,22 @@ repository. This is a deployment dependency boundary, not a failed sync.
 - Harbor failure: reuse existing images and retry tag/push only.
 - GitOps failure: do not rebuild; correct the manifest or cluster dependency and
   resync the same immutable image revision.
+
+## Revision trace contract
+
+One full 40-character commit identity crosses each boundary:
+
+1. Jenkins checks out the commit and records `GIT_COMMIT`.
+2. Every Maven publication attaches `build-provenance.json` with the commit,
+   Jenkins build URL, and JAR SHA-256 to the same coordinate.
+3. Every OCI image uses the commit as its tag and carries standard OCI
+   `revision` and `source` labels.
+4. The Kustomize environment uses that tag and adds the same source-revision
+   annotation to rendered resources.
+5. Argo CD reports the reviewed Git desired-state revision; Kubernetes exposes
+   the promoted image tag, annotation, and exact runtime manifest digest.
+
+The contract is committed and statically validated. The existing
+`7fc3ea6b...` images predate the OCI-label/provenance addition; the final single
+pipeline run will generate and verify those new runtime records without
+repeating intermediate builds.

@@ -661,6 +661,11 @@ state was applied. `Progressing` or `Degraded` workload health is expected when
 operator-owned databases, brokers, IAM, observability endpoints, or Secrets are
 not provisioned in the disposable cluster.
 
+Traceability uses one full Git SHA across Jenkins, a Nexus provenance attachment,
+the Harbor tag and OCI revision label, the Kustomize source-revision annotation,
+and the Kubernetes runtime image digest. This allows an interviewer to move from
+a running pod back to its exact image, artifact, pipeline run, and source commit.
+
 ### Full backend stack
 
 Create a local ignored environment file from the safe template and replace every

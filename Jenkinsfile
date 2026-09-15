@@ -124,6 +124,10 @@ pipeline {
                             version=$(./mvnw --quiet --non-recursive help:evaluate -Dexpression=project.version -DforceStdout)
                             repository=releases
                             case "${version}" in *SNAPSHOT*) repository=snapshots ;; esac
+                            artifact_sha=$(sha256sum "${jar}" | awk '{print $1}')
+                            printf '{"gitCommit":"%s","buildUrl":"%s","artifactSha256":"%s"}\n' \
+                              "${GIT_COMMIT}" "${BUILD_URL}" "${artifact_sha}" \
+                              > target/build-provenance.json
                             ./mvnw --batch-mode --no-transfer-progress \
                               --settings ../../.jenkins/maven-settings.xml \
                               deploy:deploy-file \
@@ -131,7 +135,10 @@ pipeline {
                               -Durl="${NEXUS_URL}/repository/maven-${repository}/" \
                               -Dfile="${jar}" \
                               -DpomFile=pom.xml \
-                              -DgeneratePom=false
+                              -DgeneratePom=false \
+                              -Dfiles=target/build-provenance.json \
+                              -Dclassifiers=provenance \
+                              -Dtypes=json
                           )
                         done
                     '''
@@ -180,12 +187,16 @@ pipeline {
                         for service in authorization-service policy-service claims-billing-service notification-worker search-service; do
                           image="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/${service}:${GIT_COMMIT}"
                           docker build --file "services/${service}/Dockerfile" \
+                            --label "org.opencontainers.image.revision=${GIT_COMMIT}" \
+                            --label "org.opencontainers.image.source=${GIT_URL}" \
                             --tag "${image}" "services/${service}"
                           docker push "${image}"
                         done
 
                         image="${HARBOR_REGISTRY}/${HARBOR_PROJECT}/operations-portal:${GIT_COMMIT}"
                         docker build --file apps/operations-portal/Dockerfile \
+                          --label "org.opencontainers.image.revision=${GIT_COMMIT}" \
+                          --label "org.opencontainers.image.source=${GIT_URL}" \
                           --tag "${image}" apps/operations-portal
                         docker push "${image}"
 

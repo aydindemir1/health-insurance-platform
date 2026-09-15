@@ -3,6 +3,9 @@ kind: Kustomization
 resources:
   - ../../../kubernetes/base
 
+commonAnnotations:
+  health-insurance.aydindemir.dev/source-revision: 7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d
+
 patches:
   - target:
       kind: ServiceAccount
