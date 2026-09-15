@@ -86,3 +86,7 @@ The contract is committed and statically validated. The existing
 `7fc3ea6b...` images predate the OCI-label/provenance addition; the final single
 pipeline run will generate and verify those new runtime records without
 repeating intermediate builds.
+
+GitHub Actions dependencies are pinned to reviewed full upstream commit SHAs;
+the trailing major-version comments retain readability without allowing a tag
+to move underneath a previously reviewed workflow.

@@ -56,6 +56,14 @@ foreach ($workflow in $githubWorkflows) {
             throw "GitHub Actions workflow is missing required control: $control"
         }
     }
+    if ($workflow -match 'uses:\s+[^\s]+@v\d+') {
+        throw 'GitHub Actions dependencies must be pinned to reviewed commit SHAs.'
+    }
+    foreach ($actionRef in [regex]::Matches($workflow, 'uses:\s+[^\s]+@([0-9a-f]{40})')) {
+        if ($actionRef.Groups[1].Value.Length -ne 40) {
+            throw 'GitHub Actions dependency pin is not a full commit SHA.'
+        }
+    }
 }
 
 if (-not $frontendCi.Contains('npm run build:budget')) {
@@ -87,5 +95,5 @@ if (-not $mavenSettings.Contains('${env.NEXUS_USERNAME}') -or
 }
 
 Write-Host 'Jenkins stages: OK (backend, frontend, SonarQube, blocking Quality Gate)'
-Write-Host 'GitHub Actions: OK (least privilege, concurrency, timeout, revision trace, bundle budget, APISIX digest)'
+Write-Host 'GitHub Actions: OK (least privilege, concurrency, action SHA pins, revision trace, bundle budget, APISIX digest)'
 Write-Host 'Credential policy: OK (no committed credentials, Nexus anonymous access disabled)'
