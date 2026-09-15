@@ -36,6 +36,14 @@ if ($argo -match 'kind: (Secret|Role|RoleBinding)') {
     throw 'Argo CD AppProject must not manage Secrets or namespace RBAC.'
 }
 
+$argoInstaller = Get-Content (Join-Path $root 'deploy/gitops/install-local-argocd.ps1') -Raw
+foreach ($control in @("imagePullPolicy = 'IfNotPresent'", 'initialDelaySeconds = 60',
+        'timeoutSeconds = 10', "@('argocd-repo-server', 'argocd-server')")) {
+    if (-not $argoInstaller.Contains($control)) {
+        throw "Argo CD local runtime hardening is missing: $control"
+    }
+}
+
 $jenkinsfile = Get-Content (Join-Path $root 'Jenkinsfile') -Raw
 $harborBootstrap = Get-Content (Join-Path $root 'infra/cicd/harbor/bootstrap-local-harbor.ps1') -Raw
 $harborStart = Get-Content (Join-Path $root 'infra/cicd/harbor/start-local-harbor.ps1') -Raw
@@ -60,3 +68,4 @@ foreach ($control in @('rmdir /data/secret/registry/root.crt',
 Write-Host 'Nexus publication contract: OK'
 Write-Host 'Harbor private-project, bounded-robot and immutable-tag contract: OK'
 Write-Host 'Argo CD restricted GitOps resources: OK'
+Write-Host 'Argo CD local image and probe stability controls: OK'

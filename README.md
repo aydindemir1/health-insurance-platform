@@ -645,7 +645,7 @@ Git history.
 For the disposable GitOps proof:
 
 ```powershell
-minikube start -p portfolio-ci --driver=docker --cpus=2 --memory=4096 `
+minikube start -p portfolio-ci --driver=docker --cpus=2 --memory=8192 `
   --kubernetes-version=v1.35.1 `
   --insecure-registry=host.minikube.internal:8088
 
@@ -1045,8 +1045,10 @@ Milestone 12 is complete. Jenkins executes the Java 21 and React quality stages,
 blocks publication on the SonarQube Quality Gate, publishes Maven snapshots to
 Nexus Community Edition, publishes immutable full-Git-SHA OCI tags to the
 private Harbor project, and hands the same image revision to the Argo CD
-staging Application. The local proof ended with Argo CD `Synced`, operation
-`Succeeded`, at Git revision `a56fff2a14405d3024b98f357b1c3b38edd8384b`.
+staging Application. The local proof ended with all seven Argo CD pods Ready,
+Application `Synced`, operation `Succeeded`, at Git revision
+`3ce1d4a93e94b670b237a4a387d5be7028696be0`; the six private SHA-tagged images
+were pulled with runtime-only credentials and matched Harbor manifest digests.
 See [ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md), the
 [CI/CD architecture](docs/architecture/ci-cd-supply-chain.md), and the
 [repeatable demo](docs/demo/milestone-12-ci-cd-demo.md). Trivy is intentionally

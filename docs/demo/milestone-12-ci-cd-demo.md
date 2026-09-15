@@ -19,7 +19,10 @@ stages unnecessarily or exposing credentials.
    project is private and the 90-day robot has only push/pull/read/create access.
 5. Render `deploy/gitops/environments/staging` and point to the same tag.
 6. Show Argo CD Application `health-insurance-staging`: `Synced`, operation
-   `Succeeded`, revision `a56fff2a14405d3024b98f357b1c3b38edd8384b`.
+   `Succeeded`, revision `3ce1d4a93e94b670b237a4a387d5be7028696be0`.
+7. Show that AppProject has an explicit resource allowlist and cannot manage
+   Secrets or namespace RBAC. Then show SHA-tagged pods with `harbor-registry`
+   and compare their runtime image IDs with Harbor manifest digests.
 
 ## Interview explanation
 

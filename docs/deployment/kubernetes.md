@@ -164,9 +164,16 @@ private Harbor project and one immutable full Git SHA.
 Application: health-insurance-staging
 Sync: Synced
 Operation: Succeeded
-Git revision: a56fff2a14405d3024b98f357b1c3b38edd8384b
+Git revision: 3ce1d4a93e94b670b237a4a387d5be7028696be0
 Image revision: 7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d
 ```
+
+The local proof needs an 8 GiB Minikube limit when the application and seven
+Argo CD components share one Docker node. At 4 GiB the measured node reached
+99.7% memory and kubelet reported `container runtime is down`; raising the live
+container limit restored `Ready` without recreating the cluster. The installer
+also uses cached pinned images and relaxed local probe timing to avoid false
+restarts under Docker Desktop I/O latency.
 
 `Progressing` or `Degraded` workload health is expected until operator-owned Secrets and
 external PostgreSQL, Kafka, RabbitMQ, Redis, Elasticsearch, Keycloak, and APM

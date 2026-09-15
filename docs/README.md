@@ -22,6 +22,7 @@ the end of the project.
 - [Jenkins and SonarQube local verification](development/jenkins-sonarqube-local-verification.md)
 - [Nexus local verification](development/nexus-local-verification.md)
 - [Harbor local verification](development/harbor-local-verification.md)
+- [Argo CD local verification](development/argocd-local-verification.md)
 - [Local troubleshooting](development/troubleshooting.md)
 - [Policy Service local learning and verification](development/policy-service-local-verification.md)
 - [Authorization Service local learning and verification](development/authorization-service-local-verification.md)

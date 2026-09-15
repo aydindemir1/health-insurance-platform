@@ -24,8 +24,8 @@ flowchart LR
 | SonarQube | Blocking Quality Gate succeeded |
 | Nexus | Authorization smoke upload and all Jenkins Maven publications succeeded |
 | Harbor | Six existing service images were pushed with tag `7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d` |
-| Argo CD | Seven control-plane pods became Ready; Application sync operation succeeded |
-| Kubernetes | Git revision `a56fff2a14405d3024b98f357b1c3b38edd8384b` rendered and synced |
+| Argo CD | Seven control-plane pods became Ready; restricted Application sync operation succeeded |
+| Kubernetes | Git revision `3ce1d4a93e94b670b237a4a387d5be7028696be0` rendered and synced |
 
 The quality stack was revalidated from its existing images and persistent
 volumes on 15 September 2026 without a rebuild or new pipeline run. Jenkins,
@@ -47,6 +47,14 @@ was rebuilt. Its private project, anonymous `401`, 90-day four-permission robot,
 six SHA-tagged repositories and exact manifest digests were verified. Docker
 Desktop bind-mount ownership/type defects were corrected without deleting data.
 See the [Harbor verification record](../development/harbor-local-verification.md).
+
+Argo CD was independently verified at revision `3ce1d4a...`: its seven
+control-plane pods were Ready, the restricted AppProject excluded Secret and
+RBAC ownership, and one manual sync finished `Synced`/`Succeeded`. Runtime-only
+registry credentials were inherited through per-workload ServiceAccounts. All
+six SHA-tagged images were pulled from the private Harbor project and their
+runtime image IDs matched the recorded manifest digests. See the
+[Argo CD verification record](../development/argocd-local-verification.md).
 
 `Progressing` or `Degraded` after sync is expected locally because production-owned databases,
 brokers, IAM, TLS, and external secrets are not fabricated inside the GitOps

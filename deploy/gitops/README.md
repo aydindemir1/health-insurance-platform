@@ -21,3 +21,19 @@ are immutable and reachable from that cluster.
 official Argo CD `v3.5.2` manifest. It refuses a context mismatch and names that
 look production-like. The Application has no automated sync while sentinel
 image tags remain, so installation cannot deploy placeholder images.
+
+The local installer changes only runtime ergonomics: Argo workloads use
+`IfNotPresent` so an already loaded image is not downloaded again, while the API
+and repository-server probes tolerate Docker Desktop I/O latency. Use at least
+8 GiB for the Minikube profile when Argo CD and all platform workloads share one
+node.
+
+Before the first private-registry rollout, create the ignored runtime Secret:
+
+```powershell
+.\deploy\gitops\create-local-registry-secret.ps1 -Context portfolio-ci
+```
+
+The script reads `infra/cicd/.env`, applies the Docker registry credential over
+stdin, and never writes or prints the Secret payload. `AppProject` deliberately
+cannot manage `Secret`, `Role`, or `RoleBinding` resources.
