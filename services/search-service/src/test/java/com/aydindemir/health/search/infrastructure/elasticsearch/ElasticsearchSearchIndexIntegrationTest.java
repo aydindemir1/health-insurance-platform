@@ -42,7 +42,7 @@ class ElasticsearchSearchIndexIntegrationTest {
     @Test
     void indexesAndFiltersHealthcareRecords() {
         UUID providerId = UUID.randomUUID();
-        index.save(record(providerId));
+        index.save(searchRecord(providerId));
 
         await().untilAsserted(() -> {
             assertThat(client.indices().existsAlias(request -> request.name("healthcare-operations")).value())
@@ -57,8 +57,8 @@ class ElasticsearchSearchIndexIntegrationTest {
     @Test
     void treatsHyphenatedFreeTextAsPlainUserInput() {
         UUID providerId = UUID.randomUUID();
-        index.save(record(providerId, "POL-DEMO-20260914"));
-        index.save(record(providerId, "POL-OTHER-20260914"));
+        index.save(searchRecord(providerId, "POL-DEMO-20260914"));
+        index.save(searchRecord(providerId, "POL-OTHER-20260914"));
 
         await().untilAsserted(() -> {
             var page = index.search("POL-DEMO-20260914", null, null, providerId, 0, 10);
@@ -77,7 +77,7 @@ class ElasticsearchSearchIndexIntegrationTest {
         client.indices().create(request -> request.index(legacyIndex));
 
         var migratingIndex = new ElasticsearchSearchIndex(client, alias, legacyIndex);
-        migratingIndex.save(record(UUID.randomUUID()));
+        migratingIndex.save(searchRecord(UUID.randomUUID()));
 
         assertThat(client.indices().exists(request -> request.index(legacyIndex)).value()).isTrue();
         assertThat(client.indices().existsAlias(request -> request.name(alias)).value()).isTrue();
@@ -87,8 +87,8 @@ class ElasticsearchSearchIndexIntegrationTest {
     void ignoresAnOlderProjectionRevisionAfterANewerStateWasIndexed() {
         UUID providerId = UUID.randomUUID();
         UUID claimId = UUID.randomUUID();
-        index.save(record(providerId, claimId, "SETTLED", 4));
-        index.save(record(providerId, claimId, "ISSUED", 2));
+        index.save(searchRecord(providerId, claimId, "SETTLED", 4));
+        index.save(searchRecord(providerId, claimId, "ISSUED", 2));
 
         await().untilAsserted(() -> {
             var page = index.search("POL-SEARCH", RecordType.CLAIM, "APPROVED", providerId, 0, 10);
@@ -105,16 +105,16 @@ class ElasticsearchSearchIndexIntegrationTest {
     void ignoresAConflictingProjectionAtTheSameSourceRevision() {
         UUID providerId = UUID.randomUUID();
         UUID claimId = UUID.randomUUID();
-        index.save(record(providerId, claimId, "SETTLED", 4));
-        index.save(record(providerId, claimId, "ISSUED", 4));
+        index.save(searchRecord(providerId, claimId, "SETTLED", 4));
+        index.save(searchRecord(providerId, claimId, "ISSUED", 4));
 
         await().untilAsserted(() -> {
             var page = index.search("POL-SEARCH", RecordType.CLAIM, "APPROVED", providerId, 0, 10);
-            assertThat(page.content()).filteredOn(record -> record.sourceId().equals(claimId))
+            assertThat(page.content()).filteredOn(searchRecord -> searchRecord.sourceId().equals(claimId))
                     .singleElement()
-                    .satisfies(record -> {
-                        assertThat(record.invoiceStatus()).isEqualTo("SETTLED");
-                        assertThat(record.sourceRevision()).isEqualTo(4);
+                    .satisfies(searchRecord -> {
+                        assertThat(searchRecord.invoiceStatus()).isEqualTo("SETTLED");
+                        assertThat(searchRecord.sourceRevision()).isEqualTo(4);
                     });
         });
     }
@@ -154,7 +154,7 @@ class ElasticsearchSearchIndexIntegrationTest {
         var admin = new ActorContext("admin", null, Set.of(ApplicationRole.SYSTEM_ADMIN));
         String predecessor = rebuildIndex.currentIndex();
         var created = rebuilds.create(admin, 2);
-        SearchRecord candidateRecord = record(UUID.randomUUID());
+        SearchRecord candidateRecord = searchRecord(UUID.randomUUID());
 
         rebuilds.ingest(admin, created.runId(), java.util.List.of(toRebuildRecord(candidateRecord)));
         var active = rebuilds.activate(admin, created.runId(), 1);
@@ -169,12 +169,12 @@ class ElasticsearchSearchIndexIntegrationTest {
         assertThat(client.indices().exists(request -> request.index(created.candidateIndex())).value()).isTrue();
     }
 
-    private SearchRecord record(UUID providerId) {
-        return record(providerId, UUID.randomUUID(), "RECONCILED", 1);
+    private SearchRecord searchRecord(UUID providerId) {
+        return searchRecord(providerId, UUID.randomUUID(), "RECONCILED", 1);
     }
 
-    private SearchRecord record(UUID providerId, String policyNumber) {
-        SearchRecord value = record(providerId);
+    private SearchRecord searchRecord(UUID providerId, String policyNumber) {
+        SearchRecord value = searchRecord(providerId);
         return new SearchRecord(
                 value.id(), value.type(), value.sourceId(), value.preAuthorizationId(),
                 value.memberId(), value.providerId(), policyNumber, value.serviceCode(),
@@ -183,7 +183,7 @@ class ElasticsearchSearchIndexIntegrationTest {
                 value.sourceRevision(), value.occurredAt());
     }
 
-    private SearchRecord record(UUID providerId, UUID claimId, String invoiceStatus, long sourceRevision) {
+    private SearchRecord searchRecord(UUID providerId, UUID claimId, String invoiceStatus, long sourceRevision) {
         return new SearchRecord(
                 "CLAIM:" + claimId, RecordType.CLAIM, claimId, UUID.randomUUID(), UUID.randomUUID(),
                 providerId, "POL-SEARCH", "IMG-MRI", "APPROVED", invoiceStatus, "INV-SEARCH",

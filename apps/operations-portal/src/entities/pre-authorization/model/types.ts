@@ -57,7 +57,7 @@ export const preAuthorizationSchema = z.object({
   policyNumber: z.string(),
   serviceCode: z.string(),
   diagnosisCode: z.string(),
-  requestedAmount: z.number().finite(),
+  requestedAmount: z.number(),
   currency: z.string().regex(/^[A-Z]{3}$/),
   status: z.enum(['PENDING', 'APPROVED', 'REJECTED']),
   decisionReason: z.string().nullable(),

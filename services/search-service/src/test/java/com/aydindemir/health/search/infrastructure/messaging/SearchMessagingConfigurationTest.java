@@ -29,12 +29,12 @@ class SearchMessagingConfigurationTest {
         var handler = handler(template);
 
         boolean recovered = handler.handleOne(
-                new IllegalArgumentException("invalid contract"), record(),
+                new IllegalArgumentException("invalid contract"), consumerRecord(),
                 mock(Consumer.class), mock(MessageListenerContainer.class));
 
         assertThat(recovered).isTrue();
-        verify(template).send(argThat((ProducerRecord<String, String> record) ->
-                record.topic().equals(TOPIC + ".DLT")));
+        verify(template).send(argThat((ProducerRecord<String, String> message) ->
+                message.topic().equals(TOPIC + ".DLT")));
     }
 
     @Test
@@ -43,7 +43,7 @@ class SearchMessagingConfigurationTest {
         var handler = handler(template);
 
         boolean recovered = handler.handleOne(
-                new IllegalStateException("Elasticsearch temporarily unavailable"), record(),
+                new IllegalStateException("Elasticsearch temporarily unavailable"), consumerRecord(),
                 mock(Consumer.class), mock(MessageListenerContainer.class));
 
         assertThat(recovered).isFalse();
@@ -67,7 +67,7 @@ class SearchMessagingConfigurationTest {
         return org.mockito.ArgumentMatchers.any();
     }
 
-    private ConsumerRecord<String, String> record() {
+    private ConsumerRecord<String, String> consumerRecord() {
         return new ConsumerRecord<>(TOPIC, 0, 42L, "key", "payload");
     }
 }

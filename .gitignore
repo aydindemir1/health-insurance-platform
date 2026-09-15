@@ -1,6 +1,7 @@
 .idea/
 .vscode/
 **/target/
+**/coverage/
 *.iml
 .env
 *.log

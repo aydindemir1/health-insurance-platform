@@ -20,6 +20,7 @@
     "screenshots:claims": "node scripts/capture-claims-runtime-evidence.mjs",
     "screenshots:notification": "node scripts/capture-notification-runtime-evidence.mjs",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
   },
@@ -42,6 +43,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "@vitest/coverage-v8": "^5.0.0",
     "axe-core": "^4.13.0",
     "jsdom": "^30.0.1",
     "oxlint": "^1.79.0",

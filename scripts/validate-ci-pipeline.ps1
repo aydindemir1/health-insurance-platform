@@ -17,13 +17,22 @@ $requiredPipelineTokens = @(
     "stage('Prime Maven runtime')",
     'npm ci',
     'npm run lint',
-    'npm test',
+    'npm run test:coverage',
     'npm run build',
     "credentialsId: 'nexus-publisher'",
     "credentialsId: 'harbor-publisher'",
     'params.PUBLISH_ARTIFACTS',
     '${GIT_COMMIT}'
 )
+
+foreach ($coverageControl in @('jacoco-maven-plugin:0.8.13:prepare-agent',
+        'jacoco-maven-plugin:0.8.13:report',
+        'sonar.coverage.jacoco.xmlReportPaths',
+        'sonar.javascript.lcov.reportPaths')) {
+    if (-not ($jenkinsfile + $sonar).Contains($coverageControl)) {
+        throw "CI coverage reporting is missing: $coverageControl"
+    }
+}
 
 $services = @(
     'authorization-service',

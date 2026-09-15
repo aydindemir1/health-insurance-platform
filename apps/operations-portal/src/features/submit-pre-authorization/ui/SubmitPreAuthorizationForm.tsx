@@ -39,6 +39,6 @@ export function SubmitPreAuthorizationForm() {
   )
 }
 
-function Field({ label, error, errorId, children }: { label: string; error: string | undefined; errorId: string; children: React.ReactNode }) {
+function Field({ label, error, errorId, children }: Readonly<{ label: string; error: string | undefined; errorId: string; children: React.ReactNode }>) {
   return <label className="field"><span>{label}</span>{children}{error && <small id={errorId} className="field-error" role="alert">{error}</small>}</label>
 }

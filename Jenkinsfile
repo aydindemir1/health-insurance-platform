@@ -39,19 +39,19 @@ pipeline {
         stage('Backend quality') {
             parallel {
                 stage('Authorization') {
-                    steps { dir('services/authorization-service') { sh './mvnw --batch-mode --no-transfer-progress verify' } }
+                    steps { dir('services/authorization-service') { sh './mvnw --batch-mode --no-transfer-progress org.jacoco:jacoco-maven-plugin:0.8.13:prepare-agent verify org.jacoco:jacoco-maven-plugin:0.8.13:report' } }
                     post { always { junit allowEmptyResults: false, testResults: 'services/authorization-service/target/surefire-reports/*.xml' } }
                 }
                 stage('Policy') {
-                    steps { dir('services/policy-service') { sh './mvnw --batch-mode --no-transfer-progress verify' } }
+                    steps { dir('services/policy-service') { sh './mvnw --batch-mode --no-transfer-progress org.jacoco:jacoco-maven-plugin:0.8.13:prepare-agent verify org.jacoco:jacoco-maven-plugin:0.8.13:report' } }
                     post { always { junit allowEmptyResults: false, testResults: 'services/policy-service/target/surefire-reports/*.xml' } }
                 }
                 stage('Claims and Billing') {
-                    steps { dir('services/claims-billing-service') { sh './mvnw --batch-mode --no-transfer-progress verify' } }
+                    steps { dir('services/claims-billing-service') { sh './mvnw --batch-mode --no-transfer-progress org.jacoco:jacoco-maven-plugin:0.8.13:prepare-agent verify org.jacoco:jacoco-maven-plugin:0.8.13:report' } }
                     post { always { junit allowEmptyResults: false, testResults: 'services/claims-billing-service/target/surefire-reports/*.xml' } }
                 }
                 stage('Notification Worker') {
-                    steps { dir('services/notification-worker') { sh './mvnw --batch-mode --no-transfer-progress verify' } }
+                    steps { dir('services/notification-worker') { sh './mvnw --batch-mode --no-transfer-progress org.jacoco:jacoco-maven-plugin:0.8.13:prepare-agent verify org.jacoco:jacoco-maven-plugin:0.8.13:report' } }
                     post { always { junit allowEmptyResults: false, testResults: 'services/notification-worker/target/surefire-reports/*.xml' } }
                 }
             }
@@ -60,7 +60,7 @@ pipeline {
         stage('Search quality') {
             steps {
                 dir('services/search-service') {
-                    sh './mvnw --batch-mode --no-transfer-progress verify'
+                    sh './mvnw --batch-mode --no-transfer-progress org.jacoco:jacoco-maven-plugin:0.8.13:prepare-agent verify org.jacoco:jacoco-maven-plugin:0.8.13:report'
                 }
             }
             post {
@@ -75,7 +75,7 @@ pipeline {
                 dir('apps/operations-portal') {
                     sh 'npm ci'
                     sh 'npm run lint'
-                    sh 'npm test'
+                    sh 'npm run test:coverage'
                     sh 'npm run build'
                 }
             }
