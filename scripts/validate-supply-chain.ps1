@@ -41,7 +41,8 @@ if ($argo -match 'kind: (Secret|Role|RoleBinding)') {
 
 $argoInstaller = Get-Content (Join-Path $root 'deploy/gitops/install-local-argocd.ps1') -Raw
 foreach ($control in @("imagePullPolicy = 'IfNotPresent'", 'initialDelaySeconds = 60',
-        'timeoutSeconds = 10', "@('argocd-repo-server', 'argocd-server')")) {
+        'timeoutSeconds = 10', "@('argocd-repo-server', 'argocd-server')",
+        "'reposerver.git.request.timeout' = '60s'")) {
     if (-not $argoInstaller.Contains($control)) {
         throw "Argo CD local runtime hardening is missing: $control"
     }

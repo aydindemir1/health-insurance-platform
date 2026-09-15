@@ -26,17 +26,16 @@ Argo control-plane pods:     7/7 Ready
 Application:                 health-insurance-staging
 Sync:                        Synced
 Operation:                   Succeeded
-Git revision:                3ce1d4a93e94b670b237a4a387d5be7028696be0
-Image revision:              7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d
+Git desired-state revision:  c9c1baa496df1c0126648573c5f25a75f6967a5c
+Image/source revision:       6c07fa81df22330699c58574059b89e58777f0ed
 Private registry credential: runtime-only harbor-registry Secret
-Private images pulled:       6/6 repositories
-Runtime digest match:        confirmed for all six images
+Rendered private images:     6/6 use the same full Git SHA
 ```
 
-Observed runtime digests included authorization `e6811f...`, policy `78a036...`,
-claims/billing `a52134...`, notification `67e9be...`, search `c65ddc...`, and
-portal `e94f34...`; these matched Harbor's manifests for the same full Git SHA
-tag.
+The Application reached `Synced`; its operation reached `Succeeded`. Kubernetes
+Deployment specs expose the six promoted `6c07fa8...` tags. Application health
+remained `Degraded` because the independently managed databases, brokers, IAM,
+and search runtime were intentionally stopped during resource-isolated CI.
 
 ## Failure found and corrected
 
@@ -50,6 +49,17 @@ Docker Desktop I/O pressure. The local installer now uses `IfNotPresent` for
 already cached pinned images and bounded, more tolerant server/repository probe
 settings. These are local runtime accommodations, not weakened production
 health semantics.
+
+GitHub fetches took about 30 seconds on the local Docker Desktop network while
+Argo CD's repository request timeout was 15 seconds. The installer now sets
+`reposerver.git.request.timeout=60s`; this changes only the bounded local fetch
+window. A hard refresh then resolved desired revision `c9c1baa...`, and the
+explicit sync applied image revision `6c07fa8...` successfully.
+
+The Search HPA subsequently changed its Deployment replica count, which briefly
+reported `OutOfSync`. The Application now ignores only `/spec/replicas` for
+Deployments and enables `RespectIgnoreDifferences`; HPA owns scaling while GitOps
+continues to detect drift in images, configuration, security, and resources.
 
 Pods created before the ServiceAccount registry reference existed did not gain
 that reference retroactively. Only the failed, replaceable pods were deleted;

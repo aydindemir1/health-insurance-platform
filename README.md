@@ -337,30 +337,30 @@ See the [Milestone 11 completion record](docs/milestones/milestone-11-kubernetes
   desired state to Kubernetes.
 - The verified checkpoint contained seven Ready Argo CD control-plane pods and
   a `health-insurance-staging` Application with `Synced` state and a `Succeeded`
-  operation at Git revision `a56fff2a14405d3024b98f357b1c3b38edd8384b`.
+  operation at desired-state revision `c9c1baa496df1c0126648573c5f25a75f6967a5c`.
 - Registry failures are resumable publication failures: successful tests and
   Quality Gates are not repeated merely to retry Nexus or Harbor. Trivy remains
   optional because it is outside the vacancy scope and disproportionate for
   this laptop-based educational environment.
 
-Build #7 provides successful Java/React, SonarQube, Quality Gate, Nexus, and
-SBOM evidence. Its final Harbor stage exposed an HTTP/HTTPS local-registry
-mismatch; the existing images were reused and published independently after the
-endpoint correction. The committed Jenkins configuration contains that fix. A
-single all-green rerun was intentionally not performed solely to recreate
-already-successful stages.
+Build #10 is the final all-green pipeline proof for source revision
+`6c07fa81df22330699c58574059b89e58777f0ed`: Java/React verification, SonarQube
+Quality Gate, Nexus publication with provenance, SBOM generation, and six Harbor
+image publications all succeeded. No Jenkins build was run after this proof.
 
 The existing Jenkins/SonarQube stack was started again with `--no-build` on
 15 September 2026. All three quality containers were healthy, Jenkins-to-Sonar
 network access and the webhook were valid, and SonarQube reported Quality Gate
-`OK` for Build #7's exact Git revision. The authenticated evidence is recorded
+`OK` for Build #10's exact Git revision. Overall coverage was `80.3%`, with zero
+new violations. The authenticated evidence is recorded
 in the [Jenkins and SonarQube verification guide](docs/development/jenkins-sonarqube-local-verification.md).
 
 The persisted Nexus instance was also revalidated without building, pulling or
 republishing. Six Maven snapshot components were available through the scoped
 publisher role. Anonymous repository access was disabled and verified as `403`;
-authenticated artifact download remained successful. Coordinates, the sampled
-JAR hash and the remaining Git-SHA metadata gap are recorded in the
+authenticated artifact download remained successful. Build #10 additionally
+published five provenance classifiers containing Git SHA, build URL, and JAR
+SHA-256; the evidence is recorded in the
 [Nexus verification guide](docs/development/nexus-local-verification.md).
 
 Harbor was then restored from existing 2.15.2 images without rebuilding any
@@ -841,12 +841,10 @@ execution:
 .\scripts\validate-supply-chain.ps1
 ```
 
-The real local checkpoint proved Jenkins Java/React quality stages, SonarQube
-Quality Gate, Nexus publication, CycloneDX archives, six Harbor repositories,
-seven Ready Argo CD pods, and a successful GitOps sync. Build #7's overall red
-status is retained as honest evidence of the Harbor HTTP/HTTPS mismatch; Harbor
-publication was resumed independently after correcting the endpoint. No claim
-is made that an unexecuted all-green rerun occurred.
+The real local checkpoint proved Jenkins Build #10 end to end: Java/React
+quality, SonarQube Quality Gate, Nexus artifacts and provenance, CycloneDX
+archives, six Harbor images with matching OCI revision labels, seven Ready Argo
+CD pods, and a successful GitOps sync of the same immutable image revision.
 
 Validate the living portfolio documentation separately. This command checks
 local Markdown links, JSON and PowerShell syntax, the expected screenshot set,
@@ -1052,8 +1050,8 @@ Nexus Community Edition, publishes immutable full-Git-SHA OCI tags to the
 private Harbor project, and hands the same image revision to the Argo CD
 staging Application. The local proof ended with all seven Argo CD pods Ready,
 Application `Synced`, operation `Succeeded`, at Git revision
-`3ce1d4a93e94b670b237a4a387d5be7028696be0`; the six private SHA-tagged images
-were pulled with runtime-only credentials and matched Harbor manifest digests.
+`c9c1baa496df1c0126648573c5f25a75f6967a5c`; all six Deployment specifications
+use Build #10 source/image revision `6c07fa81df22330699c58574059b89e58777f0ed`.
 See [ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md), the
 [CI/CD architecture](docs/architecture/ci-cd-supply-chain.md), and the
 [repeatable demo](docs/demo/milestone-12-ci-cd-demo.md). Trivy is intentionally

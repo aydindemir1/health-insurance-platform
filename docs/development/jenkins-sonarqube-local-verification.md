@@ -31,28 +31,27 @@ No image was built or pulled. Runtime secrets remained in the ignored
 | Quality Gate | `OK`; `new_violations=0`, error threshold `0` |
 | Webhook | `jenkins-local` targets `http://jenkins:8080/sonarqube-webhook/` |
 
-## Build #7 evidence and failure boundary
+## Final Build #10 evidence
 
-Jenkins Build #7 analyzed immutable revision
-`7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d`. Its overall result is correctly
-`FAILURE`, but the stage API proves the following sequence:
+Jenkins Build #10 completed `SUCCESS` for immutable source revision
+`6c07fa81df22330699c58574059b89e58777f0ed`. This is the single final pipeline
+execution used by the delivery proof:
 
 ```text
 Checkout -> five backend services -> frontend -> Sonar analysis -> Quality Gate
          -> Nexus publication -> CycloneDX SBOMs -> Harbor publication
-              SUCCESS              SUCCESS             FAILURE
+              SUCCESS              SUCCESS             SUCCESS
 ```
 
-More precisely, checkout, all five Java service stages, frontend quality,
-SonarQube analysis, the blocking Quality Gate, Nexus publication and SBOM
-generation succeeded. Only `Publish OCI images to Harbor` failed due to the
-already documented local HTTPS/HTTP registry mismatch. The latest SonarQube
-analysis revision is the same full Git SHA and its current gate remains `OK`.
+All five Java services passed with JaCoCo reports; frontend lint, 27 tests,
+coverage, and production build passed. SonarQube then reported Quality Gate
+`OK`, `new_violations=0`, overall coverage `80.3%`, line coverage `86.3%`, and
+branch coverage `61.7%`. Nexus, SBOM, and all six Harbor publications completed.
 
-This distinction matters operationally: a downstream registry failure must not
-erase upstream evidence or force unchanged tests to run again. The Harbor
-boundary was corrected and resumed independently using the already-built images.
-No new Jenkins build was started for this verification.
+Build #8 proved the fail-closed gate (`new_coverage=0`, nine new violations).
+Build #9 exposed local resource contention while Elasticsearch Testcontainers
+started. Minikube and the application Compose stack were stopped without data
+loss; Build #10 then passed. No Jenkins build was repeated after Build #10.
 
 ## How to inspect safely
 
@@ -63,7 +62,7 @@ docker compose --env-file infra/cicd/.env `
 ./scripts/validate-ci-pipeline.ps1
 ```
 
-Open `http://localhost:8086/job/health-insurance-platform/7/pipeline-overview/`
+Open `http://localhost:8086/job/health-insurance-platform/10/pipeline-overview/`
 for the stage graph and `http://localhost:9000/dashboard?id=health-insurance-platform`
 for the analysis. Credentials come from the ignored runtime environment and must
 never be copied into screenshots, commands, Git history or documentation.

@@ -2,18 +2,21 @@ import { chromium } from 'playwright';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-const required = ['JENKINS_USERNAME', 'JENKINS_PASSWORD', 'HARBOR_USERNAME', 'HARBOR_PASSWORD', 'ARGO_PASSWORD', 'NEXUS_PASSWORD'];
+const required = ['JENKINS_ADMIN_USERNAME', 'JENKINS_ADMIN_PASSWORD', 'HARBOR_USERNAME', 'HARBOR_PASSWORD', 'NEXUS_ADMIN_PASSWORD'];
 for (const name of required) {
   if (!process.env[name]) throw new Error(`${name} is required`);
 }
 
 const output = path.resolve('../../docs/screenshots');
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  executablePath: process.env.PLAYWRIGHT_CHROME_PATH ?? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+});
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 
-const basic = Buffer.from(`${process.env.JENKINS_USERNAME}:${process.env.JENKINS_PASSWORD}`).toString('base64');
+const basic = Buffer.from(`${process.env.JENKINS_ADMIN_USERNAME}:${process.env.JENKINS_ADMIN_PASSWORD}`).toString('base64');
 await page.setExtraHTTPHeaders({ Authorization: `Basic ${basic}` });
-await page.goto('http://localhost:8086/job/health-insurance-platform/7/', { waitUntil: 'networkidle' });
+await page.goto('http://localhost:8086/job/health-insurance-platform/10/', { waitUntil: 'networkidle' });
 await page.screenshot({ path: path.join(output, '12-jenkins-supply-chain.png'), fullPage: true });
 
 const harborBasic = Buffer.from(`${process.env.HARBOR_USERNAME}:${process.env.HARBOR_PASSWORD}`).toString('base64');
@@ -26,13 +29,14 @@ const argoContext = await browser.newContext({ ignoreHTTPSErrors: true, viewport
 const argo = await argoContext.newPage();
 await argo.goto('https://localhost:18080', { waitUntil: 'domcontentloaded' });
 await argo.locator('input').nth(0).fill('admin');
-await argo.locator('input[type="password"]').fill(process.env.ARGO_PASSWORD);
+const argoPassword = Buffer.from(execFileSync('kubectl', ['--context', 'portfolio-ci', '-n', 'argocd', 'get', 'secret', 'argocd-initial-admin-secret', '-o', 'jsonpath={.data.password}'], { encoding: 'utf8' }).trim(), 'base64').toString('utf8');
+await argo.locator('input[type="password"]').fill(argoPassword);
 await argo.locator('button[type="submit"]').click();
 await argo.waitForTimeout(5000);
 await argo.screenshot({ path: path.join(output, '14-argocd-gitops-sync.png'), fullPage: true });
 await argoContext.close();
 
-const nexusBasic = Buffer.from(`admin:${process.env.NEXUS_PASSWORD}`).toString('base64');
+const nexusBasic = Buffer.from(`admin:${process.env.NEXUS_ADMIN_PASSWORD}`).toString('base64');
 await page.setExtraHTTPHeaders({ Authorization: `Basic ${nexusBasic}` });
 await page.goto('http://localhost:8087/#browse/browse:maven-snapshots', { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(5000);
@@ -55,6 +59,7 @@ await evidence('Docker runtime — Milestone 12', docker, '16-docker-cicd-runtim
 
 const pods = execFileSync('kubectl', ['--context', 'portfolio-ci', 'get', 'pods', '-n', 'argocd'], { encoding: 'utf8' });
 const application = execFileSync('kubectl', ['--context', 'portfolio-ci', 'get', 'application', 'health-insurance-staging', '-n', 'argocd'], { encoding: 'utf8' });
-await evidence('Kubernetes and Argo CD — Milestones 11–12', `${pods}\n${application}`, '17-kubernetes-argocd-runtime.png');
+const deployments = execFileSync('kubectl', ['--context', 'portfolio-ci', 'get', 'deployments', '-n', 'health-insurance', '-o', 'custom-columns=NAME:.metadata.name,IMAGE:.spec.template.spec.containers[0].image'], { encoding: 'utf8' });
+await evidence('Kubernetes and Argo CD — Verified delivery', `${pods}\n${application}\n${deployments}`, '17-kubernetes-argocd-runtime.png');
 
 await browser.close();

@@ -20,19 +20,18 @@ flowchart LR
 | Boundary | Evidence |
 |---|---|
 | Git | `main` contains the pipeline and immutable GitOps revision |
-| Jenkins | Build #7 reached successful tests, frontend, Sonar, Nexus and SBOM stages |
-| SonarQube | Blocking Quality Gate succeeded |
-| Nexus | Authorization smoke upload and all Jenkins Maven publications succeeded |
-| Harbor | Six existing service images were pushed with tag `7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d` |
+| Jenkins | Build #10 completed the entire pipeline successfully at source `6c07fa8...` |
+| SonarQube | Blocking Quality Gate succeeded; overall coverage `80.3%` |
+| Nexus | Five Java artifacts and five provenance classifiers published |
+| Harbor | Six OCI images published with tag and revision label `6c07fa8...` |
 | Argo CD | Seven control-plane pods became Ready; restricted Application sync operation succeeded |
-| Kubernetes | Git revision `3ce1d4a93e94b670b237a4a387d5be7028696be0` rendered and synced |
+| Kubernetes | GitOps revision `c9c1baa...` promoted all six `6c07fa8...` images |
 
 The quality stack was revalidated from its existing images and persistent
 volumes on 15 September 2026 without a rebuild or new pipeline run. Jenkins,
 SonarQube and Sonar PostgreSQL were healthy; authenticated APIs, internal DNS,
-the Sonar webhook and the `OK` gate for revision `7fc3ea6b...` were confirmed.
-Build #7 remains overall red because its final Harbor stage failed; its upstream
-quality, Nexus and SBOM stages remain successful stage-level evidence. See the
+the Sonar webhook and the `OK` gate for revision `6c07fa8...` were confirmed.
+Build #10 is the final successful, end-to-end pipeline evidence. See the
 [local verification record](../development/jenkins-sonarqube-local-verification.md).
 
 Nexus was independently revalidated from its persisted volume without a build,
@@ -48,12 +47,12 @@ six SHA-tagged repositories and exact manifest digests were verified. Docker
 Desktop bind-mount ownership/type defects were corrected without deleting data.
 See the [Harbor verification record](../development/harbor-local-verification.md).
 
-Argo CD was independently verified at revision `3ce1d4a...`: its seven
+Argo CD was independently verified at revision `c9c1baa...`: its seven
 control-plane pods were Ready, the restricted AppProject excluded Secret and
 RBAC ownership, and one manual sync finished `Synced`/`Succeeded`. Runtime-only
 registry credentials were inherited through per-workload ServiceAccounts. All
 six SHA-tagged images were pulled from the private Harbor project and their
-runtime image IDs matched the recorded manifest digests. See the
+Deployment specifications use the exact Build #10 image revision. See the
 [Argo CD verification record](../development/argocd-local-verification.md).
 
 `Progressing` or `Degraded` after sync is expected locally because production-owned databases,
@@ -82,10 +81,10 @@ One full 40-character commit identity crosses each boundary:
 5. Argo CD reports the reviewed Git desired-state revision; Kubernetes exposes
    the promoted image tag, annotation, and exact runtime manifest digest.
 
-The contract is committed and statically validated. The existing
-`7fc3ea6b...` images predate the OCI-label/provenance addition; the final single
-pipeline run will generate and verify those new runtime records without
-repeating intermediate builds.
+The contract was exercised end to end by Build #10. Nexus provenance files,
+Harbor OCI labels, Kustomize annotations, and Kubernetes image tags all identify
+source revision `6c07fa8...`; Argo CD records the separate desired-state commit
+`c9c1baa...` that promoted it.
 
 GitHub Actions dependencies are pinned to reviewed full upstream commit SHAs;
 the trailing major-version comments retain readability without allowing a tag

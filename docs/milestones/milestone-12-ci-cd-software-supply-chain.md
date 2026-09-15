@@ -20,21 +20,23 @@ publication, and deployment are separate failure boundaries.
 
 ## Verified evidence
 
-- Jenkins Build #7: tests, frontend, SonarQube, Quality Gate, Nexus publication,
-  and SBOM generation succeeded.
+- Jenkins Build #10 completed every stage successfully for source `6c07fa8...`.
+- SonarQube Quality Gate passed with zero new violations and `80.3%` overall
+  coverage.
 - Nexus smoke publication and Jenkins Maven publication succeeded after EULA
   acceptance.
 - Harbor contains six private repositories tagged
-  `7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d`.
+  `6c07fa81df22330699c58574059b89e58777f0ed`, with matching OCI revision labels.
+- Nexus contains five Build #10 provenance classifiers carrying the same source
+  SHA, build URL, and artifact SHA-256.
 - Seven Argo CD control-plane pods reached Ready.
 - `health-insurance-staging` reached `Synced`; operation `Succeeded`; Git
-  revision `a56fff2a14405d3024b98f357b1c3b38edd8384b`.
+  desired-state revision `c9c1baa496df1c0126648573c5f25a75f6967a5c`.
 
-Build #7's Harbor stage failed only because the containerized Docker CLI used
-HTTPS against the local HTTP registry. The already-built images were reused and
-the Harbor publication boundary was resumed through `localhost:8088`; no full
-quality rerun was required. The committed local job now uses that corrected
-registry address.
+Build #8 demonstrated fail-closed quality behavior. Build #9 exposed local
+resource contention, not a code defect. Resource-heavy Minikube/application
+containers were stopped without deleting state; Build #10 then provided the
+single final successful chain. No later Jenkins rebuild was performed.
 
 ## Important files
 

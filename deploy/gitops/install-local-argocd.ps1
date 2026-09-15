@@ -22,6 +22,13 @@ kubectl apply --context $Context --server-side --force-conflicts -n argocd `
     -f 'https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.2/manifests/install.yaml'
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+$commandParametersPatch = @{
+    data = @{ 'reposerver.git.request.timeout' = '60s' }
+} | ConvertTo-Json -Depth 4 -Compress
+kubectl patch --context $Context -n argocd configmap argocd-cmd-params-cm `
+    --type merge --patch $commandParametersPatch | Out-Null
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 $workloads = kubectl get --context $Context -n argocd deployments,statefulsets -o json | ConvertFrom-Json
 foreach ($workload in $workloads.items) {
     $containers = @($workload.spec.template.spec.containers | ForEach-Object {

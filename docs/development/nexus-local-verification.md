@@ -68,14 +68,15 @@ failure is retried at the Maven publication boundary after the same successful
 Quality Gate. It must not trigger an unrelated Harbor retry or repeat unchanged
 test stages.
 
-## Remaining traceability improvement
+## Verified provenance attachments
 
-The Jenkins build and Sonar analysis identify source revision
-`7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d`, but the existing timestamped Maven
-coordinate does not itself expose that Git SHA. The final traceability step will
-carry the commit identity into Maven build metadata/manifest and relate it to
-the Harbor image labels and Kubernetes desired revision. Until then, provenance
-is established by Jenkins stage evidence rather than claimed from the filename.
+Build #10 published a `build-provenance.json` classifier beside each of the five
+Java service artifacts. All five records contain source revision
+`6c07fa81df22330699c58574059b89e58777f0ed`, Jenkins Build #10 URL, and the exact
+JAR SHA-256. This links the timestamped Maven coordinate to source without
+encoding mutable CI state into the artifact version. Representative hashes are
+authorization `f639dac1...`, policy `71c9e361...`, claims `33dbc1c0...`,
+notification `c56336a6...`, and search `9b21f095...`.
 
 ## .NET mapping
 

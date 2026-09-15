@@ -5,6 +5,11 @@ metadata:
   namespace: argocd
 spec:
   project: health-insurance
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
   source:
     repoURL: https://github.com/aydindemir1/health-insurance-platform.git
     targetRevision: main
@@ -16,6 +21,7 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
     retry:
       limit: 3
       backoff:

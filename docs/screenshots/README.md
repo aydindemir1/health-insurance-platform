@@ -49,7 +49,7 @@ evidence than adding a dense terminal collage for the same run.
   paginated minimized state-change evidence, actor context, and correlation ID.
 - `11-search-rebuild-recovery.png` — live stable alias target, current document
   count, and retained predecessor after a source-owned versioned rebuild.
-- `12-jenkins-supply-chain.png` — Jenkins Build #7 quality/Nexus/SBOM evidence;
+- `12-jenkins-supply-chain.png` — successful Jenkins Build #10 end-to-end evidence;
   its final red result is the documented local Harbor HTTP/HTTPS mismatch that
   was resumed independently without repeating successful quality stages.
 - `13-harbor-artifacts.png` — Harbor private project and OCI repositories.

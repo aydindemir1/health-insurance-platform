@@ -19,6 +19,7 @@
     "screenshots:authorization-infrastructure": "node scripts/capture-authorization-infrastructure-evidence.mjs",
     "screenshots:claims": "node scripts/capture-claims-runtime-evidence.mjs",
     "screenshots:notification": "node scripts/capture-notification-runtime-evidence.mjs",
+    "screenshots:cicd": "node scripts/capture-cicd-evidence.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",

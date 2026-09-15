@@ -35,23 +35,24 @@ All ten Harbor containers subsequently reached healthy state.
 | Robot permissions | repository pull/push and artifact read/create only |
 | Robot push | Six existing images pushed successfully |
 | Robot pull | Authorization manifest returned `200` with the expected digest |
-| Tag policy | Every repository uses full SHA `7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d`; no `latest` |
+| Tag policy | Every repository uses full SHA `6c07fa81df22330699c58574059b89e58777f0ed`; no `latest` |
 
 ## Published OCI inventory
 
 | Repository | Manifest digest |
 |---|---|
-| authorization-service | `sha256:e6811f895740ebf4733784007a40f5ebe9bdbea43a601183699926b87f2ba113` |
-| policy-service | `sha256:78a0367d021b83d530baff0ca1eee8ea3cf61a6c0d1e8c40f2e9ba6fb088ad56` |
-| claims-billing-service | `sha256:a52134509921e60a767c79ef0ad06530404dcb7a9d13adb7f40f010d9ffa78cf` |
-| notification-worker | `sha256:67e9be922d651d113d8346026397db13ba5bc76ad148cae5ad7292781a1cd2a2` |
-| search-service | `sha256:c65ddc9e0047cbabdc83e41d87a86fa378bfa535862fc2b95aeb27bbc566b34f` |
-| operations-portal | `sha256:e94f34c3b047366267fb9e8e8cbb65e9c4ad690cb859086e82ae0e588405b708` |
+| authorization-service | `sha256:e6bfca05...` |
+| policy-service | `sha256:cd3125e4...` |
+| claims-billing-service | `sha256:d6c37d2c...` |
+| notification-worker | `sha256:3bfb6737...` |
+| search-service | `sha256:b17aa0b5...` |
+| operations-portal | `sha256:9d9af944...` |
 
 These are registry manifest digests. The full Git SHA tag links the images to
 the Jenkins source revision, while digest addressing protects exact content.
-The later end-to-end traceability step will also verify OCI revision labels and
-the Kubernetes desired state; this checkpoint does not overstate that evidence.
+Each image also carries OCI `revision=6c07fa8...` and the GitHub repository
+`source` label. The same revision was committed to Kustomize and reconciled by
+Argo CD, completing the source-to-runtime trace contract.
 
 ## Operational boundary
 

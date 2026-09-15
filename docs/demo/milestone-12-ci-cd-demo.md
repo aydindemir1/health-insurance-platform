@@ -9,21 +9,21 @@ stages unnecessarily or exposing credentials.
 
 1. Show the `Jenkinsfile`: Java/React quality, SonarQube gate, Nexus, SBOM, and
    Harbor publication execute in dependency order.
-2. Show Jenkins Build #7: quality, Nexus, and SBOM stages succeeded. Explain
-   that its Harbor HTTPS/HTTP endpoint mismatch was resumed independently.
+2. Show Jenkins Build #10: the complete pipeline succeeded at source revision
+   `6c07fa81df22330699c58574059b89e58777f0ed`.
 3. Query Nexus and show six Maven components under `maven-snapshots`. Demonstrate
    that anonymous metadata access returns `403` while `jenkins-publisher` can
    browse and download through its repository-scoped role.
 4. Open Harbor project `health-insurance` and show six repositories with the
-   immutable tag `7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d`. Show that the
+   immutable tag `6c07fa81df22330699c58574059b89e58777f0ed`. Show that the
    project is private and the 90-day robot has only push/pull/read/create access.
 5. Render `deploy/gitops/environments/staging` and point to the same tag.
 6. Show Argo CD Application `health-insurance-staging`: `Synced`, operation
-   `Succeeded`, revision `3ce1d4a93e94b670b237a4a387d5be7028696be0`.
+   `Succeeded`, desired-state revision `c9c1baa496df1c0126648573c5f25a75f6967a5c`.
 7. Show that AppProject has an explicit resource allowlist and cannot manage
    Secrets or namespace RBAC. Then show SHA-tagged pods with `harbor-registry`
    and compare their runtime image IDs with Harbor manifest digests.
-8. For the final pipeline revision, open the Nexus `provenance.json` attachment,
+8. Open a Nexus `build-provenance.json` attachment,
    inspect the OCI `revision` label, and compare both with the Kustomize
    source-revision annotation and the deployed image tag.
 
