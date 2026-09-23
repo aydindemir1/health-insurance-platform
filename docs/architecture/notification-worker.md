@@ -1,12 +1,12 @@
-# Notification Worker Architecture
+# Notification Worker Mimarisi
 
-The Notification Worker owns operational delivery attempts. It does not own a
-member, policy, pre-authorization, claim, contact address, or clinical record.
-Milestone 6 implements the domain/application core, PostgreSQL adapter,
-Authorization producer task outbox, confirm-aware AMQP relay, version-aware
-listener, bounded retry, manual acknowledgement, and live RabbitMQ/DLQ runtime.
+Notification Worker operational delivery attempt'ların sahibidir. Member, policy,
+pre-authorization, claim, contact address veya clinical record sahibi değildir.
+Milestone 6 domain/application core, PostgreSQL adapter, Authorization producer
+task outbox, confirm-aware AMQP relay, version-aware listener, bounded retry,
+manual acknowledgement ve canlı RabbitMQ/DLQ runtime'ını uygular.
 
-## Component boundaries
+## Bileşen sınırları
 
 ```mermaid
 flowchart LR
@@ -33,14 +33,13 @@ flowchart LR
     SenderPort --> Sender
 ```
 
-Before the use case reads the delivery row, the PostgreSQL adapter acquires a
-transaction-scoped advisory lock derived from `taskId`. Concurrent consumers of
-the same task are therefore serialized before either can call the sender. The
-lock is released automatically at commit or rollback; unrelated task IDs still
-run concurrently. This complements the primary key: uniqueness protects stored
-data, while the lock protects the external side-effect window.
+Use case delivery row'u okumadan önce PostgreSQL adapter, `taskId` değerinden
+türetilen transaction-scoped advisory lock alır. Aynı task'ın concurrent consumer'ları
+sender çağrılmadan önce serialize edilir. Lock commit veya rollback'te otomatik
+serbest kalır; ilgisiz task ID'leri concurrent çalışmaya devam eder. Bu primary key'i
+tamamlar: uniqueness stored data'yı, lock external side-effect window'u korur.
 
-## Retry and acknowledgement boundary
+## Retry ve acknowledgement boundary
 
 ```mermaid
 sequenceDiagram
@@ -72,18 +71,18 @@ sequenceDiagram
     end
 ```
 
-The retry classifier is deliberately narrow. Only
-`TransientNotificationDeliveryException` receives bounded exponential backoff.
-Unsupported message versions, malformed contracts, and invariant violations are
-permanent and are rejected after one attempt. Retry wraps the transactional
-proxy, so each attempt gets a separate transaction and no failed state leaks
-into the next attempt.
+Retry classifier bilinçli olarak dardır. Yalnızca
+`TransientNotificationDeliveryException` bounded exponential backoff alır.
+Unsupported message version, malformed contract ve invariant violation permanent
+kabul edilir ve bir denemeden sonra reject edilir. Retry transactional proxy'yi
+sarar; böylece her attempt ayrı transaction alır ve failed state sonraki attempt'e
+sızmaz.
 
-The domain and application packages import neither Spring nor Jakarta. JPA
-entities translate persistence rows at the infrastructure boundary, and
-ArchUnit continuously enforces that direction.
+Domain ve application package'ları Spring veya Jakarta import etmez. JPA entity'leri
+persistence row'larını infrastructure boundary'de translate eder; ArchUnit bu yönü
+sürekli enforce eder.
 
-## Delivery state and replay behavior
+## Delivery state ve replay davranışı
 
 ```mermaid
 stateDiagram-v2
@@ -93,50 +92,51 @@ stateDiagram-v2
     DELIVERED --> DELIVERED: duplicate task is a no-op
 ```
 
-`task_id` is the primary key and the downstream sender idempotency key. Reusing
-it with a different causation, business reference, type, recipient, or template
-is a contract conflict rather than a duplicate. A worker
-crash can still cause a task to be received more than once; the design does not
-claim exactly-once messaging. A previously delivered row suppresses another
-send. A received row remains retryable. The downstream provider must also honor
-the idempotency key to close the crash window after external acceptance but
-before the local delivered state is committed.
+`task_id` primary key ve downstream sender idempotency key'dir. Aynı ID'nin farklı
+causation, business reference, type, recipient veya template ile tekrar kullanılması
+duplicate değil contract conflict'tir. Worker crash task'ın birden fazla alınmasına
+neden olabilir; design exactly-once messaging iddia etmez. Önceden delivered row
+başka send'i suppress eder. Received row retry edilebilir kalır. External provider
+kabulünden sonra local delivered state commit edilmeden oluşabilecek crash window'u
+kapatmak için downstream provider da idempotency key'i uygulamalıdır.
 
-## Persisted data
+## Persist edilen veri
 
-The delivery row contains only technical routing and lifecycle information:
+Delivery row yalnızca technical routing ve lifecycle bilgisi içerir:
 
-- task, causation, and business-reference UUIDs;
-- notification type and versioned template key;
-- recipient kind and opaque provider reference;
-- received/delivered timestamps and status.
+- task, causation ve business-reference UUID'leri;
+- notification type ve versioned template key;
+- recipient kind ve opaque provider reference;
+- received/delivered timestamp'leri ve status.
 
-It deliberately excludes names, member identifiers, policy numbers, diagnosis
-codes, email addresses, phone numbers, access tokens, and rendered message
-content. Database check constraints keep timestamp and state combinations
-consistent even if a future adapter bypasses the aggregate accidentally.
+Name, member identifier, policy number, diagnosis code, email address, phone number,
+access token veya rendered message content bilinçli olarak dışlanır. Database check
+constraint'leri future adapter aggregate'i yanlışlıkla bypass etse bile timestamp ve
+state combination'larını tutarlı tutar.
 
-## Verification
+## Doğrulama
 
-The Java 21 suite uses PostgreSQL 17 and RabbitMQ 4.1 Testcontainers. Persistence
-tests apply Liquibase, let Hibernate validate the schema, round-trip both states,
-inspect operational indexes, and run two same-task transactions concurrently.
-That concurrency test proves one row and one sender invocation. Application
-tests prove delivered replay is a no-op and conflicting reuse of a task ID fails. Listener tests prove transient
-success after retry, exhaustion after three attempts, immediate permanent
-failure, unsupported-version quarantine, and commit-before-ack ordering.
+Java 21 suite PostgreSQL 17 ve RabbitMQ 4.1 Testcontainers kullanır. Persistence
+testleri Liquibase uygular, Hibernate'in schema'yı validate etmesini sağlar, iki
+state'i round-trip eder, operational index'leri inspect eder ve aynı task için iki
+transaction'ı concurrent çalıştırır. Concurrency testi tek row ve tek sender invocation
+kanıtlar. Application testleri delivered replay'in no-op olduğunu ve task ID'nin
+conflicting reuse durumunda failure oluştuğunu doğrular. Listener testleri retry
+sonrası transient success, üç attempt sonrası exhaustion, immediate permanent failure,
+unsupported-version quarantine ve commit-before-ack ordering'i doğrular.
 
-The broker integration test sends real persistent messages through the declared
-exchange. Two identical messages create one `DELIVERED` row and leave both
-queues empty; an unsupported v99 message creates no delivery row and appears in
-`health.notifications.delivery.v1.dlq`. Compose repeats the complete producer to
-consumer path with independent PostgreSQL ownership. On 14 September 2026 the
-worker suite passed 24/24 tests on Java 21.0.8.
+Broker integration testi declared exchange üzerinden gerçek persistent message
+gönderir. İki identical message tek `DELIVERED` row oluşturur ve iki queue'yu da
+boş bırakır; unsupported v99 message hiçbir delivery row oluşturmaz ve
+`health.notifications.delivery.v1.dlq` içinde görünür. Compose independent
+PostgreSQL ownership ile complete producer-to-consumer path'i tekrarlar. 14 Eylül
+2026'da worker suite Java 21.0.8 üzerinde 24/24 testten geçti.
 
-The local sender logs only the task identifier, notification type, recipient
-kind, and opaque provider reference. It demonstrates the output port and
-idempotency flow but does not claim to send email or SMS.
+Local sender yalnızca task identifier, notification type, recipient kind ve opaque
+provider reference loglar. Output port ve idempotency flow'u gösterir ancak email
+veya SMS gönderdiğini iddia etmez.
 
-For implemented business semantics and repeatable evidence, see the
-[business analysis](../business/notification-worker-business-analysis.md) and
-[local verification guide](../development/notification-worker-local-verification.md).
+Uygulanmış business semantics ve repeatable evidence için
+[business analysis](../business/notification-worker-business-analysis.md) ve
+[local verification guide](../development/notification-worker-local-verification.md)
+dokümanlarına bakın.
