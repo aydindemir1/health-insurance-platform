@@ -1,73 +1,73 @@
-# ADR-013: Kustomize and secure stateless Kubernetes workloads
+# ADR-013: Kustomize ve güvenli stateless Kubernetes workload'ları
 
-- Status: Accepted
-- Date: 2026-09-10
+- Durum: Kabul edildi
+- Tarih: 2026-09-10
 
-## Context
+## Bağlam
 
-The platform already has independently built application containers and a
-Compose environment for local integration. Kubernetes must add scheduling,
-rollout, isolation and health semantics without changing bounded-context data
-ownership or pretending that hand-written single-node databases are a
-production data platform.
+Platform bağımsız build edilen application container'larına ve local integration
+için Compose environment'a zaten sahiptir. Kubernetes, bounded-context data
+ownership'i değiştirmeden ve hand-written single-node database'leri production
+data platform gibi göstermeden scheduling, rollout, isolation ve health semantics
+eklemelidir.
 
-## Decision
+## Karar
 
-Use Kubernetes-native Kustomize with a production-oriented base and a local
-overlay. Kustomize is shipped with `kubectl`, avoids a second packaging runtime,
-and is consumed directly by the Argo CD Application delivered in Milestone 12.
+Production-oriented base ve local overlay ile Kubernetes-native Kustomize kullanılır.
+Kustomize `kubectl` ile birlikte gelir, ikinci packaging runtime gerektirmez ve
+Milestone 12'de sunulan Argo CD Application tarafından doğrudan tüketilir.
 
-The Kubernetes package owns only stateless platform workloads: five Spring
-applications, the React/Nginx portal and APISIX. PostgreSQL databases, Kafka,
-RabbitMQ, Redis, Elasticsearch, Keycloak and APM are explicit external service
-contracts. A local overlay may connect to the existing Compose dependencies,
-but it does not redefine that production boundary.
+Kubernetes package yalnızca stateless platform workload'larının sahibidir: beş
+Spring application, React/Nginx portal ve APISIX. PostgreSQL database'leri, Kafka,
+RabbitMQ, Redis, Elasticsearch, Keycloak ve APM açık external service contract'tır.
+Local overlay mevcut Compose dependency'lerine bağlanabilir ancak production
+boundary'yi yeniden tanımlamaz.
 
-Every pod uses a dedicated ServiceAccount without an API token or RBAC grant.
-Workloads run as fixed non-root numeric users, drop all capabilities, prohibit
-privilege escalation, use RuntimeDefault seccomp and mount only bounded writable
-temporary volumes. The namespace enforces the Restricted Pod Security Standard.
-Default-deny NetworkPolicies are opened only for known callers and dependency
-ports. HTTP workloads have startup, readiness and liveness probes. The worker
-exposes Actuator health on port 8085 rather than using a process-only probe.
-The namespace has ResourceQuota and LimitRange guardrails. Third-party workload
-images are pinned by registry digest; application image immutability is supplied
-by the CI/CD promotion flow.
+Her pod API token veya RBAC grant içermeyen dedicated ServiceAccount kullanır.
+Workload'lar fixed non-root numeric user olarak çalışır, tüm capability'leri drop
+eder, privilege escalation'ı yasaklar, RuntimeDefault seccomp kullanır ve yalnızca
+bounded writable temporary volume mount eder. Namespace Restricted Pod Security
+Standard'ı uygular. Default-deny NetworkPolicy'ler yalnızca known caller ve
+dependency port'ları için açılır. HTTP workload'larda startup, readiness ve
+liveness probe vardır. Worker process-only probe yerine 8085 portunda Actuator
+health sunar. Namespace ResourceQuota ve LimitRange guardrail'larına sahiptir.
+Third-party workload image'ları registry digest ile pin edilir; application image
+immutability CI/CD promotion flow tarafından sağlanır.
 
-Credentials are never rendered by Kustomize. Deployments reference named
-Secrets that must be supplied by an operator or an external secret controller.
-The local helper reads ignored `.env` values, submits base64 data directly to
-the Kubernetes API and never writes a generated Secret manifest to disk.
+Credential'lar Kustomize tarafından asla render edilmez. Deployment'lar operator
+veya external secret controller tarafından sağlanması gereken named Secret'lara
+referans verir. Local helper ignore edilen `.env` value'larını okur, base64 data'yı
+doğrudan Kubernetes API'ye submit eder ve generated Secret manifest'i diske yazmaz.
 
-The local portfolio overlay does not introduce self-signed TLS. It would test
-local certificate-distribution mechanics rather than the intended production
-control and would complicate browser, JVM and APISIX trust stores. Production
-must terminate an automatically issued trusted certificate at APISIX and obtain
-private material from the organization's external secret/workload-identity path.
+Local portfolio overlay self-signed TLS eklemez. Bu, hedeflenen production control
+yerine local certificate-distribution mechanics'i test eder ve browser, JVM ile
+APISIX trust store'larını gereksiz karmaşıklaştırır. Production, APISIX üzerinde
+otomatik issued trusted certificate terminate etmeli ve private material'i
+organizasyonun external secret/workload-identity yolundan almalıdır.
 
-## Consequences
+## Sonuçlar
 
-- Application manifests are reviewable and render without Helm.
-- Stateful platform lifecycle, encryption, backup and high availability remain
-  responsibilities of their owning operators or managed services.
-- CPU HPAs require Metrics Server. Rabbit consumer scaling should eventually
-  use queue-depth metrics rather than CPU, so the worker is not given an HPA.
-- The local overlay fixes HPA minimum and maximum replicas at one and uses
-  `Recreate`; this prevents cold-start scale-out on a resource-constrained
-  single-node cluster without weakening production rollout semantics.
-- Port-bounded IP egress is useful defence in depth but is not identity-aware.
-  Production clusters should add workload identity, TLS and an egress gateway.
-- The local overlay disables Kafka-driven application paths because the Compose
-  broker advertises a host-only listener that is not valid inside a Kind pod.
-  Messaging behavior remains covered by its existing integration environment.
+- Application manifest'leri review edilebilir ve Helm olmadan render olur.
+- Stateful platform lifecycle, encryption, backup ve high availability owner
+  operator veya managed service sorumluluğunda kalır.
+- CPU HPA Metrics Server gerektirir. Rabbit consumer scaling sonunda CPU yerine
+  queue-depth metric kullanmalıdır; bu nedenle worker'a HPA verilmez.
+- Local overlay HPA minimum ve maximum replica'yı bire sabitler ve `Recreate`
+  kullanır; resource-constrained single-node cluster'da cold-start scale-out'u
+  önler ancak production rollout semantics'i zayıflatmaz.
+- Port-bounded IP egress useful defence in depth sağlar ancak identity-aware
+  değildir. Production cluster workload identity, TLS ve egress gateway eklemelidir.
+- Local overlay Kafka-driven application path'lerini kapatır; çünkü Compose broker
+  host-only listener advertise eder ve bu Kind pod içinde geçerli değildir.
+  Messaging behavior mevcut integration environment tarafından kapsanır.
 
-## Rejected alternatives
+## Reddedilen alternatifler
 
-- Hand-written Kubernetes StatefulSets for every dependency: this would imply
-  production operation, backup and quorum guarantees the repository does not own.
-- One shared ServiceAccount with broad namespace permissions: applications do
-  not call the Kubernetes API and therefore require no RBAC permissions.
-- Committed development Secrets: reversible convenience does not justify
-  publishing credentials.
-- Helm as a mandatory local prerequisite: templating adds little value at this
-  scale, while Kustomize is already available with `kubectl`.
+- Her dependency için hand-written Kubernetes StatefulSet: repository'nin sahip
+  olmadığı production operation, backup ve quorum guarantee'lerini ima eder.
+- Broad namespace permission'lı tek shared ServiceAccount: application'lar
+  Kubernetes API çağırmadığı için RBAC permission'a ihtiyaç duymaz.
+- Commit edilmiş development Secret'ları: reversible convenience credential
+  publish etmeyi haklı çıkarmaz.
+- Mandatory local prerequisite olarak Helm: bu ölçekte templating az değer ekler;
+  Kustomize zaten `kubectl` ile kullanılabilir.
