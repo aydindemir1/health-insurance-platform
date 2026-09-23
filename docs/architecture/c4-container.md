@@ -1,4 +1,4 @@
-# C4 Level 2 — Container Diagram
+# C4 Level 2 — Container Diyagramı
 
 ```mermaid
 flowchart TB
@@ -62,24 +62,24 @@ flowchart TB
     Notification -.->|"Java agent telemetry"| APM
 ```
 
-## Communication decisions
+## İletişim kararları
 
-| Caller | Callee | Current purpose | Failure behavior |
+| Caller | Callee | Mevcut amaç | Failure davranışı |
 | --- | --- | --- | --- |
-| Portal | APISIX | Single external business API, authentication and traffic governance | RFC 9457 gateway error with correlation ID |
-| APISIX | Spring APIs | Route authenticated requests over the private Compose network | Bounded connect/send/read timeout; upstream unavailable response |
-| Authorization | Policy | Coverage eligibility before accepting a request | Fail closed with 503; nothing persisted |
-| Claims/Billing | Authorization | Confirm current approved, provider-owned authorization | Fail closed with 503; no claim or invoice persisted |
-| Authorization | Kafka | Publish committed decisions from the outbox | Row remains unpublished and the next poll retries |
-| Kafka | Claims/Billing | Start claim/invoice from approval | Idempotent no-op on duplicate; three attempts then DLT |
-| Authorization | RabbitMQ | Publish committed provider-notification commands | Positive confirm and no mandatory return mark outbox row published |
-| RabbitMQ | Notification Worker | Distribute operational delivery work | Retry classified transient failures; permanent/exhausted tasks go to DLQ |
-| Policy | Redis | Cache repeated immutable coverage evaluations | Fail open to authoritative PostgreSQL evaluation |
-| Claims/Billing | Kafka/Search | Publish transactionally recorded operational projections | Outbox row remains pending until acknowledged |
-| Portal | Search | Provider-authorized full-text/filter query | Empty/error state; no impact on source transactions |
-| Portal | Authorization/Policy/Claims audit APIs | `SYSTEM_ADMIN` service-local evidence query | Controller and use-case authorization; bounded filters/page; no cross-database join |
+| Portal | APISIX | Tek external business API, authentication ve traffic governance | Correlation ID içeren RFC 9457 gateway hatası |
+| APISIX | Spring API'leri | Authenticated request'leri private Compose network üzerinden route etmek | Bounded connect/send/read timeout; upstream unavailable response |
+| Authorization | Policy | Request kabulünden önce coverage eligibility | 503 ile fail-closed; hiçbir şey persist edilmez |
+| Claims/Billing | Authorization | Current approved, provider-owned authorization'ı doğrulamak | 503 ile fail-closed; claim veya invoice persist edilmez |
+| Authorization | Kafka | Commit edilmiş decision'ları outbox'tan publish etmek | Row unpublished kalır, sonraki poll retry eder |
+| Kafka | Claims/Billing | Approval'dan claim/invoice başlatmak | Duplicate'te idempotent no-op; üç deneme sonrası DLT |
+| Authorization | RabbitMQ | Commit edilmiş provider-notification command'larını publish etmek | Positive confirm ve mandatory return olmaması outbox row'u published yapar |
+| RabbitMQ | Notification Worker | Operational delivery work dağıtmak | Classified transient failure retry edilir; permanent/exhausted task DLQ'ya gider |
+| Policy | Redis | Tekrarlanan immutable coverage evaluation'ları cache'lemek | Authoritative PostgreSQL evaluation'a fail-open |
+| Claims/Billing | Kafka/Search | Transactionally recorded operational projection publish etmek | Outbox row acknowledge edilene kadar pending kalır |
+| Portal | Search | Provider-authorized full-text/filter query | Empty/error state; source transaction'lara etkisi yoktur |
+| Portal | Authorization/Policy/Claims audit API'leri | `SYSTEM_ADMIN` service-local evidence query | Controller ve use-case authorization; bounded filter/page; cross-database join yok |
 
-## Kubernetes deployment view
+## Kubernetes deployment görünümü
 
 ```mermaid
 flowchart LR
@@ -99,6 +99,6 @@ flowchart LR
     Scale[PDB + topology spread + HPA] -.-> Apps
 ```
 
-Kubernetes owns stateless rollout and isolation. Stateful dependencies remain
-separately operated contracts; this diagram does not imply that the application
-repository provides their production high availability.
+Kubernetes stateless rollout ve isolation'ın sahibidir. Stateful dependency'ler
+ayrı işletilen contract'lar olarak kalır; bu diyagram application repository'nin
+bunlar için production high availability sağladığını ima etmez.
