@@ -1,22 +1,14 @@
-# Notification Worker business analysis
+# Notification Worker iş analizi
 
-This document explains the implemented notification-delivery responsibility.
-It records current behavior and does not add email, SMS, or contact-management
-scope.
+Bu doküman uygulanmış notification-delivery sorumluluğunu açıklar. Mevcut behavior'ı kaydeder; email, SMS veya contact-management scope eklemez.
 
-## Purpose and ownership
+## Amaç ve sahiplik
 
-Authorization owns the approval decision and atomically records a notification
-task in its outbox. RabbitMQ distributes that operational command. Notification
-Worker owns only the delivery attempt and its idempotency evidence in a private
-PostgreSQL database.
+Authorization approval decision'ın sahibidir ve notification task'ı kendi outbox'ına atomik olarak kaydeder. RabbitMQ bu operational command'ı dağıtır. Notification Worker yalnızca delivery attempt ve idempotency evidence'ın sahibidir; bunları private PostgreSQL database içinde tutar.
 
-The worker does not own or persist patients, policies, claims, clinical data,
-contact addresses, rendered messages, or credentials. A recipient is an opaque
-provider UUID; a real provider adapter would resolve contact data behind a
-separate security boundary.
+Worker patient, policy, claim, clinical data, contact address, rendered message veya credential sahibi değildir ve bunları persist etmez. Recipient opaque provider UUID'dir; gerçek provider adapter contact data'yı ayrı security boundary arkasında resolve eder.
 
-## Implemented workflow
+## Uygulanan workflow
 
 ```mermaid
 sequenceDiagram
@@ -41,47 +33,30 @@ sequenceDiagram
     end
 ```
 
-## Contract and business semantics
+## Contract ve business semantics
 
-The versioned task contains technical identifiers, notification type, opaque
-provider recipient, template key, and occurrence time. Version `1` supports
-pre-authorization approval and rejection notifications. The task contains no
-member, policy, diagnosis, email, phone, token, or free-text business payload.
+Versioned task technical identifier'lar, notification type, opaque provider recipient, template key ve occurrence time içerir. Version `1`, pre-authorization approval ve rejection notification'larını destekler. Task member, policy, diagnosis, email, phone, token veya free-text business payload içermez.
 
-`taskId` identifies one immutable delivery intent. Replaying the same intent is
-a no-op after delivery. Reusing the identifier with a different causation,
-business reference, type, recipient, or template is a conflict.
+`taskId` tek immutable delivery intent'i tanımlar. Aynı intent replay edilirse delivery sonrasında no-op olur. Identifier'ın farklı causation, business reference, type, recipient veya template ile reuse edilmesi conflict'tir.
 
-## Failure and consistency rules
+## Failure ve consistency rule'ları
 
-| Situation | Implemented result |
+| Durum | Uygulanan sonuç |
 | --- | --- |
-| transient sender failure | at most three attempts with bounded exponential backoff |
-| malformed or unsupported task | no retry; reject to DLQ |
-| exhausted transient failure | reject to DLQ |
-| identical replay | acknowledge without a second send |
-| same task ID, different intent | permanent conflict and DLQ |
-| two simultaneous same-task consumers | PostgreSQL transaction advisory lock serializes them before sender invocation |
-| crash before broker acknowledgement | RabbitMQ may redeliver; persisted delivery suppresses another send |
+| Transient sender failure | Bounded exponential backoff ile en fazla üç attempt |
+| Malformed veya unsupported task | Retry yok; DLQ'ya reject |
+| Exhausted transient failure | DLQ'ya reject |
+| Identical replay | İkinci send olmadan acknowledge |
+| Aynı task ID, farklı intent | Permanent conflict ve DLQ |
+| Aynı task için iki simultaneous consumer | PostgreSQL transaction advisory lock sender invocation öncesinde serialize eder |
+| Broker acknowledgement öncesi crash | RabbitMQ redelivery yapabilir; persisted delivery ikinci send'i suppress eder |
 
-The model is at-least-once, not exactly-once. A crash after an external provider
-accepts a request but before the local transaction commits remains a standard
-side-effect gap. A future real provider must honor `taskId` as its idempotency
-key. This limitation is explicit rather than hidden behind an exactly-once
-claim.
+Model exactly-once değil at-least-once'dur. External provider request'i kabul ettikten sonra local transaction commit edilmeden crash oluşması standard side-effect gap olarak kalır. Future real provider `taskId` değerini idempotency key olarak uygulamalıdır. Bu limitation exactly-once iddiasının arkasına gizlenmeden açıkça belirtilir.
 
-## Verified checkpoint
+## Doğrulanmış checkpoint
 
-The Java 21 suite passes 24/24 tests. It uses real PostgreSQL 17 and RabbitMQ
-4.1 Testcontainers for migration, persistence, duplicate delivery, DLQ, manual
-acknowledgement, and concurrency evidence.
+Java 21 suite 24/24 testten geçer. Migration, persistence, duplicate delivery, DLQ, manual acknowledgement ve concurrency evidence için gerçek PostgreSQL 17 ve RabbitMQ 4.1 Testcontainers kullanır.
 
-The live local checkpoint consumed a genuine pending Authorization task and
-persisted one `DELIVERED` row. Republishing the same valid task kept exactly one
-row. Publishing a synthetic version `99` task created no delivery row and put
-one message in `health.notifications.delivery.v1.dlq`; the primary queue was
-drained. No message body or credential was captured.
+Live local checkpoint gerçek pending Authorization task'ını consume etti ve tek `DELIVERED` row persist etti. Aynı valid task yeniden publish edildiğinde yine yalnızca tek row kaldı. Synthetic version `99` task publish edildiğinde delivery row oluşmadı ve `health.notifications.delivery.v1.dlq` içinde tek message oluştu; primary queue drain edildi. Hiçbir message body veya credential capture edilmedi.
 
-See the [architecture](../architecture/notification-worker.md),
-[RabbitMQ ADR](../adr/008-rabbitmq-notification-task-delivery.md), and
-[local verification guide](../development/notification-worker-local-verification.md).
+Bkz. [architecture](../architecture/notification-worker.md), [RabbitMQ ADR](../adr/008-rabbitmq-notification-task-delivery.md) ve [local verification guide](../development/notification-worker-local-verification.md).
