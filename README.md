@@ -2,25 +2,34 @@
 
 Gerçekçi bir iş akışı üzerinden modern Java full-stack mühendisliğini gösteren, portföy seviyesinde bir sağlık sigortası platformudur. Bir sağlık hizmeti sağlayıcısı, bir üyenin alacağı hizmet için provizyon talep eder; sigorta şirketi poliçe kapsamını doğrular ve talep hakkında karar verir; onaylanan hizmet daha sonra hasar değerlendirmesi, fatura mutabakatı, ödeme ve kapatma süreçlerine ilerler.
 
-> **Mevcut kontrol noktası:** Milestone 0–10 uygulanmıştır. Authorization,
+> **Mevcut kontrol noktası:** Milestone 0–12 tamamlanmıştır. Authorization,
 > Policy ve Claims/Billing servisleri, minimize edilmiş yalnızca eklemeye açık
 > (append-only) denetim günlüklarının sahibidir ve bağımsız olarak güvenliği
 > sağlanmış, sınırlandırılmış `SYSTEM_ADMIN` okuma API'leri sunar. Operations
 > Portal, servis veritabanlarını birleştirmeden servis farkındalığına sahip bir
-> denetim görünümü sağlar. Policy ayrıca dayanıklı bir Redis cache-aside adaptörü
+> denetim görünümü sağlar. Policy dayanıklı bir Redis cache-aside adaptörü
 > kullanır; Claims/Billing işlemsel olarak kalıcı arama projeksiyonları üretir;
 > Search Service ise hizmet sağlayıcı kapsamlı bir Elasticsearch okuma modeli
 > oluşturur. Her Java çalışma zamanı correlation ID'leri ile ECS JSON logları
-> üretir ve Compose yığını Elasticsearch, Kibana, APM Server ile dışarıdan
-> bağlanan Elastic Java agent'larını içerir. Arama projeksiyonları artık
-> servislerin sahip olduğu sınırlandırılmış snapshot'lardan, sürümlenmiş aday
-> indeks ve atomik alias değişimi kullanılarak çevrim içi yeniden oluşturulabilir.
-> Monotonik kaynak revizyonları eski yazmaları reddederken, sınırlandırılmış Kafka
-> DLT ve RabbitMQ DLQ araçları açık inspect/classify/replay iş akışlarını destekler.
-> APISIX host üzerinde yayınlanan tek business API sınırıdır ve OIDC/JWKS
-> doğrulaması, trafik limitleri, correlation ID'leri, savunmacı header'lar ve
-> RFC 9457 gateway hataları uygular. Compose ve Testcontainers gerçek altyapı
-> yollarını çalıştırır.
+> üretir; Compose yığını Elasticsearch, Kibana, APM Server ve dışarıdan bağlanan
+> Elastic Java agent'larını içerir. Arama projeksiyonları, servislerin sahip olduğu
+> sınırlandırılmış snapshot'lardan sürümlenmiş aday indeks ve atomik alias değişimi
+> kullanılarak çevrim içi yeniden oluşturulabilir. Monotonik kaynak revizyonları
+> eski yazmaları reddederken, sınırlandırılmış Kafka DLT ve RabbitMQ DLQ araçları
+> açık inspect/classify/replay iş akışlarını destekler. APISIX host üzerinde
+> yayınlanan tek business API sınırıdır ve OIDC/JWKS doğrulaması, trafik limitleri,
+> correlation ID'leri, savunmacı header'lar ve RFC 9457 gateway hataları uygular.
+> Milestone 11 ile yedi stateless workload için Kustomize tabanlı Kubernetes
+> deployment paketi, Restricted Pod Security, non-root container'lar, read-only
+> root filesystem, default-deny NetworkPolicy'ler, probe'lar, resource limitleri,
+> PDB ve HPA kontrolleri eklenmiştir; stateful platformlar bilinçli olarak
+> operator-owned external dependency olarak tutulur. Milestone 12 ile Jenkins,
+> Java/React kalite aşamalarını ve blocking SonarQube Quality Gate'i çalıştırır;
+> Maven artifact'larını Nexus'a, immutable full-Git-SHA OCI image'larını private
+> Harbor project'ine yayınlar ve aynı image revision'ı Kustomize üzerinden GitOps
+> desired state'e taşır. Argo CD bu review edilmiş state'i disposable Kubernetes
+> cluster'ına senkronize eder. Compose, Testcontainers ve doğrulanmış lokal CI/CD
+> checkpoint'leri gerçek altyapı ve software supply-chain yollarını çalıştırır.
 
 ## Bu proje neden var?
 
