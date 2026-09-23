@@ -1,45 +1,50 @@
-# Jenkins quality-gate baseline
+# Jenkins Quality Gate Temeli
 
-The declarative pipeline expects a disposable Linux agent labelled
-`java21-node24-docker` with Java 21, Node.js 24, npm, Git and Docker CLI. Jenkins
-must define:
+Declarative pipeline; Java 21, Node.js 24, npm, Git ve Docker CLI bulunan,
+`java21-node24-docker` etiketiyle tanımlanmış geçici bir Linux agent bekler.
+Jenkins üzerinde aşağıdakilerin tanımlı olması gerekir:
 
-- a SonarQube server named `health-sonarqube`;
-- a SonarScanner installation named `sonar-scanner`;
-- the SonarQube webhook endpoint at `<jenkins>/sonarqube-webhook/` so
-  `waitForQualityGate` can complete.
-- username/password credentials named `nexus-publisher` and `harbor-publisher`
-  before enabling the opt-in publication stages.
+- `health-sonarqube` adında bir SonarQube server;
+- `sonar-scanner` adında bir SonarScanner kurulumu;
+- `waitForQualityGate` işleminin tamamlanabilmesi için
+  `<jenkins>/sonarqube-webhook/` adresinde SonarQube webhook endpoint'i;
+- isteğe bağlı publication stage'leri etkinleştirilmeden önce
+  `nexus-publisher` ve `harbor-publisher` adlarında username/password
+  credential'ları.
 
-Tokens belong in Jenkins Credentials/SonarQube configuration and must never be
-passed as build parameters or committed files. This first slice performs tests,
-builds, analysis and a blocking Quality Gate. Artifact publication and GitOps
-promotion is intentionally added in a later Milestone 12 slice.
+Token'lar Jenkins Credentials/SonarQube yapılandırmasında tutulmalı ve hiçbir
+zaman build parameter olarak geçirilmemeli veya commit edilen dosyalara
+eklenmemelidir. Bu ilk aşama testleri, build işlemlerini, analizleri ve blocking
+Quality Gate'i gerçekleştirir. Artifact publication ve GitOps promotion,
+Milestone 12'nin daha sonraki bir aşamasında bilinçli olarak eklenmiştir.
 
-`PUBLISH_ARTIFACTS` defaults to false. On `main`, explicitly enabling it after a
-successful Quality Gate publishes executable Maven artifacts to the Nexus
-release repository and six OCI images to Harbor. Images use the complete Git
-commit SHA; the pipeline never publishes `latest`.
+`PUBLISH_ARTIFACTS` varsayılan olarak `false` değerindedir. `main` branch'inde,
+başarılı bir Quality Gate sonrasında açıkça etkinleştirildiğinde executable Maven
+artifact'ları Nexus release repository'sine ve altı OCI image Harbor'a yayınlanır.
+Image'lar tam Git commit SHA değerini kullanır; pipeline hiçbir zaman `latest`
+tag'ini yayınlamaz.
 
-Start the resource-limited local controller and SonarQube server independently
-from the application stack:
+Kaynakları sınırlandırılmış lokal Jenkins controller ve SonarQube server'ı
+application stack'ten bağımsız olarak başlatın:
 
 ```powershell
 .\infra\cicd\start-quality-stack.ps1
 ```
 
-The script creates an ignored `.env` with random local-only credentials on its
-first run. Use `stop-quality-stack.ps1` to preserve volumes while releasing CPU
-and memory. The three-service profile is capped at 4.25 CPUs and approximately
-4.5 GiB RAM; it is not a production topology.
+Script ilk çalıştırmada yalnızca lokal kullanım için rastgele credential'lar
+içeren ve Git tarafından ignore edilen bir `.env` dosyası oluşturur. CPU ve
+belleği serbest bırakırken volume'ları korumak için `stop-quality-stack.ps1`
+kullanın. Üç servisli profil en fazla 4.25 CPU ve yaklaşık 4.5 GiB RAM kullanacak
+şekilde sınırlandırılmıştır; bu bir production topology değildir.
 
-After the first healthy startup, run `bootstrap-quality-stack.ps1`. It rotates
-the default SonarQube administrator password, creates a local analysis token,
-stores it only in the ignored `.env`, provisions the Jenkins string credential
-through JCasC and creates the Jenkins webhook. The scanner version is an
-explicit Jenkins tool installation (`8.1.0.6389`), not an unversioned download
-in pipeline code.
+İlk healthy startup sonrasında `bootstrap-quality-stack.ps1` çalıştırın. Bu
+script varsayılan SonarQube administrator password'ünü değiştirir, lokal bir
+analysis token oluşturur, bunu yalnızca Git tarafından ignore edilen `.env`
+dosyasında saklar, JCasC üzerinden Jenkins string credential'ını provision eder
+ve Jenkins webhook'unu oluşturur. Scanner sürümü, pipeline kodunda sürümsüz
+indirme yapmak yerine açıkça tanımlanmış bir Jenkins tool kurulumu
+(`8.1.0.6389`) olarak kullanılır.
 
-Run `run-local-pipeline.ps1` to create or update the local pipeline job from the
-committed SCM definition and queue one build. Publication remains false by
-default; this command cannot push to Nexus or Harbor.
+Commit edilmiş SCM tanımından lokal pipeline job'ını oluşturmak veya güncellemek
+ve bir build kuyruğa almak için `run-local-pipeline.ps1` çalıştırın. Publication
+varsayılan olarak kapalı kalır; bu komut Nexus veya Harbor'a push yapamaz.
