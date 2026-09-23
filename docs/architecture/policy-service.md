@@ -1,22 +1,23 @@
-# Policy Service components
+# Policy Service bileşenleri
 
-The Policy Service owns policies, coverage definitions, validity periods, and
-financial limits. No other service reads its PostgreSQL database.
+Policy Service; policy'lerin, coverage definition'ların, validity period'ların ve
+financial limit'lerin sahibidir. Başka hiçbir servis onun PostgreSQL database'ini
+okumaz.
 
-## Boundary and responsibility
+## Boundary ve sorumluluk
 
-| Capability | Policy Service responsibility | Explicitly outside the boundary |
+| Capability | Policy Service sorumluluğu | Boundary dışında kalan |
 | --- | --- | --- |
-| Policy issuance | Validate and persist a policy with one or more coverages | Member registration and demographic ownership |
-| Coverage evaluation | Decide eligibility from policy, member, service, date, amount, and currency | Creating or deciding a pre-authorization |
-| Financial limits | Protect limit and used-amount invariants inside the aggregate | Cross-request benefit reservation and compensation |
-| Audit evidence | Append and query minimized policy issuance evidence | Cross-service audit joins or clinical-data storage |
-| Cache | Accelerate immutable evaluation results for a short period | Acting as a source of truth |
+| Policy issuance | Bir veya daha fazla coverage içeren policy'yi validate edip persist etmek | Member registration ve demographic ownership |
+| Coverage evaluation | Policy, member, service, date, amount ve currency üzerinden eligibility kararı vermek | Pre-authorization oluşturmak veya karar vermek |
+| Financial limits | Aggregate içindeki limit ve used-amount invariant'larını korumak | Cross-request benefit reservation ve compensation |
+| Audit evidence | Minimized policy issuance evidence append etmek ve query etmek | Cross-service audit join veya clinical-data storage |
+| Cache | Immutable evaluation result'larını kısa süreli hızlandırmak | Source of truth gibi davranmak |
 
-The service therefore answers a domain question for Authorization but does not
-delegate its rules or database ownership to Authorization. A business denial
-is a successful evaluation result; infrastructure unavailability is a technical
-failure and must not be translated into eligibility.
+Bu nedenle servis Authorization için bir domain question yanıtlar ancak rule veya
+database ownership'ini Authorization'a devretmez. Business denial başarılı bir
+evaluation result'tır; infrastructure unavailability technical failure'dır ve
+eligibility olarak translate edilmemelidir.
 
 ```mermaid
 flowchart LR
@@ -37,164 +38,158 @@ flowchart LR
     Keycloak[Keycloak] --> REST
 ```
 
-### Enforced dependency direction
+### Enforce edilen dependency direction
 
-`CleanArchitectureTest` checks four compile-time boundaries. Domain classes may
-depend only on Java and other Domain classes. Application classes may depend
-only on Java, Domain, and Application classes. Presentation may use Application
-but cannot bypass it to reach Domain or Infrastructure. Infrastructure may
-implement Application/Domain ports but cannot depend on Presentation. The
-inner-layer rules use allowlists, so introducing an unapproved third-party
-framework fails the architecture test even when it is not Spring or Jakarta.
+`CleanArchitectureTest` dört compile-time boundary'yi kontrol eder. Domain class'ları
+yalnızca Java ve diğer Domain class'larına bağımlı olabilir. Application class'ları
+yalnızca Java, Domain ve Application class'larına bağımlı olabilir. Presentation,
+Application kullanabilir ancak Domain veya Infrastructure'a ulaşmak için onu bypass
+edemez. Infrastructure, Application/Domain port'larını implement edebilir ancak
+Presentation'a bağımlı olamaz. Inner-layer rule'lar allowlist kullandığından,
+onaylanmamış third-party framework eklemek Spring veya Jakarta olmasa bile
+architecture test'i fail eder.
 
-The focused Java 21 ArchUnit run passed all four rules. These rules protect
-source-code dependency direction; they do not prove runtime behavior, module
-deployment independence, or correctness of domain decisions.
+Focused Java 21 ArchUnit run dört rule'un tamamından geçti. Bu rule'lar source-code
+dependency direction'ı korur; runtime behavior, module deployment independence veya
+domain decision correctness kanıtı değildir.
 
-## API and use-case map
+## API ve use-case haritası
 
-| Method and path | Input port | Allowed roles | Success contract | Relevant failure contract |
+| Method ve path | Input port | İzin verilen roller | Success contract | İlgili failure contract |
 | --- | --- | --- | --- | --- |
-| `POST /api/v1/policies` | `CreatePolicyUseCase` | `INSURANCE_SPECIALIST`, `SYSTEM_ADMIN` | `201 Created` with the policy representation | `400` validation/domain error, `401` unauthenticated, `403` forbidden, `409` duplicate policy number |
-| `POST /api/v1/coverage-evaluations` | `EvaluateCoverageUseCase` | `HOSPITAL_USER`, `INSURANCE_SPECIALIST`, `SYSTEM_ADMIN` | `200 OK` with either an eligible or denied business decision | `400` malformed input, `401` unauthenticated, `403` forbidden |
-| `GET /api/v1/policies/audit-records` | `SearchAuditRecordsUseCase` | `SYSTEM_ADMIN` | `200 OK` with a bounded page of minimized evidence | `400` invalid query, `401` unauthenticated, `403` forbidden |
+| `POST /api/v1/policies` | `CreatePolicyUseCase` | `INSURANCE_SPECIALIST`, `SYSTEM_ADMIN` | Policy representation ile `201 Created` | `400` validation/domain error, `401` unauthenticated, `403` forbidden, `409` duplicate policy number |
+| `POST /api/v1/coverage-evaluations` | `EvaluateCoverageUseCase` | `HOSPITAL_USER`, `INSURANCE_SPECIALIST`, `SYSTEM_ADMIN` | Eligible veya denied business decision içeren `200 OK` | `400` malformed input, `401` unauthenticated, `403` forbidden |
+| `GET /api/v1/policies/audit-records` | `SearchAuditRecordsUseCase` | `SYSTEM_ADMIN` | Minimized evidence için bounded page içeren `200 OK` | `400` invalid query, `401` unauthenticated, `403` forbidden |
 
-Business denials such as `LIMIT_EXCEEDED` intentionally use `200 OK`: the
-request was valid and the domain produced a decision. They are not transport or
-server failures. Controller request records enforce required values, positive
-money, ISO-style three-letter uppercase currency strings, and bounded policy
-and service codes before the application use case is invoked.
+`LIMIT_EXCEEDED` gibi business denial'lar bilinçli olarak `200 OK` kullanır:
+request valid'dir ve domain bir decision üretmiştir. Bunlar transport veya server
+failure değildir. Controller request record'ları application use case çağrılmadan
+önce required value'ları, positive money'yi, ISO-style üç harfli uppercase currency
+string'lerini ve bounded policy/service code'larını enforce eder.
 
-The creation response intentionally omits `Location` because the service does
-not yet expose `GET /api/v1/policies/{id}`. Publishing a non-dereferenceable URI
-would misrepresent the current REST lifecycle. A future secured query use case
-may add both the resource endpoint and its matching `Location` header together.
+Creation response bilinçli olarak `Location` içermez; çünkü servis henüz
+`GET /api/v1/policies/{id}` açmaz. Dereference edilemeyen URI publish etmek mevcut
+REST lifecycle'ı yanlış temsil eder. Gelecekte secured query use case hem resource
+endpoint'i hem matching `Location` header'ı birlikte ekleyebilir.
 
 ## Application orchestration
 
-`PolicyApplicationService` remains framework-free. It checks the application
-role before calling any output port. Policy creation then checks uniqueness,
-constructs and saves the aggregate, appends minimized audit evidence, and only
-then invalidates cached evaluations. Coverage evaluation checks its operations
-role before reading the cache or repository and stores the calculated database
-result only on a cache miss.
+`PolicyApplicationService` framework bağımsız kalır. Her output port çağrısından
+önce application role kontrolü yapar. Policy creation daha sonra uniqueness kontrol
+eder, aggregate'i oluşturup save eder, minimized audit evidence append eder ve ancak
+sonrasında cached evaluation'ları invalidate eder. Coverage evaluation, cache veya
+repository okumadan önce operations role kontrolünü yapar ve yalnızca cache miss'te
+hesaplanan database result'ı store eder.
 
-`TransactionalPolicyUseCases` supplies write and read-only transaction
-boundaries from Infrastructure. Audit insertion therefore participates in the
-same local PostgreSQL transaction as policy creation. If audit persistence
-fails, policy creation rolls back and cache invalidation is not attempted. A
-focused run passed six application tests and five transaction/audit integration
-tests, including unauthorized short-circuiting and this failure ordering.
+`TransactionalPolicyUseCases`, Infrastructure katmanından write ve read-only
+transaction boundary sağlar. Audit insert bu nedenle policy creation ile aynı local
+PostgreSQL transaction'a katılır. Audit persistence fail olursa policy creation
+rollback olur ve cache invalidation denenmez. Focused run altı application testi ve
+beş transaction/audit integration testinden geçti; unauthorized short-circuiting ve
+bu failure ordering dahil.
 
-## Security model and trust boundaries
+## Security modeli ve trust boundary'leri
 
-Spring Security validates the bearer token as an OAuth 2.0 resource server and
-maps Keycloak `realm_access.roles` values to `ROLE_*` authorities. The HTTP
-filter chain requires authentication for every endpoint except health probes.
-Method-level `@PreAuthorize` rules provide endpoint authorization. Custom
-authentication-entry-point and access-denied handlers serialize both `401` and
-`403` as RFC 9457 `application/problem+json`; controller advice continues to
-handle application and validation failures after a request reaches MVC.
+Spring Security bearer token'ı OAuth 2.0 resource server olarak validate eder ve
+Keycloak `realm_access.roles` value'larını `ROLE_*` authority'lerine map eder.
+HTTP filter chain health probe dışındaki her endpoint için authentication gerektirir.
+Method-level `@PreAuthorize` rule'ları endpoint authorization sağlar. Custom
+authentication-entry-point ve access-denied handler'ları hem `401` hem `403`
+response'larını RFC 9457 `application/problem+json` olarak serialize eder;
+controller advice request MVC'ye ulaştıktan sonraki application ve validation
+failure'larını handle etmeye devam eder.
 
-The service configures issuer and JWKS validation but does not repeat the
-`health-insurance-api` audience check performed by APISIX at the external
-boundary. This is acceptable only while direct service exposure is prevented by
-the deployment network boundary. Repeating audience validation in every
-resource server is a valid defense-in-depth improvement if services can be
-reached through any path other than the gateway.
+Servis issuer ve JWKS validation configure eder ancak external boundary'de APISIX
+tarafından yapılan `health-insurance-api` audience check'i tekrar etmez. Bu yalnızca
+direct service exposure deployment network boundary tarafından engellendiği sürece
+kabul edilebilir. Service'lere gateway dışındaki herhangi bir path'ten erişilebiliyorsa
+her resource server'da audience validation tekrar etmek geçerli bir defense-in-depth
+iyileştirmesidir.
 
-Authorization is deliberately repeated in the application layer through
-`ActorContext`. This defense-in-depth prevents an alternative adapter, test
-harness, or future message consumer from bypassing the business capability
-check merely because it does not pass through the REST controller. Audit search
-has the same dual enforcement. The application layer depends on its own role
-enum and contains no Spring Security type.
+Authorization application layer'da `ActorContext` üzerinden bilinçli olarak tekrar
+edilir. Bu defense-in-depth; alternative adapter, test harness veya future message
+consumer'ın REST controller'dan geçmediği için business capability check'i bypass
+etmesini engeller. Audit search aynı dual enforcement'a sahiptir. Application layer
+kendi role enum'una bağımlıdır ve Spring Security type içermez.
 
-The local service-to-service request relays the end-user bearer token. This
-preserves the initiating identity and roles for the portfolio topology, but it
-is not workload identity. Client credentials or token exchange would be a
-separate production-hardening decision.
+Local service-to-service request end-user bearer token'ı relay eder. Bu, portfolio
+topology içinde initiating identity ve role'leri korur ancak workload identity değildir.
+Client credentials veya token exchange ayrı production-hardening kararıdır.
 
-### Configuration and sensitive-data controls
+### Configuration ve sensitive-data control'leri
 
-The datasource password has no empty fallback: `DB_PASSWORD` must be supplied
-at runtime, while Compose also requires its ignored `.env` value. The tracked
-`.env.example` contains placeholders only, and `.env` is Git-ignored. Local
-HTTP defaults for PostgreSQL, Redis, and Keycloak are development conveniences;
-Compose supplies explicit service addresses and credentials.
+Datasource password için empty fallback yoktur: `DB_PASSWORD` runtime'da sağlanmalıdır;
+Compose da ignore edilen `.env` value'sunu gerektirir. Tracked `.env.example`
+yalnızca placeholder içerir ve `.env` Git-ignore edilir. PostgreSQL, Redis ve Keycloak
+için local HTTP default'ları development convenience'dır; Compose explicit service
+address ve credential sağlar.
 
-Actuator exposes only `health` and `info`; unauthenticated health output does
-not reveal component details. Application logging uses ECS structured output
-and does not log request bodies, policy numbers, member identifiers, bearer
-tokens, or credentials. Cache failure logs contain operational exceptions but
-cache keys contain hashes rather than business identifiers.
+Actuator yalnızca `health` ve `info` expose eder; unauthenticated health output
+component detail açıklamaz. Application logging ECS structured output kullanır ve
+request body, policy number, member identifier, bearer token veya credential loglamaz.
+Cache failure log'ları operational exception içerir ancak cache key business identifier
+yerine hash içerir.
 
-`CorrelationIdFilter` accepts only 1–64 safe ASCII characters, replaces unsafe
-input with a generated UUID, returns the selected ID, and removes it from MDC
-in a `finally` block. Focused observability/security tests passed all three
-cases, including unsafe-header rejection, MDC cleanup, and Keycloak role
-conversion.
+`CorrelationIdFilter` yalnızca 1–64 safe ASCII character kabul eder, unsafe input'u
+generated UUID ile değiştirir, seçilen ID'yi return eder ve `finally` block içinde
+MDC'den kaldırır. Focused observability/security testleri unsafe-header rejection,
+MDC cleanup ve Keycloak role conversion dahil üç case'in tamamından geçti.
 
-## Aggregate model
+## Aggregate modeli
 
-`Policy` is the aggregate root. It owns its validity period, lifecycle status,
-member identity, and a unique set of `Coverage` entries indexed by
-`ServiceCode`. `Money` protects non-negative amounts and currency-safe
-arithmetic. A policy cannot be issued without coverage, with reversed validity
-dates, duplicate service codes, a non-positive coverage limit, non-positive
-utilization, or used amounts above a limit. Suspension is a guarded transition:
-only an active policy can be suspended.
+`Policy` aggregate root'tur. Validity period, lifecycle status, member identity ve
+`ServiceCode` ile index'lenmiş unique `Coverage` entry set'inin sahibidir.
+`Money` non-negative amount ve currency-safe arithmetic'i korur. Policy; coverage
+olmadan, ters validity date ile, duplicate service code ile, non-positive coverage
+limit ile, negative utilization ile veya used amount limit'i aşacak şekilde issue
+edilemez. Suspension guarded transition'dır: yalnızca active policy suspend edilebilir.
 
-Evaluation produces a `CoverageDecision` instead of leaking persistence or HTTP
-types into the domain. Stable outcomes include member mismatch, inactive or
-expired policy, uncovered service, currency mismatch, and exceeded limit.
+Evaluation persistence veya HTTP type'larını domain'e sızdırmak yerine
+`CoverageDecision` üretir. Stable outcome'lar member mismatch, inactive/expired
+policy, uncovered service, currency mismatch ve exceeded limit içerir.
 
-## Persistence mapping and consistency
+## Persistence mapping ve consistency
 
-The domain aggregate remains free of JPA annotations. `PolicyJpaEntity` and
-`CoverageJpaEmbeddable` are infrastructure models, while
-`JpaPolicyRepositoryAdapter` translates both directions. This prevents
-Hibernate proxies, collection semantics, and column concerns from leaking into
-the domain model.
+Domain aggregate JPA annotation içermez. `PolicyJpaEntity` ve
+`CoverageJpaEmbeddable` infrastructure model'leridir; `JpaPolicyRepositoryAdapter`
+iki yönlü translation yapar. Böylece Hibernate proxy, collection semantics ve column
+concern'leri domain model'e sızmaz.
 
-| Persistence concern | Current implementation | Verified boundary |
+| Persistence concern | Mevcut implementation | Doğrulanan boundary |
 | --- | --- | --- |
-| Aggregate identity | UUID primary key on `policies` | JPA/PostgreSQL round-trip |
-| Case-insensitive policy identity | `lower(policy_number)` unique index plus ignore-case repository methods | Index existence and lowercase lookup |
-| Coverage ownership | `policy_coverages.policy_id` foreign key and JPA `@ElementCollection` | Aggregate reload includes owned coverage |
+| Aggregate identity | `policies` üzerinde UUID primary key | JPA/PostgreSQL round-trip |
+| Case-insensitive policy identity | `lower(policy_number)` unique index ve ignore-case repository method'ları | Index existence ve lowercase lookup |
+| Coverage ownership | `policy_coverages.policy_id` foreign key ve JPA `@ElementCollection` | Aggregate reload owned coverage'ı içerir |
 | Duplicate service coverage | Unique `(policy_id, service_code)` constraint | Index/constraint existence |
-| Concurrency token | Aggregate `version` mapped to JPA `@Version` and the non-null database column | Two stale aggregate copies; the second update is rejected |
-| Policy invariants | Validity ordering, status allowlist, and non-negative version checks | Constraint existence and invalid-date rejection |
-| Financial invariants | Positive limit, `0 <= used <= limit`, and uppercase three-letter currency checks | Constraint existence and zero-limit rejection |
-| Member/date access path | `(member_id, valid_from, valid_until)` index | Index existence; no current repository query consumes it |
+| Concurrency token | Aggregate `version`, JPA `@Version` ve non-null database column'a map edilir | İki stale aggregate copy; ikinci update reddedilir |
+| Policy invariant'ları | Validity ordering, status allowlist ve non-negative version check'leri | Constraint existence ve invalid-date rejection |
+| Financial invariant'lar | Positive limit, `0 <= used <= limit` ve uppercase three-letter currency check'leri | Constraint existence ve zero-limit rejection |
+| Member/date access path | `(member_id, valid_from, valid_until)` index | Index existence; mevcut repository query kullanmıyor |
 
-Coverage is loaded eagerly because evaluation loads one policy and immediately
-needs all of its usually small coverage definitions. This avoids a lazy-loading
-dependency outside the adapter. It must be reconsidered if a paginated policy
-listing is added, because joining an eager collection across many policies can
-increase row volume or create additional selects.
+Coverage eager load edilir; çünkü evaluation tek policy yükler ve hemen küçük olan
+coverage definition'larının tamamına ihtiyaç duyar. Bu adapter dışında lazy-loading
+dependency'yi engeller. Paginated policy listing eklenirse yeniden değerlendirilmelidir;
+çünkü birçok policy üzerinde eager collection join row volume'u artırabilir veya ek
+select oluşturabilir.
 
-`saveAndFlush` makes uniqueness violations observable inside the adapter. The
-application performs a friendly pre-check, while the database unique index is
-the final protection against concurrent duplicate policy numbers. The adapter
-translates the resulting integrity violation into the application-level policy
-number conflict.
+`saveAndFlush`, uniqueness violation'ın adapter içinde observable olmasını sağlar.
+Application friendly pre-check yapar; database unique index concurrent duplicate policy
+number'a karşı final protection'dır. Adapter çıkan integrity violation'ı
+application-level policy number conflict'e translate eder.
 
-The repository adapter carries the aggregate version in both mapping
-directions. It merges the caller's detached version instead of first loading the
-latest entity and silently overwriting it. PostgreSQL/Hibernate therefore
-rejects a stale update through optimistic locking. The current public API has
-no mutation command, so this protects the repository boundary and future
-commands rather than claiming an exposed concurrent workflow.
+Repository adapter aggregate version'ı iki mapping yönünde de taşır. Caller'ın detached
+version'ını latest entity'yi önce yükleyip sessizce overwrite etmek yerine merge eder.
+Böylece PostgreSQL/Hibernate stale update'i optimistic locking ile reddeder. Mevcut
+public API mutation command içermediğinden bu, exposed concurrent workflow iddiası
+değil repository boundary ve future command korumasıdır.
 
-Changeset `004-add-policy-invariant-constraints` repeats critical aggregate
-rules at the PostgreSQL boundary. Domain validation remains the first line of
-defense and provides clearer errors; database checks protect direct SQL,
-maintenance scripts, and future writers. The currency constraint validates the
-stored three-letter uppercase shape, while Java `Currency` performs the
-stronger supported-code validation.
+Changeset `004-add-policy-invariant-constraints` kritik aggregate rule'larını PostgreSQL
+boundary'de tekrarlar. Domain validation first line of defense olarak kalır ve daha
+anlaşılır error sağlar; database check'leri direct SQL, maintenance script ve future
+writer'ları korur. Currency constraint stored üç harfli uppercase shape'i doğrular;
+Java `Currency` daha güçlü supported-code validation yapar.
 
-## Pre-authorization validation
+## Ön provizyon doğrulaması
 
 ```mermaid
 sequenceDiagram
@@ -227,125 +222,113 @@ sequenceDiagram
     end
 ```
 
-The evaluation is deliberately query-like and does not consume or reserve a
-limit. The aggregate contains a guarded utilization transition, but no
-application command currently persists or coordinates benefit reservations.
-That capability remains outside the current portfolio scope: a safe design
-would require idempotent reservation and release commands, optimistic
-concurrency, and explicit compensation or process coordination.
+Evaluation bilinçli olarak query-like'dır ve limit consume veya reserve etmez.
+Aggregate guarded utilization transition içerir ancak hiçbir application command şu
+anda benefit reservation persist veya coordinate etmez. Bu capability mevcut portfolio
+scope dışında kalır: güvenli design idempotent reservation/release command'ları,
+optimistic concurrency ve explicit compensation veya process coordination gerektirir.
 
-Redis is an acceleration adapter, not policy storage. It hashes the full lookup
-identity, tracks keys per policy for invalidation, and fails open on every cache
-operation. PostgreSQL remains authoritative and its failure is never converted
-into an assumed eligible response.
+Redis acceleration adapter'dır; policy storage değildir. Full lookup identity'yi hash'ler,
+invalidation için policy başına key track eder ve her cache operation'da fail-open davranır.
+PostgreSQL authoritative kalır ve failure hiçbir zaman assumed eligible response'a
+çevrilmez.
 
-The focused cache-adapter run passed four tests: hashed-key read/write, read
-failure as a cache miss, non-fatal write failure, and non-fatal invalidation
-failure. A live outage exercise then stopped only Redis and repeated the
-synthetic MRI evaluation. Policy Service returned `200 ELIGIBLE` from the
-authoritative PostgreSQL path and Redis was restarted immediately. This proves
-availability behavior for this local scenario; it is not a load or timeout
-budget measurement.
+Focused cache-adapter run dört testten geçti: hashed-key read/write, cache miss olarak
+read failure, non-fatal write failure ve non-fatal invalidation failure. Live outage
+exercise yalnızca Redis'i durdurup synthetic MRI evaluation'ı tekrar etti. Policy Service
+authoritative PostgreSQL path üzerinden `200 ELIGIBLE` döndürdü ve Redis hemen yeniden
+başlatıldı. Bu local scenario için availability behavior kanıtıdır; load veya timeout
+budget measurement değildir.
 
-Because the decision key includes member, service, amount, currency, and date,
-arbitrary request variation can create high key cardinality during the 30-second
-window. The TTL bounds retention but does not by itself prove memory safety under
-load. A production review should measure hit ratio and key creation rate, set an
-explicit Redis memory/eviction policy, and compare decision caching with a
-policy-snapshot cache before changing the current portfolio design.
+Decision key member, service, amount, currency ve date içerdiğinden arbitrary request
+variation 30-second window içinde high key cardinality oluşturabilir. TTL retention'ı
+sınırlar ancak load altında memory safety'yi tek başına kanıtlamaz. Production review
+hit ratio ve key creation rate ölçmeli, explicit Redis memory/eviction policy belirlemeli
+ve current portfolio design değiştirilmeden önce decision caching ile policy-snapshot
+cache karşılaştırılmalıdır.
 
-## Verification evidence and current gaps
+## Verification evidence ve mevcut gap'ler
 
-The latest complete Policy Service run on 2026-09-14 passed all 49 tests. The
-suite covers domain decisions, application authorization, Spring bean wiring,
-JPA and all four Liquibase changesets against PostgreSQL Testcontainers, Redis
-cache behavior against a Redis Testcontainer, transactional audit rollback,
-optimistic concurrency, controller/security contracts, correlation-ID hygiene,
-and ArchUnit dependency rules.
+En güncel complete Policy Service run 2026-09-14 tarihinde 49 testin tamamından geçti.
+Suite domain decision'ları, application authorization, Spring bean wiring, PostgreSQL
+Testcontainers üzerinde JPA ve dört Liquibase changeset, Redis Testcontainer üzerinde
+Redis cache behavior, transactional audit rollback, optimistic concurrency,
+controller/security contract'ları, correlation-ID hygiene ve ArchUnit dependency
+rule'larını kapsar.
 
-A focused persistence run passed all five
-`JpaPolicyRepositoryIntegrationTest` methods against a fresh PostgreSQL 17
-Testcontainer. It applied all Liquibase changesets, reloaded the aggregate with
-its coverage and remaining amount, asserted indexes and invariant constraints,
-proved rejection of a stale aggregate update, and rejected invalid date and
-zero-limit SQL writes.
+Focused persistence run fresh PostgreSQL 17 Testcontainer üzerinde
+`JpaPolicyRepositoryIntegrationTest` içindeki beş method'un tamamından geçti.
+Tüm Liquibase changeset'lerini uyguladı, aggregate'i coverage ve remaining amount ile
+reload etti, index ve invariant constraint'lerini doğruladı, stale aggregate update'in
+reddedildiğini ve invalid date ile zero-limit SQL write'ların reddedildiğini kanıtladı.
 
-The focused domain run passed all nine `PolicyTest` cases, including validity,
-coverage uniqueness, positive limits/utilization, eligibility and denial
-decisions, and the guarded suspension transition.
+Focused domain run tüm dokuz `PolicyTest` case'inden geçti; validity, coverage uniqueness,
+positive limit/utilization, eligibility ve denial decision'ları ile guarded suspension
+transition dahil.
 
-The audit-integrity review then added changeset
-`003-harden-audit-change-shape`. A focused run of
-`PolicyAuditTransactionIntegrationTest` and
-`JpaPolicyRepositoryIntegrationTest` passed all seven tests against two fresh
-PostgreSQL 17 containers. It proves that incomplete audit change objects are
-rejected in addition to the existing commit, rollback, append-only, query,
-migration, round-trip, and index checks.
+Audit-integrity review daha sonra changeset `003-harden-audit-change-shape` ekledi.
+Focused `PolicyAuditTransactionIntegrationTest` ve `JpaPolicyRepositoryIntegrationTest`
+run iki fresh PostgreSQL 17 container üzerinde yedi testin tamamından geçti. Existing
+commit, rollback, append-only, query, migration, round-trip ve index check'lerine ek
+olarak incomplete audit change object'lerin reddedildiğini kanıtlar.
 
-The focused MVC evidence currently verifies:
+Focused MVC evidence şu anda şunları doğrular:
 
-- policy creation by an insurance specialist;
-- rejection of an unauthenticated policy creation request with an RFC 9457
-  `401` response;
-- denial of policy creation to a hospital user with an RFC 9457 `403` response
-  without invoking the use case;
-- RFC 9457 validation output without invoking the use case;
-- duplicate policy-number mapping to RFC 9457 `409 Conflict`;
-- a coverage denial represented as a valid `200 OK` business response;
-- audit access restricted to a system administrator; and
-- audit response minimization of policy, member, and coverage data; and
-- conversion of Keycloak `realm_access.roles` to Spring `ROLE_*` authorities.
+- insurance specialist tarafından policy creation;
+- unauthenticated policy creation request'in RFC 9457 `401` ile reddedilmesi;
+- hospital user için policy creation'ın use case çağrılmadan RFC 9457 `403` ile reddi;
+- use case çağrılmadan RFC 9457 validation output;
+- duplicate policy-number'ın RFC 9457 `409 Conflict` olarak map edilmesi;
+- coverage denial'ın valid `200 OK` business response olarak temsil edilmesi;
+- audit access'in yalnızca system administrator ile sınırlandırılması;
+- audit response'un policy, member ve coverage data açısından minimize edilmesi; ve
+- Keycloak `realm_access.roles` değerlerinin Spring `ROLE_*` authority'lerine dönüşümü.
 
-The MVC tests still inject authenticated authorities directly, while role-claim
-conversion is tested separately as a unit. They therefore do not constitute a
-cryptographic end-to-end JWT test.
+MVC testleri authenticated authority'leri hâlâ doğrudan inject eder; role-claim conversion
+ayrı unit test olarak test edilir. Bu nedenle cryptographic end-to-end JWT test
+oluşturmazlar.
 
-### Local runtime evidence (2026-09-14)
+### Lokal runtime evidence (2026-09-14)
 
-An isolated local exercise started the existing PostgreSQL 17, Redis, and
-Keycloak containers and ran Policy Service on Java 21.0.8. It verified:
+Isolated local exercise mevcut PostgreSQL 17, Redis ve Keycloak container'larını
+başlattı ve Policy Service'i Java 21.0.8 üzerinde çalıştırdı. Şunları doğruladı:
 
-- OIDC discovery from the imported `health-insurance` realm;
-- `UP` application health and `401 Unauthorized` without a token;
-- a real Keycloak-signed token carrying `INSURANCE_SPECIALIST`;
-- `201 Created` for an active policy with MRI coverage;
-- `ELIGIBLE` for a request inside the limit and `LIMIT_EXCEEDED` above it;
-- `MEMBER_MISMATCH`, `SERVICE_NOT_COVERED`, `CURRENCY_MISMATCH`, and
-  `POLICY_EXPIRED` for their corresponding negative inputs;
-- RFC 9457 validation evidence with `400 Bad Request` and bounded field names;
-- the policy and coverage row in PostgreSQL with `used_amount = 0`;
-- a transactionally stored `POLICY_ISSUED` audit row with the supplied
-  correlation ID;
-- all Policy Liquibase changesets recorded in `databasechangelog`; and
-- all six policy/coverage invariant constraints installed by changeset `004`;
-- the audit JSON allowlist constraint and append-only trigger installed in
-  PostgreSQL; and
-- a hashed Redis evaluation value plus policy-key set, both with a 30-second
-  TTL.
+- import edilmiş `health-insurance` realm'den OIDC discovery;
+- `UP` application health ve token olmadan `401 Unauthorized`;
+- `INSURANCE_SPECIALIST` taşıyan gerçek Keycloak-signed token;
+- MRI coverage içeren active policy için `201 Created`;
+- limit içindeki request için `ELIGIBLE`, üzerindeki için `LIMIT_EXCEEDED`;
+- ilgili negative input'lar için `MEMBER_MISMATCH`, `SERVICE_NOT_COVERED`,
+  `CURRENCY_MISMATCH` ve `POLICY_EXPIRED`;
+- `400 Bad Request` ve bounded field name'lerle RFC 9457 validation evidence;
+- PostgreSQL'de `used_amount = 0` olan policy ve coverage row;
+- supplied correlation ID ile transactionally stored `POLICY_ISSUED` audit row;
+- tüm Policy Liquibase changeset'lerinin `databasechangelog` içinde bulunması;
+- changeset `004` ile kurulan altı policy/coverage invariant constraint'in tamamı;
+- PostgreSQL'de audit JSON allowlist constraint ve append-only trigger; ve
+- 30-second TTL'li hashed Redis evaluation value ve policy-key set.
 
-The unchanged `used_amount` confirms that evaluation is read-only; it must not
-be presented as benefit reservation. This isolated exercise did not pass
-through APISIX or Authorization Service, so gateway audience rejection and
-end-user token relay remain separate integration checks rather than verified
-Policy-only evidence.
+Değişmeyen `used_amount`, evaluation'ın read-only olduğunu doğrular; benefit reservation
+olarak sunulmamalıdır. Bu isolated exercise APISIX veya Authorization Service üzerinden
+geçmedi; dolayısıyla gateway audience rejection ve end-user token relay ayrı integration
+check olarak kalır, Policy-only evidence değildir.
 
 ## Transactional policy audit
 
-Issuing a policy appends `POLICY_ISSUED` evidence in the same local transaction
-as the aggregate. The typed record contains actor subject/roles, correlation ID,
-controlled reason/status values, and retention class; it cannot carry member ID,
-policy number, coverage/service codes, limits, or other business snapshots. A
-Liquibase migrations install JSON-shape checks and a statement-level trigger
-rejecting update, delete, and truncate. The hardened shape requires both
-`fromStatus` and `toStatus`, rejects additional keys, permits only a JSON string
-or JSON null for `fromStatus`, and requires a JSON string for `toStatus`. Audit
-failure rolls back policy issuance.
+Policy issue etmek, aggregate ile aynı local transaction içinde `POLICY_ISSUED`
+evidence append eder. Typed record actor subject/roles, correlation ID, controlled
+reason/status value ve retention class içerir; member ID, policy number, coverage/service
+code, limit veya başka business snapshot taşıyamaz. Liquibase migration'ları JSON-shape
+check ve update/delete/truncate reddeden statement-level trigger kurar. Hardened shape
+hem `fromStatus` hem `toStatus` gerektirir, extra key'leri reddeder, `fromStatus`
+için yalnızca JSON string veya JSON null, `toStatus` için JSON string kabul eder.
+Audit failure policy issuance'ı rollback eder.
 
-`GET /api/v1/policies/audit-records` is independently protected in the controller
-and application use case with `SYSTEM_ADMIN`. It accepts an optional aggregate
-UUID, the service-local action allowlist, and bounded pagination up to 100 rows.
-The JDBC query uses `occurred_at DESC, audit_id DESC`. It does not expose Policy
-tables or provide a database join to another service.
+`GET /api/v1/policies/audit-records`, controller ve application use case içinde
+bağımsız olarak `SYSTEM_ADMIN` ile korunur. Optional aggregate UUID, service-local
+action allowlist ve 100 row'a kadar bounded pagination kabul eder. JDBC query
+`occurred_at DESC, audit_id DESC` kullanır. Policy table expose etmez ve başka service
+ile database join sağlamaz.
 
 ```mermaid
 sequenceDiagram
