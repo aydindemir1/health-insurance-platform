@@ -1,41 +1,41 @@
-# ADR-002: Derive provider ownership from authenticated identity
+# ADR-002: Provider sahipliğinin authenticated identity üzerinden türetilmesi
 
-- Status: Accepted
-- Date: 2026-09-03
+- Durum: Kabul edildi
+- Tarih: 2026-09-03
 
-## Context
+## Bağlam
 
-A hospital user submits and reads pre-authorization requests on behalf of a
-healthcare provider. Accepting `providerId` from the HTTP request body would let
-an authenticated hospital user impersonate another provider. Role checks alone
-do not provide record-level authorization.
+Bir hastane kullanıcısı bir healthcare provider adına ön provizyon talepleri
+gönderir ve okur. HTTP request body içinden `providerId` kabul etmek,
+authenticated bir hastane kullanıcısının başka bir provider'ı taklit etmesine
+izin verebilir. Yalnızca role check yapılması record-level authorization sağlamaz.
 
-The initial product model assigns each hospital user to one provider. A future
-version may allow a user to represent multiple providers.
+İlk product modelinde her hastane kullanıcısı tek bir provider'a atanır. Gelecek
+bir sürüm kullanıcının birden fazla provider'ı temsil etmesine izin verebilir.
 
-## Decision
+## Karar
 
-Keycloak stores a UUID-valued `providerId` user attribute and maps it to the
-`provider_id` access-token claim. The presentation boundary converts verified
-JWT claims and authorities into an application `ActorContext`.
+Keycloak UUID değerli `providerId` user attribute'unu saklar ve bunu
+`provider_id` access-token claim'ine map eder. Presentation boundary,
+doğrulanmış JWT claim'lerini ve authority'leri application `ActorContext`
+modeline dönüştürür.
 
-The submit use case derives ownership exclusively from this actor context. The
-request body does not contain `providerId`. The application layer independently
-enforces these policies in addition to endpoint role checks:
+Submit use case sahipliği yalnızca bu actor context'ten türetir. Request body
+`providerId` içermez. Application layer, endpoint role check'lerine ek olarak
+şu policy'leri bağımsız biçimde uygular:
 
-- `HOSPITAL_USER` can submit for its own provider.
-- `HOSPITAL_USER` can only read its provider's requests.
-- `INSURANCE_SPECIALIST` can read all providers' requests and make decisions.
-- `SYSTEM_ADMIN` can read requests but cannot make a medical or insurance decision.
+- `HOSPITAL_USER` yalnızca kendi provider'ı adına submit yapabilir.
+- `HOSPITAL_USER` yalnızca kendi provider'ına ait talepleri okuyabilir.
+- `INSURANCE_SPECIALIST` tüm provider'ların taleplerini okuyabilir ve karar verebilir.
+- `SYSTEM_ADMIN` talepleri okuyabilir ancak tıbbi veya sigorta kararı veremez.
 
-## Consequences
+## Sonuçlar
 
-- A caller cannot choose another provider by changing JSON input.
-- Authorization remains enforced when a use case is called outside an HTTP
-  controller.
-- Tokens for hospital users must contain a valid `provider_id` UUID.
-- Moving a user between providers requires identity data to be updated and a
-  new token to be issued.
-- Supporting multiple providers later requires replacing the single claim with
-  a membership lookup or an allowed-provider collection. That additional model
-  is deferred until a real workflow requires it.
+- Caller JSON input'u değiştirerek başka bir provider seçemez.
+- Bir use case HTTP controller dışında çağrılsa da authorization uygulanmaya devam eder.
+- Hastane kullanıcılarının token'larında geçerli bir `provider_id` UUID bulunmalıdır.
+- Bir kullanıcı başka provider'a taşındığında identity verisi güncellenmeli ve
+  yeni token üretilmelidir.
+- İleride birden fazla provider desteği, tek claim yerine membership lookup veya
+  allowed-provider collection gerektirir. Bu ek model gerçek bir workflow
+  ihtiyaç duyana kadar ertelenmiştir.
