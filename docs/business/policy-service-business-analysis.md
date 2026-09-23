@@ -1,36 +1,31 @@
-# Policy Service business analysis
+# Policy Service iş analizi
 
-This document describes the Policy Service as implemented. It separates
-business rules from transport and infrastructure behavior and does not present
-planned capabilities as available features.
+Bu doküman Policy Service'in uygulanmış halini açıklar. Business rule'ları transport ve infrastructure behavior'dan ayırır ve planned capability'leri mevcut feature gibi sunmaz.
 
-## Business purpose and ownership
+## Business amacı ve sahiplik
 
-The service is the source of truth for policy identity, the insured member
-reference, validity, lifecycle status, service coverage, financial limits, and
-used amounts. Authorization Service asks it whether a pre-authorization request
-is covered; it must not copy these rules or read the Policy database.
+Servis policy identity, insured member reference, validity, lifecycle status, service coverage, financial limit ve used amount için source of truth'tur. Authorization Service bir pre-authorization request'in covered olup olmadığını sorar; bu rule'ları kopyalayamaz veya Policy database'ini okuyamaz.
 
-| Actor | Implemented capability | Business boundary |
+| Aktör | Uygulanan capability | Business boundary |
 | --- | --- | --- |
-| `INSURANCE_SPECIALIST` | Issue policies and evaluate coverage | Cannot query the administrative audit journal |
-| `HOSPITAL_USER` | Evaluate coverage while submitting care requests | Cannot issue policies or inspect policy audit evidence |
-| `SYSTEM_ADMIN` | Issue policies, evaluate coverage, and query audit evidence | Administrative access remains bounded and audited |
-| Authorization Service | Calls coverage evaluation with the initiating user's token | Receives a decision, never direct database access |
+| `INSURANCE_SPECIALIST` | Policy issue eder ve coverage evaluate eder | Administrative audit journal'ı sorgulayamaz |
+| `HOSPITAL_USER` | Care request gönderirken coverage evaluate eder | Policy issue edemez veya policy audit evidence inceleyemez |
+| `SYSTEM_ADMIN` | Policy issue eder, coverage evaluate eder ve audit evidence sorgular | Administrative access bounded ve audited kalır |
+| Authorization Service | Initiating user token ile coverage evaluation çağırır | Decision alır, doğrudan database access almaz |
 
 ## Ubiquitous language
 
-| Term | Meaning in this bounded context |
+| Terim | Bu bounded context içindeki anlamı |
 | --- | --- |
-| Policy | Aggregate that binds one member, a validity period, status, and one or more coverages |
-| Coverage | Benefit definition for one unique healthcare service code |
-| Limit | Maximum monetary amount defined for a coverage |
-| Used amount | Persisted utilization already attributed to that coverage |
-| Remaining amount | `limit - used`; informative result, not a reservation |
-| Coverage evaluation | Read-only decision for member, service, date, amount, and currency |
-| Business denial | Valid request whose result is not eligible; returned as a decision rather than a server error |
+| Policy | Tek member, validity period, status ve bir veya daha fazla coverage'ı bağlayan aggregate |
+| Coverage | Tek unique healthcare service code için benefit definition |
+| Limit | Coverage için tanımlanan maximum monetary amount |
+| Used amount | Coverage'a daha önce attributed edilmiş persisted utilization |
+| Remaining amount | `limit - used`; informative result, reservation değildir |
+| Coverage evaluation | Member, service, date, amount ve currency için read-only decision |
+| Business denial | Sonucu eligible olmayan valid request; server error yerine decision olarak döner |
 
-## Implemented policy lifecycle
+## Uygulanan policy lifecycle
 
 ```mermaid
 stateDiagram-v2
@@ -48,25 +43,22 @@ stateDiagram-v2
     end note
 ```
 
-Issuance always creates an `ACTIVE` policy. A policy must have a non-blank
-number, one member, an end date not before its start date, and at least one
-coverage. Service codes must be unique inside the aggregate.
+Issuance her zaman `ACTIVE` policy oluşturur. Policy non-blank number, tek member, start date'ten önce olmayan end date ve en az bir coverage içermelidir. Service code'lar aggregate içinde unique olmalıdır.
 
 ## Coverage decision sequence
 
-The first matching rule wins. This ordering prevents coverage details from
-being exposed when the policy belongs to another member.
+İlk eşleşen rule kazanır. Bu ordering, policy başka member'a ait olduğunda coverage detail'lerinin expose edilmesini engeller.
 
-| Priority | Condition | Decision code | Remaining amount disclosed |
+| Priority | Condition | Decision code | Remaining amount açıklanır mı? |
 | ---: | --- | --- | --- |
-| 1 | Requested member differs from policy member | `MEMBER_MISMATCH` | No |
-| 2 | Status is not `ACTIVE` | `POLICY_INACTIVE` | No |
-| 3 | Service date is before `validFrom` | `POLICY_NOT_YET_EFFECTIVE` | No |
-| 4 | Service date is after `validUntil` | `POLICY_EXPIRED` | No |
-| 5 | No coverage exists for the service code | `SERVICE_NOT_COVERED` | No |
-| 6 | Requested currency differs from coverage currency | `CURRENCY_MISMATCH` | Yes |
-| 7 | Requested amount exceeds remaining amount | `LIMIT_EXCEEDED` | Yes |
-| 8 | All checks pass | `ELIGIBLE` | Yes |
+| 1 | Requested member policy member'dan farklı | `MEMBER_MISMATCH` | Hayır |
+| 2 | Status `ACTIVE` değil | `POLICY_INACTIVE` | Hayır |
+| 3 | Service date `validFrom` öncesinde | `POLICY_NOT_YET_EFFECTIVE` | Hayır |
+| 4 | Service date `validUntil` sonrasında | `POLICY_EXPIRED` | Hayır |
+| 5 | Service code için coverage yok | `SERVICE_NOT_COVERED` | Hayır |
+| 6 | Requested currency coverage currency'den farklı | `CURRENCY_MISMATCH` | Evet |
+| 7 | Requested amount remaining amount'u aşıyor | `LIMIT_EXCEEDED` | Evet |
+| 8 | Tüm kontroller geçiyor | `ELIGIBLE` | Evet |
 
 ```mermaid
 flowchart TD
@@ -86,58 +78,39 @@ flowchart TD
     G -- Yes --> H[ELIGIBLE]
 ```
 
-The requested amount must be positive. Coverage limits must be positive;
-utilization cannot be negative, exceed the limit, or use a different currency.
-These invariants are enforced by the domain and repeated with PostgreSQL
-constraints for defense in depth.
+Requested amount positive olmalıdır. Coverage limit positive olmalıdır; utilization negative olamaz, limit'i aşamaz veya farklı currency kullanamaz. Bu invariant'lar domain tarafından uygulanır ve defense in depth için PostgreSQL constraint'leriyle tekrarlanır.
 
-## Workflow contracts
+## Workflow contract'ları
 
-### Issue a policy
+### Policy issue etmek
 
-Preconditions: the caller has an insurer role, the request is valid, and the
-policy number is unique case-insensitively. The application constructs the
-aggregate, persists it, and appends minimized `POLICY_ISSUED` audit evidence in
-one local transaction. It then invalidates related cache entries. The response
-is `201 Created`; it deliberately has no `Location` until a resource query
-endpoint exists.
+Precondition: caller insurer role'üne sahiptir, request valid'dir ve policy number case-insensitive biçimde unique'tir. Application aggregate'i oluşturur, persist eder ve minimized `POLICY_ISSUED` audit evidence'ı aynı local transaction içinde append eder. Ardından ilgili cache entry'lerini invalidate eder. Response `201 Created`'dır; resource query endpoint bulunana kadar bilinçli olarak `Location` içermez.
 
-### Evaluate coverage for pre-authorization
+### Pre-authorization için coverage evaluate etmek
 
-The caller supplies policy number, member ID, service code, service date,
-amount, and currency. A cached immutable decision may be used; otherwise
-PostgreSQL supplies the policy and the aggregate applies the decision table.
-Redis failure is fail-open to PostgreSQL. A denial is a successful `200 OK`
-Policy response. Authorization Service translates that denial to its own
-pre-authorization contract and persists nothing when the request is ineligible.
+Caller policy number, member ID, service code, service date, amount ve currency sağlar. Cached immutable decision kullanılabilir; aksi halde PostgreSQL policy'yi sağlar ve aggregate decision table'ı uygular. Redis failure PostgreSQL'e fail-open davranır. Denial valid `200 OK` Policy response'dur. Authorization Service bu denial'ı kendi pre-authorization contract'ına translate eder ve request ineligible ise hiçbir şey persist etmez.
 
-Evaluation has no financial side effect: it neither reserves nor consumes the
-remaining amount. Safe benefit consumption would require idempotent reservation
-and release commands, concurrency control, and compensation semantics.
+Evaluation financial side effect içermez: remaining amount'u ne reserve eder ne consume eder. Güvenli benefit consumption; idempotent reservation/release command'ları, concurrency control ve compensation semantics gerektirir.
 
-## Acceptance scenarios and evidence
+## Acceptance scenario'ları ve evidence
 
-The focused `PolicyTest` suite covers all eight decision outcomes plus aggregate
-construction, financial invariants, duplicate service coverage, and suspension.
-The broader service suite and local runtime evidence are recorded in
-[Policy Service architecture](../architecture/policy-service.md) and
-[local verification](../development/policy-service-local-verification.md).
+Focused `PolicyTest` suite sekiz decision outcome'un tamamını; ayrıca aggregate construction, financial invariant, duplicate service coverage ve suspension davranışını kapsar. Daha geniş service suite ve local runtime evidence [Policy Service architecture](../architecture/policy-service.md) ve [local verification](../development/policy-service-local-verification.md) içinde kaydedilmiştir.
 
-Key business examples use synthetic identifiers only:
+Temel business örnekleri yalnızca sentetik identifier kullanır:
 
 - active policy + matching member/service/currency/date + affordable amount -> `ELIGIBLE`;
-- service date before the policy start -> `POLICY_NOT_YET_EFFECTIVE`;
-- expired, uncovered, mismatched-member, or mismatched-currency requests -> stable denial codes;
-- amount above the remaining limit -> `LIMIT_EXCEEDED` without changing `used`;
-- a suspended policy -> `POLICY_INACTIVE`.
+- service date policy start öncesinde -> `POLICY_NOT_YET_EFFECTIVE`;
+- expired, uncovered, mismatched-member veya mismatched-currency request -> stable denial code;
+- remaining limit üzerindeki amount -> `LIMIT_EXCEEDED`, `used` değişmez;
+- suspended policy -> `POLICY_INACTIVE`.
 
-## Explicit gaps and future decisions
+## Açık gap'ler ve gelecek kararları
 
-- There is no public policy detail/list query, suspension command, or cancellation command.
-- Member master data is referenced by UUID but owned outside this service; issuance does not currently verify that the member exists.
-- Evaluation is not benefit reservation, so concurrent eligible decisions can observe the same remaining amount.
-- Authorization relays the end-user token; production workload identity or token exchange is not implemented.
-- The member-mismatch result minimizes disclosure, but returning remaining amount for currency and limit denials is an explicit API exposure that should be reviewed against insurer/hospital privacy policy.
-- Audit is service-local; cross-service timelines are composed by API, not database joins.
+- Public policy detail/list query, suspension command veya cancellation command yoktur.
+- Member master data UUID ile referans edilir ancak bu servisin dışında sahiplenilir; issuance şu anda member'ın varlığını doğrulamaz.
+- Evaluation benefit reservation değildir; concurrent eligible decision'lar aynı remaining amount'u görebilir.
+- Authorization end-user token relay eder; production workload identity veya token exchange uygulanmamıştır.
+- Member-mismatch result disclosure'ı minimize eder; ancak currency ve limit denial'larında remaining amount döndürmek explicit API exposure'dır ve insurer/hospital privacy policy açısından review edilmelidir.
+- Audit service-local'dır; cross-service timeline database join değil API ile compose edilir.
 
-These are known scope boundaries, not hidden claims of completed functionality.
+Bunlar bilinen scope boundary'leridir; tamamlanmış functionality için gizli iddia değildir.
