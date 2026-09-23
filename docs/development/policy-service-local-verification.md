@@ -1,13 +1,10 @@
-# Policy Service local learning and verification
+# Policy Service lokal öğrenme ve doğrulama
 
-This runbook isolates Policy Service so its architecture can be learned without
-starting Kafka, RabbitMQ, Elasticsearch, APISIX, or unrelated applications. It
-uses only synthetic data and keeps credentials and bearer tokens outside the
-repository.
+Bu runbook Policy Service'i izole eder; böylece Kafka, RabbitMQ, Elasticsearch, APISIX veya ilgisiz application'ları başlatmadan mimarisi öğrenilebilir. Yalnızca sentetik data kullanır ve credential ile bearer token'ları repository dışında tutar.
 
-## What this exercise proves
+## Bu çalışma neyi kanıtlar?
 
-The exercise follows one request through the complete Policy boundary:
+Çalışma tek bir request'i Policy boundary'nin tamamından geçirir:
 
 ```text
 Keycloak JWT
@@ -20,32 +17,27 @@ Keycloak JWT
   -> Redis cache-aside adapter
 ```
 
-It proves policy issuance and read-only coverage evaluation. It does not prove
-benefit reservation, APISIX audience enforcement, Authorization-to-Policy token
-relay, Kafka delivery, or a production identity topology.
+Policy issuance ve read-only coverage evaluation'ı kanıtlar. Benefit reservation, APISIX audience enforcement, Authorization-to-Policy token relay, Kafka delivery veya production identity topology kanıtlamaz.
 
-## 1. Start only the required dependencies
+## 1. Yalnızca gerekli dependency'leri başlatın
 
-Create an ignored `.env` from `.env.example` and replace every placeholder.
-Never copy its values into commands, screenshots, commits, or documentation.
+`.env.example` dosyasından ignore edilen `.env` oluşturun ve tüm placeholder'ları değiştirin. Value'ları command, screenshot, commit veya documentation içine kopyalamayın.
 
 ```powershell
 docker compose up -d policy-db redis keycloak
 docker compose ps policy-db redis keycloak
 ```
 
-Expected state: PostgreSQL and Redis become `healthy`; Keycloak remains `Up`.
-OIDC discovery must return the imported realm:
+Beklenen durum: PostgreSQL ve Redis `healthy`, Keycloak `Up` olur. OIDC discovery imported realm'i döndürmelidir:
 
 ```powershell
 curl.exe -fsS `
   http://localhost:8080/realms/health-insurance/.well-known/openid-configuration
 ```
 
-## 2. Run Policy Service from source
+## 2. Policy Service'i source'tan çalıştırın
 
-Load the ignored local settings into the current shell without printing them,
-then map the service-specific database variables:
+Ignore edilen local setting'leri yazdırmadan mevcut shell'e yükleyin ve service-specific database variable'larını map edin:
 
 ```powershell
 Get-Content ..\..\.env | ForEach-Object {
@@ -62,11 +54,9 @@ $env:REDIS_PORT = '6379'
 .\mvnw.cmd --batch-mode --no-transfer-progress spring-boot:run
 ```
 
-Run this from `services/policy-service`. Expected startup evidence includes Java
-21, port `8082`, PostgreSQL 17, Hibernate schema validation, and Liquibase with
-all Policy changesets applied.
+Bunu `services/policy-service` dizininden çalıştırın. Beklenen startup evidence Java 21, port `8082`, PostgreSQL 17, Hibernate schema validation ve tüm Policy changeset'lerinin uygulandığı Liquibase'i içerir.
 
-## 3. Check the public and protected boundaries
+## 3. Public ve protected boundary'leri kontrol edin
 
 ```powershell
 curl.exe -fsS http://localhost:8082/actuator/health
@@ -75,21 +65,13 @@ curl.exe -sS -o NUL -w "HTTP %{http_code}`n" `
   -H "Content-Type: application/json" -d "{}"
 ```
 
-Expected results are `UP` and `401`. Health reveals no business data; every
-business endpoint requires authentication. The unauthenticated response uses
-`application/problem+json` with `status: 401` and title
-`Authentication required`. An authenticated user lacking the required role
-receives the same bounded format with `status: 403`; neither response exposes
-token details or internal exception text.
+Beklenen sonuçlar `UP` ve `401`'dir. Health business data göstermez; her business endpoint authentication gerektirir. Unauthenticated response `application/problem+json`, `status: 401`, title `Authentication required` kullanır. Required role'a sahip olmayan authenticated user aynı bounded format'ta `status: 403` alır; hiçbir response token detail veya internal exception text expose etmez.
 
-## 4. Prepare a disposable learning identity
+## 4. Disposable learning identity hazırlayın
 
-In the local Keycloak realm, create a temporary public client with Direct
-Access Grants enabled and a synthetic user with `INSURANCE_SPECIALIST`. This
-client is only a local test fixture; the browser portal continues to use
-Authorization Code with PKCE, and production must not use password grant.
+Local Keycloak realm içinde Direct Access Grants enabled temporary public client ve `INSURANCE_SPECIALIST` rolüne sahip sentetik user oluşturun. Bu client yalnızca local test fixture'dır; browser portal Authorization Code + PKCE kullanmaya devam eder, production password grant kullanmamalıdır.
 
-Obtain a short-lived token into the current process. Do not print or persist it:
+Short-lived token'ı mevcut process içine alın. Yazdırmayın veya persist etmeyin:
 
 ```powershell
 $env:POLICY_LEARNING_TOKEN = (Invoke-RestMethod -Method POST `
@@ -103,11 +85,11 @@ $env:POLICY_LEARNING_TOKEN = (Invoke-RestMethod -Method POST `
   }).access_token
 ```
 
-Delete or disable the disposable client and user after the learning session.
+Learning session sonrasında disposable client ve user'ı silin veya disable edin.
 
-## 5. Issue a synthetic policy
+## 5. Sentetik policy issue edin
 
-Use a unique policy number for each run:
+Her run için unique policy number kullanın:
 
 ```powershell
 $policyNumber = 'POL-LEARN-' + (Get-Date -Format 'yyyyMMddHHmmss')
@@ -133,49 +115,37 @@ $policy = Invoke-RestMethod -Method POST `
   } | ConvertTo-Json -Depth 5)
 ```
 
-Expected state is `ACTIVE`, with zero used amount and 10,000 TRY remaining.
+Beklenen state `ACTIVE`, used amount sıfır ve remaining amount 10.000 TRY'dir.
 
-## 6. Evaluate positive and negative decisions
+## 6. Positive ve negative decision'ları değerlendirin
 
-Submit the same request structure to
-`POST /api/v1/coverage-evaluations`. Vary only the stated field:
+Aynı request structure'ı `POST /api/v1/coverage-evaluations` endpoint'ine gönderin. Yalnızca belirtilen field'ı değiştirin:
 
-| Scenario | Input change | Expected code |
+| Scenario | Input değişikliği | Beklenen code |
 | --- | --- | --- |
-| Eligible MRI | 2,500 TRY, matching member and date | `ELIGIBLE` |
-| Limit exceeded | 12,500 TRY | `LIMIT_EXCEEDED` |
-| Member mismatch | Different synthetic member UUID | `MEMBER_MISMATCH` |
+| Eligible MRI | 2.500 TRY, matching member ve date | `ELIGIBLE` |
+| Limit exceeded | 12.500 TRY | `LIMIT_EXCEEDED` |
+| Member mismatch | Farklı sentetik member UUID | `MEMBER_MISMATCH` |
 | Not covered | Service code `SRV-UNKNOWN` | `SERVICE_NOT_COVERED` |
 | Currency mismatch | Currency `USD` | `CURRENCY_MISMATCH` |
-| Expired | Service date after `validUntil` | `POLICY_EXPIRED` |
+| Expired | Service date `validUntil` sonrasında | `POLICY_EXPIRED` |
 
-A business denial still returns `200 OK`; the domain successfully answered the
-question. Invalid JSON/field constraints return RFC 9457 Problem Details.
-Evaluation never changes `used_amount` in the current design.
+Business denial hâlâ `200 OK` döndürür; domain soruya başarıyla yanıt vermiştir. Invalid JSON/field constraint'leri RFC 9457 Problem Details döndürür. Evaluation mevcut tasarımda `used_amount` değiştirmez.
 
-## 7. Inspect the authoritative database and cache
+## 7. Authoritative database ve cache'i inceleyin
 
-Query only synthetic identifiers. PostgreSQL must show the policy and its
-`POLICY_ISSUED` audit row with the same correlation ID. Redis should expose a
-hashed evaluation key and a per-policy invalidation set, both with a short TTL.
-No policy number, member ID, credential, or token should appear in Redis keys.
+Yalnızca sentetik identifier'ları query edin. PostgreSQL policy'yi ve aynı correlation ID'ye sahip `POLICY_ISSUED` audit row'u göstermelidir. Redis hashed evaluation key ve per-policy invalidation set göstermelidir; ikisi de kısa TTL'ye sahip olmalıdır. Redis key'lerinde policy number, member ID, credential veya token görünmemelidir.
 
 ```powershell
 docker compose exec -T redis redis-cli --scan `
   --pattern 'policy:coverage:v1:*'
 ```
 
-The exact PostgreSQL inspection command depends on the ignored database user;
-use `psql` inside `policy-db` and select only the synthetic policy. Do not take a
-full database dump for portfolio evidence.
+Exact PostgreSQL inspection command ignore edilen database user'a bağlıdır; `policy-db` içinde `psql` kullanın ve yalnızca synthetic policy'yi select edin. Portfolio evidence için full database dump almayın.
 
-## 8. Verify Redis fail-open behavior
+## 8. Redis fail-open davranışını doğrulayın
 
-With a valid runtime-only token, stop only Redis, repeat one known evaluation,
-and immediately restart Redis in a `finally` block. The expected response is the
-same domain decision with `200 OK`, because PostgreSQL is authoritative. The
-application log should contain a cache warning; the request must not be
-converted into an eligible result when PostgreSQL itself is unavailable.
+Valid runtime-only token ile yalnızca Redis'i durdurun, known evaluation'ı tekrarlayın ve `finally` block içinde hemen restart edin. Beklenen response aynı domain decision ve `200 OK`'dir; çünkü PostgreSQL authoritative'dir. Application log cache warning içermelidir; PostgreSQL unavailable ise request eligible result'a çevrilmemelidir.
 
 ```powershell
 $evaluationJson = @{
@@ -197,11 +167,9 @@ try {
 }
 ```
 
-Do not run this check against a shared environment. The 2026-09-14 local run
-returned `200 ELIGIBLE` while Redis was stopped, and the focused cache adapter
-test run passed all four tests.
+Bu check'i shared environment üzerinde çalıştırmayın. 2026-09-14 local run Redis durmuşken `200 ELIGIBLE` döndürdü ve focused cache adapter test run dört testin tamamından geçti.
 
-## 9. Capture safe runtime evidence
+## 9. Güvenli runtime evidence capture edin
 
 ```powershell
 $env:POLICY_SCREENSHOT_TOKEN = $env:POLICY_LEARNING_TOKEN
@@ -211,18 +179,14 @@ Set-Location ..\..\apps\operations-portal
 npm run screenshots:policy
 ```
 
-The resulting `docs/screenshots/18-policy-service-runtime.png` is generated from
-live health, OIDC, API, PostgreSQL, and Redis reads. It never renders the token
-or passwords.
+Oluşan `docs/screenshots/18-policy-service-runtime.png`, live health, OIDC, API, PostgreSQL ve Redis read'lerinden üretilir. Token veya password asla render edilmez.
 
-## 10. Stop the isolated runtime
+## 10. İzole runtime'ı durdurun
 
-Stop the Maven process with `Ctrl+C`. Keep volumes if the next learning step
-needs the synthetic record, or stop only the containers:
+Maven process'i `Ctrl+C` ile durdurun. Sonraki learning step synthetic record'a ihtiyaç duyuyorsa volume'ları koruyun veya yalnızca container'ları durdurun:
 
 ```powershell
 docker compose stop policy-db redis keycloak
 ```
 
-Removing volumes is intentionally excluded because it destroys local evidence
-and requires a separate explicit decision.
+Volume removal bilinçli olarak hariç tutulur; local evidence'ı yok eder ve ayrı explicit karar gerektirir.
