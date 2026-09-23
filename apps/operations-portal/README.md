@@ -1,25 +1,26 @@
 # Operations Portal
 
-React and TypeScript frontend for hospital and insurance operations. The first
-vertical slice supports Keycloak authentication, role-aware navigation,
-pre-authorization creation, lookup, detail review, and specialist decisions.
+Hastane ve sigorta operasyonları için React ve TypeScript frontend uygulamasıdır.
+İlk vertical slice; Keycloak authentication, role-aware navigation,
+ön provizyon oluşturma, arama, detay inceleme ve uzman kararlarını destekler.
 
-## Local development
+## Lokal geliştirme
 
-Copy `.env.example` to `.env.local` if the default local URLs do not match your
-environment. Never commit `.env.local` or credentials.
+Varsayılan lokal URL'ler ortamınızla eşleşmiyorsa `.env.example` dosyasını
+`.env.local` olarak kopyalayın. `.env.local` dosyasını veya credential'ları
+asla commit etmeyin.
 
 ```powershell
 npm install
 npm run dev
 ```
 
-The development server runs at `http://localhost:5173`. Keycloak is expected at
-`http://localhost:8080`; all business APIs use APISIX at
-`http://localhost:9080`. Individual Spring service ports are internal to the
-Compose network.
+Development server `http://localhost:5173` adresinde çalışır. Keycloak'ın
+`http://localhost:8080` adresinde olması beklenir; tüm business API'ler
+`http://localhost:9080` adresindeki APISIX üzerinden kullanılır. Bireysel
+Spring servis portları Compose ağı içinde kalır.
 
-## Quality checks
+## Kalite kontrolleri
 
 ```powershell
 npm run lint
@@ -27,14 +28,15 @@ npm test
 npm run build
 ```
 
-## Dependency direction
+## Bağımlılık yönü
 
-The source tree follows this import direction:
+Source tree aşağıdaki import yönünü izler:
 
 ```text
 app -> pages -> widgets -> features -> entities -> shared
 ```
 
-`src/app/architecture.test.ts` verifies this rule. A lower layer must not import
-from a higher layer. Shared code therefore knows nothing about business entities,
-while entities remain independent of user workflows and page composition.
+`src/app/architecture.test.ts` bu kuralı doğrular. Alt katman, üst katmandan
+import yapmamalıdır. Bu nedenle shared code business entity'ler hakkında hiçbir
+şey bilmez; entity'ler ise kullanıcı iş akışlarından ve page composition'dan
+bağımsız kalır.
