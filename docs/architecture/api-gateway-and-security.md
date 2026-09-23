@@ -1,6 +1,6 @@
-# API Gateway and Security Boundary
+# API Gateway ve Güvenlik Sınırı
 
-## Runtime boundary
+## Çalışma zamanı sınırı
 
 ```mermaid
 flowchart LR
@@ -17,11 +17,11 @@ flowchart LR
     Search -.->|second JWT validation| Keycloak
 ```
 
-The browser knows one business API origin. APISIX owns edge authentication and
-traffic policy; Spring owns role, provider and business-state authorization.
-Service-to-service REST calls use internal DNS and do not traverse the gateway.
+Tarayıcı tek bir business API origin bilir. APISIX edge authentication ve trafik
+policy'sinin sahibidir; Spring ise role, provider ve business-state authorization'ın
+sahibidir. Service-to-service REST çağrıları internal DNS kullanır ve gateway'den geçmez.
 
-## Request processing
+## Request işleme
 
 ```mermaid
 sequenceDiagram
@@ -46,22 +46,22 @@ sequenceDiagram
     end
 ```
 
-## Policy ownership
+## Policy sahipliği
 
 | Concern | APISIX | Spring service |
 | --- | --- | --- |
-| Route selection | Owns | Does not own |
-| Token signature/issuer/expiry | First validation | Second validation |
-| `health-insurance-api` audience | Required at external boundary | Not yet repeated |
-| Rate, request size, CORS, timeout | Owns edge policy | May keep defensive defaults |
-| Realm-role permission | Token is authenticated | Owns endpoint/use-case decision |
-| `provider_id` ownership | Does not decide | Owns trusted business scope |
-| Aggregate state transition | Does not know | Aggregate/application owns |
-| Correlation ID | Creates/preserves | Validates, logs and propagates |
-| Gateway-generated error | RFC 9457 adapter | Not involved |
-| Business error | Passes through | RFC 9457 owner |
+| Route seçimi | Sahibi | Sahibi değil |
+| Token signature/issuer/expiry | İlk doğrulama | İkinci doğrulama |
+| `health-insurance-api` audience | External boundary'de zorunlu | Henüz tekrar edilmiyor |
+| Rate, request size, CORS, timeout | Edge policy'nin sahibi | Defensive default'ları koruyabilir |
+| Realm-role permission | Token authenticate edilir | Endpoint/use-case decision'ın sahibi |
+| `provider_id` ownership | Karar vermez | Trusted business scope'un sahibi |
+| Aggregate state transition | Bilmez | Aggregate/application sahibi |
+| Correlation ID | Oluşturur/korur | Doğrular, loglar ve propagate eder |
+| Gateway-generated error | RFC 9457 adapter | Dahil değildir |
+| Business error | Değiştirmeden geçirir | RFC 9457 sahibi |
 
-## Local route table
+## Lokal route tablosu
 
 | External path | Internal upstream |
 | --- | --- |
@@ -70,7 +70,7 @@ sequenceDiagram
 | `/api/v1/claims*`, `/api/v1/invoices*` | `claims-billing-service:8083` |
 | `/api/v1/search*` | `search-service:8084` |
 
-The Admin API is disabled. Configuration changes are reviewed as code and hot
-loaded from `infra/apisix/apisix.yaml`. Production must add trusted TLS, a shared
-rate-limit store for multiple gateway replicas and controlled deployment of
-configuration revisions.
+Admin API kapalıdır. Configuration değişiklikleri code olarak review edilir ve
+`infra/apisix/apisix.yaml` dosyasından hot-load edilir. Production; trusted TLS,
+birden fazla gateway replica için shared rate-limit store ve configuration
+revision'larının kontrollü deployment'ını eklemelidir.
