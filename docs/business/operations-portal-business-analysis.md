@@ -1,26 +1,19 @@
-# Operations Portal business analysis
+# Operations Portal iş analizi
 
-The Operations Portal is a role-aware operational client. It does not own
-policy, authorization, claim, invoice, notification, audit or search data.
+Operations Portal role-aware operational client'tır. Policy, authorization, claim, invoice, notification, audit veya search data'nın sahibi değildir.
 
-| Actor | Implemented capability |
+| Aktör | Uygulanan capability |
 | --- | --- |
-| `HOSPITAL_USER` | submit and inspect provider-owned pre-authorizations |
-| `INSURANCE_SPECIALIST` | inspect queues, approve/reject requests and search across providers |
-| `CLAIM_APPROVER` | access claim-oriented operational discovery |
-| `SYSTEM_ADMIN` | query bounded service-owned audit journals |
+| `HOSPITAL_USER` | Provider-owned pre-authorization gönderir ve inceler |
+| `INSURANCE_SPECIALIST` | Queue'ları inceler, request approve/reject eder ve provider'lar arasında search yapar |
+| `CLAIM_APPROVER` | Claim-oriented operational discovery'ye erişir |
+| `SYSTEM_ADMIN` | Bounded service-owned audit journal'larını sorgular |
 
-Implemented screens cover dashboard navigation, pre-authorization list/detail/
-submission/decision, healthcare search and audit inspection. Loading, empty,
-error and forbidden states are explicit. Filters and pagination live in the URL
-so operational searches are reproducible and browser navigation remains useful.
+Uygulanan screen'ler dashboard navigation, pre-authorization list/detail/submission/decision, healthcare search ve audit inspection'ı kapsar. Loading, empty, error ve forbidden state'ler explicit'tir. Filter ve pagination URL içinde tutulur; böylece operational search'ler reproduce edilebilir ve browser navigation yararlı kalır.
 
-The UI never treats a hidden button as authorization. Signed roles control
-navigation and interaction affordances, while every API call is re-authorized by
-the owning backend. Hospital provider scope comes from the signed
-`provider_id`; it cannot be replaced by browser state.
+UI hidden button'ı hiçbir zaman authorization olarak görmez. Signed role'ler navigation ve interaction affordance'larını kontrol ederken her API call owner backend tarafından yeniden authorize edilir. Hospital provider scope signed `provider_id` değerinden gelir; browser state ile değiştirilemez.
 
-The verified workflow is:
+Doğrulanmış workflow şöyledir:
 
 ```mermaid
 flowchart LR
@@ -32,20 +25,10 @@ flowchart LR
     Decision --> Approved[APPROVED detail]
 ```
 
-Current visual evidence is catalogued in screenshots `01`–`05` for the primary
-workflow, `07` for cross-context search, and `10` for administrator audit access.
+Mevcut visual evidence primary workflow için screenshot `01`–`05`, cross-context search için `07` ve administrator audit access için `10` içinde kataloglanmıştır.
 
-The live browser checkpoint also proves that a hospital cannot discover or open
-the audit route, while `SYSTEM_ADMIN` can load the service-owned journal. A
-policy filter returns the expected provider queue, an exact policy search
-returns indexed records, and a unique query renders the deliberate empty state.
+Live browser checkpoint ayrıca hospital user'ın audit route'u discover veya open edemediğini; `SYSTEM_ADMIN` kullanıcısının ise service-owned journal'ı yükleyebildiğini kanıtlar. Policy filter expected provider queue'yu döndürür, exact policy search indexed record'ları getirir ve unique query bilinçli empty state'i render eder.
 
-Operational failures remain distinguishable: loading communicates pending work,
-empty results are not treated as errors, RFC 9457 details retain their safe
-correlation reference, retry is explicit, unauthorized sessions return to
-Keycloak, and an unexpected render failure replaces the page with a data-free
-recovery screen.
+Operational failure'lar ayırt edilebilir kalır: loading pending work'ü gösterir, empty result error sayılmaz, RFC 9457 detail'leri safe correlation reference'ı korur, retry explicit'tir, unauthorized session Keycloak'a döner ve unexpected render failure page'i data-free recovery screen ile değiştirir.
 
-The authenticated work queue remains operable at a 390-pixel mobile width:
-navigation stays reachable, filters collapse to one column, wide records remain
-inside their own scroll region, and keyboard focus is visible and ordered.
+Authenticated work queue 390-pixel mobile width'te operable kalır: navigation erişilebilir, filter'lar tek kolona düşer, geniş record'lar kendi scroll region'ı içinde kalır ve keyboard focus görünür ve sıralıdır.
