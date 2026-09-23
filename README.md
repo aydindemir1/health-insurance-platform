@@ -341,19 +341,30 @@ Realm, `providerId` alanını managed user-profile attribute olarak tanımlar: k
 
 ### Şu anda kullanılanlar
 
-- Java 21, Spring Boot 4.1.1, Spring MVC, Spring Security OAuth2 Resource Server.
-- Spring Kafka 4.1.1 ve Apache Kafka 4.1.1.
-- Spring Data JPA/Hibernate, PostgreSQL 17, Liquibase.
-- JUnit, AssertJ, Mockito, ArchUnit, Testcontainers.
-- React 19, TypeScript 6, Vite 8, React Router 8.
-- TanStack Query, React Hook Form, Zod, Keycloak JS.
-- Vitest, Testing Library, oxlint.
-- Keycloak 26.4, Docker, Docker Compose, Kubernetes, Minikube ve Kustomize.
-- Git, GitHub, GitHub Actions, Jenkins 2.568.3 ve SonarQube Community.
-- Nexus Repository Community Edition 3.84.1 ve Harbor 2.15.2.
-- Restricted AppProject/Application GitOps kaynaklarıyla Argo CD 3.5.2.
-- OIDC, request ID, CORS, limit, validation ve response policy'leriyle Apache APISIX 3.18.
-- Redis 8.2, Elasticsearch/Kibana/APM Server 9.5.3, Elastic APM Java Agent 1.56.
+- Java 21, Spring Boot 4.1.1, Spring MVC, Spring Security OAuth2 Resource Server, Spring Boot Actuator ve Bean Validation.
+- Spring Data JPA/Hibernate, PostgreSQL 17 ve Liquibase.
+- Spring Kafka 4.1.1 ve Apache Kafka 4.1.1; transactional outbox, idempotent consumer, retry ve DLT akışları.
+- Spring AMQP, RabbitMQ 4.1 ve Spring Retry 2.0.12; publisher confirm/return, manual ack/nack, bounded retry, DLX ve DLQ akışları.
+- Spring Data Redis ve Redis 8.2; cache-aside, TTL, invalidation ve fail-open cache davranışı.
+- Spring Data Elasticsearch, Elasticsearch 9.5.3 ve versioned index/alias tabanlı search projection ve rebuild akışları.
+- Kibana 9.5.3, APM Server 9.5.3, Elastic APM Java Agent 1.56 ve Spring Boot ECS structured logging.
+- JUnit, AssertJ, Mockito, ArchUnit ve Testcontainers; PostgreSQL, Kafka, RabbitMQ ve Elasticsearch için gerçek infrastructure integration testleri.
+- JaCoCo 0.8.13 ile backend coverage ve SonarQube Quality Gate entegrasyonu.
+- React 19, TypeScript 6, Vite 8 ve React Router 8.
+- TanStack Query, React Hook Form, Zod ve Keycloak JS.
+- Vitest, Testing Library, Playwright, axe-core ve oxlint; unit, browser, accessibility ve responsive UI doğrulamaları.
+- Node.js tabanlı frontend build/tooling ve production portal runtime'ı için unprivileged Nginx 1.29.
+- Keycloak 26.4 ile OIDC Authorization Code + PKCE, realm role'leri, `provider_id` claim'i ve JWT tabanlı authentication/authorization.
+- Apache APISIX 3.18; OIDC/JWKS doğrulaması, routing, request/correlation ID, CORS, rate limiting, body-size/upstream-timeout, defensive header ve RFC 9457 gateway policy'leri.
+- Docker ve Docker Compose ile local multi-container runtime; multi-stage ve non-root OCI image'ları.
+- Kubernetes, Minikube ve Kustomize; Restricted Pod Security, non-root/read-only workload'lar, ServiceAccount, NetworkPolicy, probe, resource limit, PDB, HPA ve topology-spread kontrolleri.
+- Git, GitHub ve GitHub Actions ile source control ve repository-hosted CI verification.
+- Jenkins 2.568.3 ile pipeline orchestration; Java/React quality, SonarQube gate, artifact/image publication ve GitOps promotion stage'leri.
+- SonarQube Community ile static analysis ve blocking Quality Gate.
+- Nexus Repository Community Edition 3.84.1 ile Maven artifact ve build-provenance publication.
+- Harbor 2.15.2 ile private OCI registry, project/robot-account RBAC ve immutable full-Git-SHA image publication.
+- CycloneDX Maven plugin 2.9.1 ve npm SBOM desteği ile altı deploy edilebilir component için CycloneDX SBOM üretimi ve Jenkins artifact arşivleme.
+- Restricted `AppProject`/`Application` GitOps kaynaklarıyla Argo CD 3.5.2; immutable Kustomize desired state'in Kubernetes'e pull-based senkronizasyonu.
 
 ### Bilinçli olarak eklenmeyenler
 
