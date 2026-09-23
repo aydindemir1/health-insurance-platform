@@ -1,4 +1,4 @@
-# CI/CD and software supply chain
+# CI/CD ve software supply chain
 
 ```mermaid
 flowchart LR
@@ -15,77 +15,78 @@ flowchart LR
     Argo -->|server-side sync| K8s[Kubernetes / Minikube]
 ```
 
-## Verified checkpoint
+## Doğrulanmış checkpoint
 
-| Boundary | Evidence |
+| Boundary | Kanıt |
 |---|---|
-| Git | `main` contains the pipeline and immutable GitOps revision |
-| Jenkins | Build #10 completed the entire pipeline successfully at source `6c07fa8...` |
-| SonarQube | Blocking Quality Gate succeeded; overall coverage `80.3%` |
-| Nexus | Five Java artifacts and five provenance classifiers published |
-| Harbor | Six OCI images published with tag and revision label `6c07fa8...` |
-| Argo CD | Seven control-plane pods became Ready; restricted Application sync operation succeeded |
-| Kubernetes | GitOps revision `c9c1baa...` promoted all six `6c07fa8...` images |
+| Git | `main` pipeline ve immutable GitOps revision'ı içerir |
+| Jenkins | Build #10 source `6c07fa8...` üzerinde tüm pipeline'ı başarıyla tamamladı |
+| SonarQube | Blocking Quality Gate başarılı oldu; overall coverage `80.3%` |
+| Nexus | Beş Java artifact ve beş provenance classifier yayınlandı |
+| Harbor | Tag ve revision label `6c07fa8...` ile altı OCI image yayınlandı |
+| Argo CD | Yedi control-plane pod Ready oldu; restricted Application sync operation başarılı oldu |
+| Kubernetes | GitOps revision `c9c1baa...` tüm altı `6c07fa8...` image'ı promote etti |
 
-The quality stack was revalidated from its existing images and persistent
-volumes on 15 September 2026 without a rebuild or new pipeline run. Jenkins,
-SonarQube and Sonar PostgreSQL were healthy; authenticated APIs, internal DNS,
-the Sonar webhook and the `OK` gate for revision `6c07fa8...` were confirmed.
-Build #10 is the final successful, end-to-end pipeline evidence. See the
-[local verification record](../development/jenkins-sonarqube-local-verification.md).
+Quality stack, 15 Eylül 2026'da rebuild veya yeni pipeline run olmadan mevcut
+image ve persistent volume'lardan yeniden doğrulandı. Jenkins, SonarQube ve Sonar
+PostgreSQL healthy durumdaydı; authenticated API'ler, internal DNS, Sonar webhook
+ve revision `6c07fa8...` için `OK` gate doğrulandı. Build #10 son başarılı
+end-to-end pipeline kanıtıdır. Bkz.
+[local verification kaydı](../development/jenkins-sonarqube-local-verification.md).
 
-Nexus was independently revalidated from its persisted volume without a build,
-pull or publication. Its EULA state, six Maven components and eight repository-
-scoped publisher privileges were confirmed. Anonymous access was found enabled
-and was disabled; metadata now returns `403` without credentials and `200` for
-the least-privilege publisher. See the
-[Nexus verification record](../development/nexus-local-verification.md).
+Nexus da build, pull veya publication olmadan persisted volume üzerinden bağımsız
+şekilde yeniden doğrulandı. EULA state'i, altı Maven component'i ve repository
+scoped publisher için sekiz privilege doğrulandı. Anonymous access açık bulundu
+ve kapatıldı; metadata artık credential olmadan `403`, least-privilege publisher
+ile `200` döndürüyor. Bkz.
+[Nexus verification kaydı](../development/nexus-local-verification.md).
 
-Harbor was rebuilt only at the runtime-metadata boundary: no application image
-was rebuilt. Its private project, anonymous `401`, 90-day four-permission robot,
-six SHA-tagged repositories and exact manifest digests were verified. Docker
-Desktop bind-mount ownership/type defects were corrected without deleting data.
-See the [Harbor verification record](../development/harbor-local-verification.md).
+Harbor yalnızca runtime-metadata boundary'de yeniden oluşturuldu; hiçbir application
+image yeniden build edilmedi. Private project, anonymous `401`, 90 günlük dört
+permission'lı robot, altı SHA-tagged repository ve exact manifest digest'leri
+doğrulandı. Docker Desktop bind-mount ownership/type sorunları veri silinmeden
+düzeltildi. Bkz. [Harbor verification kaydı](../development/harbor-local-verification.md).
 
-Argo CD was independently verified at revision `c9c1baa...`: its seven
-control-plane pods were Ready, the restricted AppProject excluded Secret and
-RBAC ownership, and one manual sync finished `Synced`/`Succeeded`. Runtime-only
-registry credentials were inherited through per-workload ServiceAccounts. All
-six SHA-tagged images were pulled from the private Harbor project and their
-Deployment specifications use the exact Build #10 image revision. See the
-[Argo CD verification record](../development/argocd-local-verification.md).
+Argo CD revision `c9c1baa...` üzerinde bağımsız olarak doğrulandı: yedi
+control-plane pod Ready durumundaydı, restricted AppProject Secret ve RBAC
+ownership'i dışlıyordu ve bir manual sync `Synced`/`Succeeded` ile tamamlandı.
+Runtime-only registry credential'ları workload başına ServiceAccount üzerinden
+inherit edildi. Altı SHA-tagged image'ın tamamı private Harbor project'ten pull
+edildi ve Deployment specification'ları Build #10'un exact image revision'ını
+kullanıyor. Bkz. [Argo CD verification kaydı](../development/argocd-local-verification.md).
 
-`Progressing` or `Degraded` after sync is expected locally because production-owned databases,
-brokers, IAM, TLS, and external secrets are not fabricated inside the GitOps
-repository. This is a deployment dependency boundary, not a failed sync.
+Sync sonrasında `Progressing` veya `Degraded` durumu lokal ortamda beklenir;
+çünkü production-owned database, broker, IAM, TLS ve external secret'lar GitOps
+repository içinde yapay olarak oluşturulmaz. Bu bir deployment dependency
+boundary'dir; failed sync değildir.
 
-## Failure boundaries
+## Failure boundary'leri
 
-- Quality failure: stop before Nexus/Harbor.
-- Nexus failure: retry Maven publication only.
-- Harbor failure: reuse existing images and retry tag/push only.
-- GitOps failure: do not rebuild; correct the manifest or cluster dependency and
-  resync the same immutable image revision.
+- Quality failure: Nexus/Harbor öncesinde dur.
+- Nexus failure: yalnızca Maven publication'ı retry et.
+- Harbor failure: mevcut image'ları yeniden kullan ve yalnızca tag/push'u retry et.
+- GitOps failure: rebuild etme; manifest veya cluster dependency'yi düzelt ve aynı
+  immutable image revision'ı tekrar sync et.
 
 ## Revision trace contract
 
-One full 40-character commit identity crosses each boundary:
+Tek bir tam 40 karakterli commit identity her boundary'den geçer:
 
-1. Jenkins checks out the commit and records `GIT_COMMIT`.
-2. Every Maven publication attaches `build-provenance.json` with the commit,
-   Jenkins build URL, and JAR SHA-256 to the same coordinate.
-3. Every OCI image uses the commit as its tag and carries standard OCI
-   `revision` and `source` labels.
-4. The Kustomize environment uses that tag and adds the same source-revision
-   annotation to rendered resources.
-5. Argo CD reports the reviewed Git desired-state revision; Kubernetes exposes
-   the promoted image tag, annotation, and exact runtime manifest digest.
+1. Jenkins commit'i checkout eder ve `GIT_COMMIT` değerini kaydeder.
+2. Her Maven publication aynı coordinate'e commit, Jenkins build URL ve JAR
+   SHA-256 içeren `build-provenance.json` ekler.
+3. Her OCI image commit'i tag olarak kullanır ve standard OCI `revision` ile
+   `source` label'larını taşır.
+4. Kustomize environment aynı tag'i kullanır ve rendered resource'lara aynı
+   source-revision annotation'ını ekler.
+5. Argo CD review edilmiş Git desired-state revision'ını raporlar; Kubernetes
+   promote edilmiş image tag, annotation ve exact runtime manifest digest'i gösterir.
 
-The contract was exercised end to end by Build #10. Nexus provenance files,
-Harbor OCI labels, Kustomize annotations, and Kubernetes image tags all identify
-source revision `6c07fa8...`; Argo CD records the separate desired-state commit
-`c9c1baa...` that promoted it.
+Contract Build #10 ile end-to-end çalıştırıldı. Nexus provenance file'ları, Harbor
+OCI label'ları, Kustomize annotation'ları ve Kubernetes image tag'leri source
+revision `6c07fa8...` değerini gösterir; Argo CD bunu promote eden ayrı
+desired-state commit `c9c1baa...` değerini kaydeder.
 
-GitHub Actions dependencies are pinned to reviewed full upstream commit SHAs;
-the trailing major-version comments retain readability without allowing a tag
-to move underneath a previously reviewed workflow.
+GitHub Actions dependency'leri review edilmiş full upstream commit SHA'larına pin
+edilmiştir; sondaki major-version comment'leri readability sağlar ancak daha önce
+review edilmiş workflow'un altındaki tag'in hareket etmesine izin vermez.
