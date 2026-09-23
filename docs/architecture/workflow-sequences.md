@@ -1,6 +1,6 @@
-# Workflow Sequence Diagrams
+# İş Akışı Sequence Diyagramları
 
-## Submit and decide a pre-authorization
+## Ön provizyon gönderimi ve karar
 
 ```mermaid
 sequenceDiagram
@@ -32,7 +32,7 @@ sequenceDiagram
     end
 ```
 
-## Claim adjudication, reconciliation and settlement
+## Claim adjudication, reconciliation ve settlement
 
 ```mermaid
 sequenceDiagram
@@ -67,7 +67,7 @@ sequenceDiagram
     CB->>DB: Add payment, Invoice → SETTLED
 ```
 
-## Decision and notification intent transaction
+## Karar ve notification intent transaction'ı
 
 ```mermaid
 sequenceDiagram
@@ -108,12 +108,12 @@ sequenceDiagram
     end
 ```
 
-`taskId` is retained from producer outbox through RabbitMQ and the delivery
-primary key. A broker redelivery after a lost acknowledgement therefore becomes
-an idempotent no-op. The sender also receives `taskId` so a future external
-provider can apply the same protection across the final side-effect boundary.
+`taskId`, producer outbox'tan RabbitMQ'ya ve delivery primary key'e kadar korunur.
+Kaybolan acknowledgement sonrasında broker redelivery bu nedenle idempotent no-op
+haline gelir. Sender da `taskId` alır; böylece gelecekteki external provider aynı
+korumayı final side-effect boundary boyunca uygulayabilir.
 
-## Concurrency and duplicate defense
+## Concurrency ve duplicate savunması
 
 ```mermaid
 sequenceDiagram
