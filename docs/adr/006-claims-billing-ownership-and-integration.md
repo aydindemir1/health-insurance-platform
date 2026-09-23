@@ -1,55 +1,57 @@
-# ADR-006: Claims and billing ownership and Authorization integration
+# ADR-006: Claims ve Billing ownership ile Authorization entegrasyonu
 
-- Status: Accepted
-- Date: 2026-09-03
+- Durum: Kabul edildi
+- Tarih: 2026-09-03
 
-## Context
+## Bağlam
 
-A claim may only start from an approved pre-authorization owned by the calling
-healthcare provider. Adjudication then produces a payable amount, while invoice
-reconciliation and payments continue on a different lifecycle. The design must
-not duplicate Authorization rules or share another service's database.
+Bir claim yalnızca caller healthcare provider'a ait onaylanmış bir ön
+provizyondan başlayabilir. Adjudication daha sonra payable amount üretirken,
+invoice reconciliation ve payment farklı bir lifecycle üzerinde devam eder.
+Tasarım Authorization rule'larını kopyalamamalı veya başka servisin database'ini
+paylaşmamalıdır.
 
-## Decision
+## Karar
 
-One Claims and Billing bounded context owns both `Claim` and `Invoice`, modeled
-as separate aggregate roots in one private PostgreSQL database. Claim owns the
-adjudication decision. Invoice owns billed/payable amounts, payment references,
-disputes, and settlement. A transaction decorator makes claim decisions and
-their invoice effect atomic inside this service.
+Tek bir Claims and Billing bounded context hem `Claim` hem `Invoice`
+aggregate'lerinin sahibidir; bunlar tek private PostgreSQL database içinde ayrı
+aggregate root'lar olarak modellenir. Claim adjudication decision'ın sahibidir.
+Invoice billed/payable amount'ların, payment reference'ların, dispute'ların ve
+settlement'ın sahibidir. Transaction decorator claim decision'larını ve bunların
+invoice etkisini servis içinde atomik hale getirir.
 
-For Milestone 4, claim creation is an explicit hospital command. The service
-calls Authorization's REST query synchronously through
-`ApprovedPreAuthorizationPort`, relays the caller token, and fails closed. It
-requires an `APPROVED` snapshot, matches the trusted provider identity, and
-rejects an invoice above the authorized amount. It never reads Authorization's
-database. Unique constraints make one claim per pre-authorization and protect
-invoice and payment references during races.
+Milestone 4 için claim creation açık bir hospital command'dır. Servis,
+Authorization REST query'sini `ApprovedPreAuthorizationPort` üzerinden senkron
+çağırır, caller token'ını relay eder ve fail-closed davranır. `APPROVED`
+snapshot gerektirir, trusted provider identity ile eşleşme yapar ve authorized
+amount üzerinde invoice'u reddeder. Authorization database'ini asla okumaz.
+Unique constraint'ler pre-authorization başına tek claim sağlar ve yarış
+durumlarında invoice ile payment reference'larını korur.
 
-## Consequences
+## Sonuçlar
 
-- Data ownership and audit boundaries are explicit.
-- Users receive immediate validation when starting a claim.
-- Claim creation temporarily depends on Authorization availability; short
-  timeouts bound this dependency.
-- Claim and invoice can evolve independently while local transactions preserve
-  decision consistency.
-- Payment is modeled as immutable entries within the invoice aggregate. A
-  separate payment service is unnecessary at the current scale.
+- Data ownership ve audit boundary'leri açıktır.
+- Kullanıcılar claim başlatırken anlık validation alır.
+- Claim creation geçici olarak Authorization availability'ye bağlıdır; kısa
+  timeout'lar bu dependency'yi sınırlar.
+- Claim ve invoice bağımsız evolve olabilir; local transaction'lar decision
+  consistency'yi korur.
+- Payment, invoice aggregate içinde immutable entry'ler olarak modellenir.
+  Mevcut ölçekte ayrı payment service gerekli değildir.
 
-Milestone 5 will publish approved-authorization and claims lifecycle events with
-transactional outboxes and idempotent consumers. That can support automatic
-claim workflow initiation, but it will not remove the claim's uniqueness guard
-or make Kafka a synchronous source of truth. Production service identity will
-use client credentials or token exchange in Milestone 8.
+Milestone 5 approved-authorization ve claims lifecycle event'lerini transactional
+outbox ve idempotent consumer'larla yayınlayacaktır. Bu automatic claim workflow
+initiation'ı destekleyebilir ancak claim uniqueness guard'ını kaldırmaz veya
+Kafka'yı synchronous source of truth haline getirmez. Production service identity
+Milestone 8'de client credentials veya token exchange kullanacaktır.
 
-## Alternatives considered
+## Değerlendirilen alternatifler
 
-- **Shared Authorization database:** lower initial effort, but violates
-  database-per-service ownership and couples schemas.
-- **Claims and Billing as separate microservices now:** permits independent
-  scaling but introduces distributed consistency before operational need exists.
-- **Event-only creation now:** reduces runtime coupling, but requires Outbox,
-  idempotency, and a process manager that belong to Milestone 5.
-- **Invoice fields inside Claim:** simpler persistence, but conflates claim
-  adjudication with payment and reconciliation invariants.
+- **Shared Authorization database:** başlangıç maliyeti düşüktür ancak
+  database-per-service ownership'i ihlal eder ve schema'ları birbirine bağlar.
+- **Claims ve Billing'i şimdi ayrı microservice yapmak:** independent scaling
+  sağlar ancak operasyonel ihtiyaç oluşmadan distributed consistency getirir.
+- **Şimdi yalnızca event tabanlı creation:** runtime coupling'i azaltır ancak
+  Milestone 5 kapsamındaki Outbox, idempotency ve process manager'ı gerektirir.
+- **Invoice field'larını Claim içine koymak:** persistence'ı basitleştirir ancak
+  claim adjudication ile payment/reconciliation invariant'larını birbirine karıştırır.
