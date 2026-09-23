@@ -1,47 +1,38 @@
-# Claims and Billing Service business analysis
+# Claims and Billing Service iş analizi
 
-This document explains the implemented claim adjudication, invoice
-reconciliation, payment, and settlement workflows. It records existing behavior
-and does not propose additional product scope.
+Bu doküman uygulanmış claim adjudication, invoice reconciliation, payment ve settlement workflow'larını açıklar. Mevcut behavior'ı kaydeder ve ek product scope önermez.
 
-## Purpose and ownership
+## Amaç ve sahiplik
 
-Claims and Billing Service owns claims, invoices, payments, financial
-reconciliation, settlement state, processed Kafka message identities, local
-audit evidence, and claim-search publication intent. It does not read Policy or
-Authorization databases.
+Claims and Billing Service claims, invoices, payments, financial reconciliation, settlement state, processed Kafka message identity'leri, local audit evidence ve claim-search publication intent'in sahibidir. Policy veya Authorization database'lerini okumaz.
 
-Authorization owns the medical/coverage approval. Claims/Billing receives an
-immutable approved snapshot and becomes authoritative only for adjudication and
-financial lifecycle data. Search remains a derived read model.
+Authorization medical/coverage approval'ın sahibidir. Claims/Billing immutable approved snapshot alır ve yalnızca adjudication ile financial lifecycle data için authoritative hale gelir. Search derived read model olarak kalır.
 
-## Actors and capabilities
+## Aktörler ve capability'ler
 
-| Actor | Implemented capability |
+| Aktör | Uygulanan capability |
 | --- | --- |
-| `HOSPITAL_USER` | Manually create a claim from its own approved pre-authorization; read only its provider-owned claim/invoice |
-| `CLAIM_APPROVER` | Start review, approve or reject claims; read claims/invoices |
-| `INSURANCE_SPECIALIST` | Resolve invoice disputes, record payments, read claims/invoices |
-| `SYSTEM_ADMIN` | Resolve disputes, record payments, query minimized audit evidence, read claims/invoices |
-| Kafka approval consumer | Idempotently create one Claim and Invoice from an approved Authorization event |
+| `HOSPITAL_USER` | Kendi approved pre-authorization'ından manual claim oluşturur; yalnızca provider-owned claim/invoice okur |
+| `CLAIM_APPROVER` | Review başlatır, claim approve/reject eder; claims/invoices okur |
+| `INSURANCE_SPECIALIST` | Invoice dispute çözer, payment kaydeder, claims/invoices okur |
+| `SYSTEM_ADMIN` | Dispute çözer, payment kaydeder, minimized audit evidence sorgular, claims/invoices okur |
+| Kafka approval consumer | Approved Authorization event'ten idempotent olarak tek Claim ve Invoice oluşturur |
 
-Provider ownership comes from the verified JWT for interactive hospital
-operations. A provider identifier supplied by a browser cannot override the
-signed identity.
+Interactive hospital operation'larda provider ownership verified JWT'den gelir. Browser tarafından sağlanan provider identifier signed identity'yi override edemez.
 
 ## Ubiquitous language
 
-| Term | Meaning |
+| Terim | Anlam |
 | --- | --- |
-| Claim | Request to adjudicate the financial amount associated with an approved healthcare service |
-| Claimed amount | Amount submitted for adjudication; positive and currency-bound |
-| Approved amount | Amount accepted by the claim approver; positive and not greater than the claimed amount |
-| Invoice | Provider financial record issued with a claim |
-| Payable amount | Reconciled amount the insurer agrees to pay |
-| Dispute | Invoice total and approved claim amount differ |
-| Payment | Immutable reference, amount, and timestamp recorded against a matched invoice |
-| Settlement | Sum of payments exactly reaches the payable amount |
-| Processed message | Durable idempotency marker for one Kafka event identity |
+| Claim | Approved healthcare service ile ilişkili financial amount'un adjudicate edilmesi için request |
+| Claimed amount | Adjudication için gönderilen amount; positive ve currency-bound |
+| Approved amount | Claim approver tarafından kabul edilen amount; positive ve claimed amount'tan büyük değil |
+| Invoice | Claim ile birlikte issue edilen provider financial record |
+| Payable amount | Insurer'ın ödemeyi kabul ettiği reconciled amount |
+| Dispute | Invoice total ile approved claim amount birbirinden farklı |
+| Payment | Matched invoice'a karşı kaydedilen immutable reference, amount ve timestamp |
+| Settlement | Payment toplamı payable amount'a tam olarak ulaşır |
+| Processed message | Tek Kafka event identity için durable idempotency marker |
 
 ## Claim lifecycle
 
@@ -53,8 +44,7 @@ stateDiagram-v2
     UNDER_REVIEW --> REJECTED: mandatory reason
 ```
 
-There is no direct submission-to-decision shortcut, reopening, cancellation, or
-arbitrary status update. A second or out-of-order decision is a conflict.
+Direct submission-to-decision shortcut, reopening, cancellation veya arbitrary status update yoktur. İkinci veya out-of-order decision conflict'tir.
 
 ## Invoice lifecycle
 
@@ -70,9 +60,7 @@ stateDiagram-v2
     MATCHED --> SETTLED: paid total equals payable amount
 ```
 
-Payments require a matched invoice, unique normalized payment references, the
-same currency, and a cumulative amount not greater than the payable amount.
-Settlement is derived by the aggregate; clients cannot set it directly.
+Payment matched invoice, unique normalized payment reference, aynı currency ve payable amount'u aşmayan cumulative amount gerektirir. Settlement aggregate tarafından derive edilir; client bunu doğrudan set edemez.
 
 ## Event-driven creation
 
@@ -95,90 +83,59 @@ sequenceDiagram
     end
 ```
 
-Only `APPROVED` events create financial records. Unsupported versions and
-unreadable payloads are retried with a bounded policy and then routed to the
-topic DLT. The owner transaction prevents a created claim without its invoice,
-audit evidence, projection intent, or idempotency marker.
+Yalnızca `APPROVED` event'leri financial record oluşturur. Unsupported version ve unreadable payload bounded policy ile retry edilir, sonra topic DLT'ye route edilir. Owner transaction oluşturulmuş claim'in invoice, audit evidence, projection intent veya idempotency marker olmadan kalmasını engeller.
 
-## Adjudication and reconciliation
+## Adjudication ve reconciliation
 
-| Claim decision | Invoice result | Explanation |
+| Claim decision | Invoice sonucu | Açıklama |
 | --- | --- | --- |
-| approved amount equals invoice total | `MATCHED` | payment may begin immediately |
-| approved amount below invoice total | `DISPUTED` | specialist/admin must agree a payable amount |
-| claim rejected | `VOID` | unpaid issued/disputed invoice is cancelled |
+| approved amount invoice total'a eşit | `MATCHED` | payment hemen başlayabilir |
+| approved amount invoice total'dan düşük | `DISPUTED` | specialist/admin payable amount üzerinde anlaşmalıdır |
+| claim rejected | `VOID` | unpaid issued/disputed invoice iptal edilir |
 
-Claim approval and invoice reconciliation are one application operation and one
-local transaction. This is not distributed ACID: Authorization approval occurred
-earlier and Kafka provides eventual consistency between bounded contexts.
+Claim approval ve invoice reconciliation tek application operation ve tek local transaction'dır. Bu distributed ACID değildir: Authorization approval daha önce gerçekleşmiştir ve Kafka bounded context'ler arasında eventual consistency sağlar.
 
-## Failure and consistency semantics
+## Failure ve consistency semantics
 
-| Situation | Expected result |
+| Durum | Beklenen sonuç |
 | --- | --- |
-| unapproved/missing authorization on manual path | fail closed; claim is not created |
-| Authorization timeout, `5xx`, malformed/incomplete response, identifier mismatch, or invalid amount/status | `503`; claim is not created |
-| missing bearer token on the synchronous manual path | `503`; no anonymous service-to-service fallback |
-| hospital provider mismatch | `403`; no disclosure or mutation |
-| duplicate pre-authorization claim | conflict; unique database rule protects races |
-| decision outside legal state | `409`; first committed state remains authoritative |
-| approval above claimed amount or currency mismatch | validation failure; no mutation |
-| payment before match, duplicate reference, or overpayment | rejected; invoice remains unchanged |
-| duplicate Kafka event | one Claim/Invoice; later delivery is a no-op |
-| invalid Kafka payload/version | bounded retry then DLT |
-| Search unavailable | financial transaction commits with recoverable projection outbox |
+| Manual path'te unapproved/missing authorization | Fail-closed; claim oluşturulmaz |
+| Authorization timeout, `5xx`, malformed/incomplete response, identifier mismatch veya invalid amount/status | `503`; claim oluşturulmaz |
+| Synchronous manual path'te missing bearer token | `503`; anonymous service-to-service fallback yok |
+| Hospital provider mismatch | `403`; disclosure veya mutation yok |
+| Duplicate pre-authorization claim | Conflict; unique database rule yarışları korur |
+| Legal state dışında decision | `409`; ilk committed state authoritative kalır |
+| Claimed amount üzerinde approval veya currency mismatch | Validation failure; mutation yok |
+| Match öncesi payment, duplicate reference veya overpayment | Reddedilir; invoice unchanged kalır |
+| Duplicate Kafka event | Tek Claim/Invoice; sonraki delivery no-op |
+| Invalid Kafka payload/version | Bounded retry ardından DLT |
+| Search unavailable | Financial transaction recoverable projection outbox ile commit olur |
 
-JPA optimistic versions protect concurrent aggregate writes. Database unique
-constraints protect pre-authorization, invoice-number, and payment-reference
-identities where two requests race below the application pre-check.
+JPA optimistic version'ları concurrent aggregate write'ları korur. Database unique constraint'leri application pre-check altındaki yarışlarda pre-authorization, invoice-number ve payment-reference identity'lerini korur.
 
-## Audit and privacy boundary
+## Audit ve privacy boundary
 
-The local append-only journal records controlled aggregate type, action,
-status change, actor/role or system-event origin, provider scope, correlation
-identifier, and timestamp. It excludes member, policy, service, monetary,
-payment-reference, token, request-body, and free-text rejection data.
+Local append-only journal controlled aggregate type, action, status change, actor/role veya system-event origin, provider scope, correlation identifier ve timestamp kaydeder. Member, policy, service, monetary, payment-reference, token, request-body ve free-text rejection data'yı dışlar.
 
-`SYSTEM_ADMIN` audit queries are bounded and remain service-local. This avoids a
-shared audit database that would violate data ownership.
+`SYSTEM_ADMIN` audit query'leri bounded ve service-local kalır. Bu, data ownership'i ihlal edecek shared audit database'i önler.
 
-## Verified checkpoint
+## Doğrulanmış checkpoint
 
-The complete service suite currently passes 57 tests. Evidence covers aggregate
-rules, use-case authorization, provider ownership, atomic state/audit/search
-outbox writes, JPA persistence and optimistic locking, Kafka duplicate delivery
-and DLT routing, REST contracts, Spring wiring, and ArchUnit boundaries.
+Complete service suite şu anda 57 testten geçmektedir. Evidence aggregate rule'ları, use-case authorization, provider ownership, atomic state/audit/search outbox write'ları, JPA persistence ve optimistic locking, Kafka duplicate delivery ve DLT routing, REST contract'ları, Spring wiring ve ArchUnit boundary'lerini kapsar.
 
-The focused live checkpoint also consumed a real synthetic Authorization event,
-created exactly one Claim/Invoice pair, and completed `UNDER_REVIEW -> APPROVED`
-plus `MATCHED -> SETTLED`. A repeated approval returned `409`; the owner database
-contained the matching processed-message marker, six minimized audit actions,
-four lifecycle search projections, and optimistic versions `2` on both
-aggregates.
+Focused live checkpoint gerçek synthetic Authorization event'i consume etti, tam bir Claim/Invoice çifti oluşturdu ve `UNDER_REVIEW -> APPROVED` ile `MATCHED -> SETTLED` akışlarını tamamladı. Repeated approval `409` döndürdü; owner database matching processed-message marker, altı minimized audit action, dört lifecycle search projection ve iki aggregate üzerinde optimistic version `2` içeriyordu.
 
-The synchronous manual-creation adapter relays the caller's bearer token and
-validates the complete Authorization snapshot before it reaches the use case.
-It rejects a missing token, transport/server failure, unreadable JSON, missing
-fields, mismatched pre-authorization identity, unknown status, non-positive
-amount, or invalid currency as an unavailable dependency. This deliberately
-fails closed with `503`; only a well-formed `APPROVED` snapshot can create a
-Claim. A genuine Authorization `404` remains a missing approval and is handled
-as a business conflict without exposing another context's storage.
+Synchronous manual-creation adapter caller bearer token'ını relay eder ve complete Authorization snapshot'ını use case'e ulaşmadan validate eder. Missing token, transport/server failure, unreadable JSON, missing field, mismatched pre-authorization identity, unknown status, non-positive amount veya invalid currency durumlarını unavailable dependency olarak reddeder. Bu bilinçli olarak `503` ile fail-closed davranır; yalnızca well-formed `APPROVED` snapshot Claim oluşturabilir. Genuine Authorization `404` missing approval olarak kalır ve başka context storage'ını expose etmeden business conflict olarak ele alınır.
 
-Rehydration rejects impossible Claim and Invoice lifecycle combinations, not
-only invalid new commands. Liquibase changeset `005` mirrors critical status,
-amount, currency, version, timestamp, and decision/reconciliation shape rules
-with 13 PostgreSQL check constraints. Spring Security filter failures use the
-same RFC 9457 `application/problem+json` contract as application errors.
+Rehydration yalnızca invalid new command'ları değil impossible Claim ve Invoice lifecycle combination'larını da reddeder. Liquibase changeset `005`, critical status, amount, currency, version, timestamp ve decision/reconciliation shape rule'larını 13 PostgreSQL check constraint ile tekrarlar. Spring Security filter failure'ları application error'ları ile aynı RFC 9457 `application/problem+json` contract'ını kullanır.
 
-## Explicit scope boundaries
+## Açık scope boundary'leri
 
-- No external payment provider or banking settlement integration is implemented.
-- Approved coverage is not reserved by Policy Service.
-- Manual claim creation remains supported although Kafka is the normal path.
-- Search is eventually consistent and never authoritative for payments.
-- This is portfolio-grade correctness evidence, not measured production throughput.
-- Backup, disaster recovery, and real financial compliance certification are outside scope.
+- External payment provider veya banking settlement integration uygulanmamıştır.
+- Approved coverage Policy Service tarafından reserve edilmez.
+- Kafka normal path olsa da manual claim creation desteklenmeye devam eder.
+- Search eventually consistent'tir ve payments için hiçbir zaman authoritative değildir.
+- Bu portfolio-grade correctness evidence'dır; measured production throughput değildir.
+- Backup, disaster recovery ve gerçek financial compliance certification scope dışındadır.
 
-See the [component architecture](../architecture/claims-billing-service.md) and
-[local verification guide](../development/claims-billing-service-local-verification.md).
+Bkz. [component architecture](../architecture/claims-billing-service.md) ve [local verification guide](../development/claims-billing-service-local-verification.md).
