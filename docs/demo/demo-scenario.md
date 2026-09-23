@@ -1,77 +1,36 @@
-# Demonstration Scenario — Milestones 0–12
+# Gösterim Senaryosu — Milestone 0–12
 
-This scenario uses only synthetic identifiers and clinical codes. It proves the
-implemented happy path and leaves records in several states for UI and API
-demonstration. It does not require or contain real patient information.
+Bu senaryo yalnızca sentetik identifier ve clinical code kullanır. Uygulanmış happy path'i kanıtlar ve UI/API gösterimi için kayıtları farklı state'lerde bırakır. Gerçek hasta bilgisi gerektirmez ve içermez.
 
-Milestone 6 adds a complete notification command path. Each approved/rejected
-authorization creates a minimal task in the same transaction as the decision.
-A confirm-aware relay publishes it to RabbitMQ; the worker consumes it with
-bounded retry, persists an idempotent delivery row, invokes the safe local sender,
-commits, and only then acknowledges. Permanent or exhausted work goes to a DLQ.
+Milestone 6 complete notification command path ekler. Her approved/rejected authorization, decision ile aynı transaction içinde minimal bir task oluşturur. Confirm-aware relay bunu RabbitMQ'ya publish eder; worker bounded retry ile consume eder, idempotent delivery row persist eder, safe local sender'ı invoke eder, commit eder ve ancak sonrasında acknowledge eder. Permanent veya exhausted work DLQ'ya gider.
 
-Milestone 7 adds a short-lived Redis coverage cache, eventually consistent
-Elasticsearch projections, a provider-scoped search UI, ECS JSON logs,
-correlation propagation, and Elastic APM/Kibana runtime evidence. PostgreSQL is
-still authoritative and search never participates in a command transaction.
+Milestone 7 kısa ömürlü Redis coverage cache, eventually consistent Elasticsearch projection'ları, provider-scoped search UI, ECS JSON log'ları, correlation propagation ve Elastic APM/Kibana runtime evidence ekler. PostgreSQL hâlâ authoritative'dir ve search hiçbir command transaction'a katılmaz.
 
-Milestone 8 places APISIX in front of every browser-facing business API. The
-same demo now uses port `9080` for Policy, Authorization, Claims/Billing and
-Search, then automatically verifies gateway authentication, routing,
-correlation, CORS, payload limiting and rate limiting. Spring Security remains
-active behind the gateway.
+Milestone 8 browser-facing tüm business API'lerin önüne APISIX koyar. Aynı demo artık Policy, Authorization, Claims/Billing ve Search için `9080` portunu kullanır; ardından gateway authentication, routing, correlation, CORS, payload limiting ve rate limiting otomatik doğrulanır. Spring Security gateway arkasında aktif kalır.
 
-Milestone 9 adds minimized, append-only evidence to the Authorization, Policy,
-and Claims/Billing owner transactions. Each service exposes its own bounded
-`SYSTEM_ADMIN` query, while the portal presents a service selector without
-creating a shared audit database. The seed script verifies expected evidence
-counts after completing the synthetic business flow.
+Milestone 9 Authorization, Policy ve Claims/Billing owner transaction'larına minimized, append-only evidence ekler. Her servis kendi bounded `SYSTEM_ADMIN` query'sini expose eder; portal shared audit database oluşturmadan service selector sunar. Seed script sentetik business flow tamamlandıktan sonra beklenen evidence count'larını doğrular.
 
-Milestone 10 makes the derived search model recoverable without violating
-database ownership. Owner APIs export bounded current snapshots, Search builds
-an isolated versioned candidate, count and alias compare-and-swap gates protect
-activation, and the predecessor remains available for rollback. Broker recovery
-uses a separate inspect/classify/explicit-copy process with safe digests instead
-of automatic poison-message replay.
+Milestone 10 derived search model'i database ownership'i ihlal etmeden recover edilebilir hale getirir. Owner API'leri bounded current snapshot export eder, Search isolated versioned candidate oluşturur, count ve alias compare-and-swap gate'leri activation'ı korur ve predecessor rollback için retained kalır. Broker recovery automatic poison-message replay yerine safe digest'lerle ayrı inspect/classify/explicit-copy process kullanır.
 
-Milestone 11 adds an operational deployment demonstration without inventing
-new business data. Render both Kustomize variants with
-`./scripts/validate-kubernetes.ps1`, explain the production-oriented base and
-the Compose-backed local dependency contracts, then inspect one Deployment,
-NetworkPolicy, PDB and HPA. Show that containers run as fixed non-root users,
-root filesystems are read-only, probes and resource bounds exist, and no Secret
-values are committed. Use `deploy/kubernetes/scripts/apply-local.ps1` only when
-a disposable local cluster is active; a rendered manifest is not evidence of a
-successful live rollout.
+Milestone 11 yeni business data icat etmeden operational deployment demonstration ekler. `./scripts/validate-kubernetes.ps1` ile iki Kustomize variant'ı render edin; production-oriented base'i ve Compose-backed local dependency contract'larını açıklayın, ardından bir Deployment, NetworkPolicy, PDB ve HPA inceleyin. Container'ların fixed non-root user ile çalıştığını, root filesystem'lerin read-only olduğunu, probe ve resource bound'larının bulunduğunu ve hiçbir Secret value'nun commit edilmediğini gösterin. `deploy/kubernetes/scripts/apply-local.ps1` yalnızca disposable local cluster aktifken kullanılmalıdır; rendered manifest başarılı live rollout kanıtı değildir.
 
-Milestone 12 demonstrates delivery separately from the business-data flow.
-Jenkins runs Java/React verification and the blocking SonarQube Quality Gate,
-publishes Maven snapshots to Nexus, archives CycloneDX SBOMs, and publishes six
-full-Git-SHA OCI tags to Harbor. Kustomize records the immutable revision in
-Git; Argo CD then synchronizes it to the disposable cluster. Use the
-[focused CI/CD demo](milestone-12-ci-cd-demo.md). A registry retry must not
-repeat quality stages that already passed for the same commit.
+Milestone 12 delivery'yi business-data flow'dan ayrı gösterir. Jenkins Java/React verification ve blocking SonarQube Quality Gate çalıştırır, Maven snapshot'larını Nexus'a publish eder, CycloneDX SBOM'ları archive eder ve Harbor'a altı full-Git-SHA OCI tag publish eder. Kustomize immutable revision'ı Git'e kaydeder; ardından Argo CD bunu disposable cluster'a synchronize eder. [Odaklı CI/CD demo](milestone-12-ci-cd-demo.md) dosyasını kullanın. Registry retry, aynı commit için zaten geçmiş quality stage'lerini tekrar çalıştırmamalıdır.
 
-## Preconditions
+## Ön koşullar
 
-1. Copy `.env.example` to the ignored `.env` and replace placeholders.
-2. Start the current stack with `docker compose up --build`.
-3. In Keycloak, create five temporary local users without committing their
-   credentials:
+1. `.env.example` dosyasını ignore edilen `.env` olarak kopyalayın ve placeholder'ları değiştirin.
+2. Güncel stack'i `docker compose up --build` ile başlatın.
+3. Keycloak'ta credential'larını commit etmeden beş temporary local user oluşturun:
    - hospital user: `HOSPITAL_USER`, user attribute
      `providerId=30000000-0000-0000-0000-000000000001`
    - other-provider hospital user: `HOSPITAL_USER`, user attribute
-     `providerId=30000000-0000-0000-0000-000000000002`, used only for
-     ownership-denial evidence
+     `providerId=30000000-0000-0000-0000-000000000002`, yalnızca ownership-denial evidence için
    - insurance user: `INSURANCE_SPECIALIST`
    - claim user: `CLAIM_APPROVER`
    - governance user: `SYSTEM_ADMIN`
-4. Confirm RabbitMQ Management is available at `http://localhost:15672`; its
-   credentials come from the ignored `.env`.
-5. Confirm APISIX, Elasticsearch, APM Server, and Kibana are reachable at ports
-   `9080`, `9200`, `8200`, and `5601`. Search Service remains internal.
-6. Obtain short-lived access tokens through the configured OIDC login and keep
-   them only in the current shell.
+4. RabbitMQ Management'in `http://localhost:15672` adresinde erişilebilir olduğunu doğrulayın; credential'lar ignore edilen `.env` dosyasından gelir.
+5. APISIX, Elasticsearch, APM Server ve Kibana'nın sırasıyla `9080`, `9200`, `8200` ve `5601` portlarında erişilebilir olduğunu doğrulayın. Search Service internal kalır.
+6. Configured OIDC login üzerinden short-lived access token alın ve yalnızca mevcut shell içinde tutun.
 
 ```powershell
 $env:DEMO_HOSPITAL_TOKEN = "<short-lived-token>"
@@ -81,21 +40,15 @@ $env:DEMO_SYSTEM_ADMIN_TOKEN = "<short-lived-token>"
 .\demo\seed-demo-data.ps1
 ```
 
-Add `-VerifyNotificationDelivery` when the Compose Notification Worker and its
-database are running. The script then waits for each decision's delivery row:
+Compose Notification Worker ve database çalışıyorsa `-VerifyNotificationDelivery` ekleyin. Script ardından her decision için delivery row'u bekler:
 
 ```powershell
 .\demo\seed-demo-data.ps1 -VerifyNotificationDelivery
 ```
 
-Tokens are parameters/environment values and are never written by the script.
-Every run adds a timestamp suffix to policy, invoice, and payment references so
-the script can be run repeatedly without defeating production uniqueness rules.
+Token'lar parameter/environment value'dur ve script tarafından asla yazılmaz. Her run policy, invoice ve payment reference'larına timestamp suffix ekler; böylece production uniqueness rule'larını bozmadan script tekrar tekrar çalıştırılabilir.
 
-For a completely repeatable local setup, the companion script can create these
-three users, assign their roles, create a local-only direct-grant seeder client,
-obtain short-lived tokens in memory, and run the same seed operation. Set all
-values only in the current shell:
+Tamamen repeatable local setup için companion script bu üç user'ı oluşturabilir, role'leri atayabilir, local-only direct-grant seeder client oluşturabilir, short-lived token'ları memory'de alabilir ve aynı seed operation'ı çalıştırabilir. Tüm value'ları yalnızca mevcut shell içinde tanımlayın:
 
 ```powershell
 $env:DEMO_KEYCLOAK_ADMIN_USERNAME = "<local-admin>"
@@ -104,177 +57,95 @@ $env:DEMO_USER_PASSWORD = "<temporary-local-demo-password>"
 .\demo\prepare-and-seed-local-demo.ps1
 ```
 
-The repeatable preparation script enables notification verification by default.
-Its final JSON must report `DELIVERED` for rejected, settled, and disputed
-pre-authorization notifications. Use `-SkipNotificationVerification` only when
-intentionally running the business seed without the RabbitMQ/worker runtime.
+Repeatable preparation script notification verification'ı varsayılan olarak etkinleştirir. Final JSON rejected, settled ve disputed pre-authorization notification'ları için `DELIVERED` raporlamalıdır. `-SkipNotificationVerification` yalnızca business seed bilinçli olarak RabbitMQ/worker runtime olmadan çalıştırılırken kullanılmalıdır.
 
-Gateway verification intentionally consumes the local per-IP rate quota until
-it proves `429`. When taking portal screenshots immediately after seeding, run
-the preparation script with `-SkipGatewayVerification`, capture the pages, and
-execute gateway verification in a separate run (or wait for the one-minute
-quota window to reset). This keeps two individually valid checks from interfering
-with each other.
+Gateway verification local per-IP rate quota'yı bilinçli olarak `429` kanıtlanana kadar tüketir. Seeding hemen sonrasında portal screenshot alacaksanız preparation script'i `-SkipGatewayVerification` ile çalıştırın, sayfaları capture edin ve gateway verification'ı ayrı run'da çalıştırın (veya bir dakikalık quota window reset'ini bekleyin). Böylece iki ayrı valid check birbirini etkilemez.
 
-The direct-grant client exists only in the running local Keycloak database; it
-is not part of the imported realm or a production authentication design. The
-script does not print or persist passwords/tokens. Browser login continues to
-use the committed `health-insurance-web` Authorization Code + PKCE client.
-It also registers `providerId` as a managed user-profile attribute that users
-can view but only administrators can edit; Keycloak 26 otherwise ignores
-undeclared custom attributes by default.
+Direct-grant client yalnızca çalışan local Keycloak database içinde vardır; imported realm'in veya production authentication design'ın parçası değildir. Script password/token yazdırmaz veya persist etmez. Browser login committed `health-insurance-web` Authorization Code + PKCE client'ını kullanmaya devam eder. Script ayrıca `providerId` değerini user'ların görebildiği fakat yalnızca administrator'ların edit edebildiği managed user-profile attribute olarak register eder; Keycloak 26 aksi halde undeclared custom attribute'ları varsayılan olarak ignore eder.
 
-### Authorization-only learning checkpoint
+### Yalnızca Authorization öğrenme checkpoint'i
 
-When learning Authorization Service, avoid starting or reseeding unrelated
-Claims/Search workflows. Prepare only the local Keycloak identities:
+Authorization Service öğrenirken ilgisiz Claims/Search workflow'larını başlatmayın veya yeniden seed etmeyin. Yalnızca local Keycloak identity'lerini hazırlayın:
 
 ```powershell
 .\demo\prepare-and-seed-local-demo.ps1 -SkipDataSeed
 ```
 
-Run Policy and Authorization with their PostgreSQL, Kafka, and RabbitMQ
-dependencies; then execute submit, detail, approve, and repeat-approve requests.
-The expected states are `PENDING`, `APPROVED`, and finally RFC 9457 `409` for the
-repeat decision. Inspect the matching aggregate, minimized audit actions, and
-acknowledged broker outbox rows using the
-[focused verification guide](../development/authorization-service-local-verification.md).
+Policy ve Authorization'ı PostgreSQL, Kafka ve RabbitMQ dependency'leriyle çalıştırın; ardından submit, detail, approve ve repeat-approve request'lerini yürütün. Beklenen state'ler `PENDING`, `APPROVED` ve repeat decision için RFC 9457 `409`'dur. Matching aggregate, minimized audit action'lar ve acknowledged broker outbox row'larını [odaklı doğrulama rehberi](../development/authorization-service-local-verification.md) ile inceleyin.
 
-## Data created
+## Oluşturulan veri
 
-The source definitions live in [demo-data.json](../../demo/demo-data.json).
-The script creates and verifies:
+Source definition'lar [demo-data.json](../../demo/demo-data.json) içindedir. Script şunları oluşturur ve doğrular:
 
-| Record | Expected final state | Purpose |
+| Record | Beklenen final state | Amaç |
 | --- | --- | --- |
-| Policy with MRI and laboratory coverage | `ACTIVE` | Policy validity, coverage and limit demonstration |
-| Laboratory pre-authorization | `PENDING` | Work-queue and decision demonstration |
-| MRI pre-authorization | `REJECTED` | Rejection state and reason |
-| MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `SETTLED` | Outbox, Kafka, adjudication and payment flow |
-| MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `DISPUTED` | Eventual creation and outstanding reconciliation |
-| Three provider notification deliveries | `DELIVERED` | Authorization outbox, publisher confirm, RabbitMQ consumption, worker idempotency and commit-before-ack |
-| Claim and decision search documents | Indexed | Transactional projection outbox, Kafka delivery, deterministic idempotency, and Elasticsearch query |
-| Authorization audit evidence | At least two rows for the settled authorization | Submission and approval committed with local business state |
-| Policy audit evidence | At least one row for the generated policy | Policy issuance and minimized actor evidence |
-| Claim audit evidence | At least three rows for the settled claim | Submission, review, and approval transitions |
-| Invoice audit evidence | At least five rows for the settled invoice | Issuance, dispute, reconciliation, payment, and settlement-related transitions |
-| Versioned search candidate | `ACTIVE` behind `healthcare-operations` alias | Owner snapshot, revision ordering, count gate, atomic alias swap, and retained rollback index |
+| MRI ve laboratory coverage içeren Policy | `ACTIVE` | Policy validity, coverage ve limit gösterimi |
+| Laboratory pre-authorization | `PENDING` | Work-queue ve decision gösterimi |
+| MRI pre-authorization | `REJECTED` | Rejection state ve reason |
+| MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `SETTLED` | Outbox, Kafka, adjudication ve payment flow |
+| MRI pre-authorization + event-created claim/invoice | `APPROVED` / `APPROVED` / `DISPUTED` | Eventual creation ve outstanding reconciliation |
+| Üç provider notification delivery | `DELIVERED` | Authorization outbox, publisher confirm, RabbitMQ consumption, worker idempotency ve commit-before-ack |
+| Claim ve decision search document'ları | Indexed | Transactional projection outbox, Kafka delivery, deterministic idempotency ve Elasticsearch query |
+| Authorization audit evidence | Settled authorization için en az iki row | Submission ve approval local business state ile commit edildi |
+| Policy audit evidence | Generated policy için en az bir row | Policy issuance ve minimized actor evidence |
+| Claim audit evidence | Settled claim için en az üç row | Submission, review ve approval transition'ları |
+| Invoice audit evidence | Settled invoice için en az beş row | Issuance, dispute, reconciliation, payment ve settlement-related transition'lar |
+| Versioned search candidate | `ACTIVE`, `healthcare-operations` alias arkasında | Owner snapshot, revision ordering, count gate, atomic alias swap ve retained rollback index |
 
-## Live presentation script
+## Canlı sunum script'i
 
-1. Open the portal as the hospital user. Explain that Authorization Code + PKCE
-   authenticates the browser and `provider_id` scopes the queue.
-2. Show the work queue with pending, approved and rejected records. Apply a
-   status filter, change sorting, and open a detail page.
-3. Submit a covered MRI request. Point out that Authorization calls Policy
-   synchronously and persists only after an eligible result.
-4. Attempt an uncovered service or amount above the limit and show the RFC 9457
-   `422` error. No authorization is created.
-5. Sign in as the insurance specialist, open the pending record, and approve or
-   reject it. A repeated decision should return `409 Conflict`.
-6. Explain that approval and an outbox row commit together. The script polls
-   `GET /claims/by-pre-authorization/{id}` until Kafka delivery creates the
-   claim/invoice; duplicate delivery is neutralized by `processed_messages`.
-7. Open RabbitMQ's Queues and Streams view. Show the durable delivery queue, its
-   DLX/DLK arguments, the durable DLQ, one consumer, and zero pending messages
-   after successful processing. Then inspect `notification_deliveries` and match
-   the three `business_reference_id` values to the JSON summary.
-8. Through the Claims/Billing API, inspect the settled scenario. Explain the
-   transitions `SUBMITTED → UNDER_REVIEW → APPROVED` and
-   `ISSUED → DISPUTED → MATCHED → SETTLED`.
-9. Inspect the second invoice left in `DISPUTED`; explain why claim adjudication
-   and invoice reconciliation are separate aggregate responsibilities.
-10. Open Healthcare Search as the insurance specialist, search by the generated
-    policy number, and filter Claims. Explain eventual consistency and then show
-    that a hospital user cannot override their signed provider scope.
-11. In Kibana APM, show the Java services and trace navigation. Compare a portal
-    `X-Correlation-ID` response header with the same `correlationId` in ECS JSON
-    logs. Emphasize that correlation is diagnostic context, not distributed ACID.
-12. Sign in as `system-admin-demo`, open Audit Trail, switch among Authorization,
-    Policy, and Claims/Billing, then filter by an aggregate ID from the JSON
-    summary. Explain dual controller/use-case authorization, bounded filters,
-    deterministic pages, minimized fields, and why the UI does not imply a
-    central audit database.
-13. Run the search rebuild with the `SYSTEM_ADMIN` token kept in a process
-    variable. Show that its distinct count matches the stable alias count, then
-    show both the active candidate and retained predecessor in Elasticsearch.
-    Explain that event writes continue through the alias and stale revisions are
-    no-ops. Use `11-search-rebuild-recovery.png` as repeatable visual evidence.
-14. Run `inspect-recovery-status.ps1`, then inspect one Kafka DLT and the RabbitMQ
-    DLQ. Point out that the output contains counts/digests rather than payloads.
-    Explain why replay needs transient classification, bounded attempts, and an
-    explicit confirmation; do not manufacture or replay poison data in the main
-    happy-path demo.
-15. Finish with the event, architecture, and ER diagrams, highlighting separate
-    Kafka-event and RabbitMQ-task semantics, at-least-once delivery, idempotency,
-    bounded retry, DLT/DLQ, database ownership, and optimistic locking.
+1. Portal'ı hospital user olarak açın. Authorization Code + PKCE'nin browser'ı authenticate ettiğini ve `provider_id` değerinin queue'yu scope ettiğini açıklayın.
+2. Pending, approved ve rejected record'ların bulunduğu work queue'yu gösterin. Status filter uygulayın, sorting'i değiştirin ve detail page açın.
+3. Covered MRI request gönderin. Authorization'ın Policy'yi synchronous çağırdığını ve yalnızca eligible result sonrasında persist ettiğini vurgulayın.
+4. Uncovered service veya limit üzerindeki amount deneyin ve RFC 9457 `422` hatasını gösterin. Authorization oluşturulmaz.
+5. Insurance specialist olarak sign in olun, pending record'u açın ve approve/reject edin. Repeat decision `409 Conflict` döndürmelidir.
+6. Approval ile outbox row'un birlikte commit edildiğini açıklayın. Script, Kafka delivery claim/invoice oluşturana kadar `GET /claims/by-pre-authorization/{id}` endpoint'ini poll eder; duplicate delivery `processed_messages` ile neutralize edilir.
+7. RabbitMQ Queues and Streams görünümünü açın. Durable delivery queue, DLX/DLK argument'ları, durable DLQ, bir consumer ve başarılı processing sonrası sıfır pending message gösterin. Ardından `notification_deliveries` tablosunu inceleyin ve üç `business_reference_id` value'sunu JSON summary ile eşleştirin.
+8. Claims/Billing API üzerinden settled scenario'yu inceleyin. `SUBMITTED → UNDER_REVIEW → APPROVED` ve `ISSUED → DISPUTED → MATCHED → SETTLED` transition'larını açıklayın.
+9. `DISPUTED` durumda bırakılan ikinci invoice'u inceleyin; claim adjudication ile invoice reconciliation'ın neden ayrı aggregate sorumlulukları olduğunu açıklayın.
+10. Insurance specialist olarak Healthcare Search'ü açın, generated policy number ile arayın ve Claims filter uygulayın. Eventual consistency'yi açıklayın ve hospital user'ın signed provider scope'u override edemediğini gösterin.
+11. Kibana APM'de Java service'leri ve trace navigation'ı gösterin. Portal `X-Correlation-ID` response header'ını ECS JSON log'lardaki aynı `correlationId` ile karşılaştırın. Correlation'ın diagnostic context olduğunu, distributed ACID olmadığını vurgulayın.
+12. `system-admin-demo` olarak sign in olun, Audit Trail'i açın, Authorization/Policy/Claims-Billing arasında geçiş yapın ve JSON summary içinden bir aggregate ID ile filter uygulayın. Dual controller/use-case authorization, bounded filter, deterministic page, minimized field ve UI'ın neden central audit database ima etmediğini açıklayın.
+13. Search rebuild'i process variable içinde tutulan `SYSTEM_ADMIN` token ile çalıştırın. Distinct count'un stable alias count ile eşleştiğini gösterin; ardından Elasticsearch'te active candidate ve retained predecessor'ı gösterin. Event write'ların alias üzerinden devam ettiğini ve stale revision'ların no-op olduğunu açıklayın. Repeatable visual evidence olarak `11-search-rebuild-recovery.png` kullanın.
+14. `inspect-recovery-status.ps1` çalıştırın; ardından bir Kafka DLT ve RabbitMQ DLQ inceleyin. Output'un payload yerine count/digest içerdiğini vurgulayın. Replay için neden transient classification, bounded attempt ve explicit confirmation gerektiğini açıklayın; main happy-path demo içinde poison data üretmeyin veya replay etmeyin.
+15. Event, architecture ve ER diyagramlarıyla bitirin; ayrı Kafka-event ve RabbitMQ-task semantics, at-least-once delivery, idempotency, bounded retry, DLT/DLQ, database ownership ve optimistic locking'i vurgulayın.
 
-## Expected negative demonstrations
+## Beklenen negative demonstration'lar
 
-- A request without a token is rejected by APISIX with `401` and
-  `application/problem+json`.
-- An invalid token is rejected before an upstream is called.
-- A correctly signed token issued to Keycloak's unrelated `admin-cli` audience
-  is rejected with `403`; a token carrying `health-insurance-api` is accepted.
-- A request larger than 1 MiB returns `413`; exceeding the local one-minute
-  quota returns `429` with rate-limit headers.
-- Direct host access to ports `8081`–`8084` fails because API services are only
-  exposed on the Compose network.
-- The Kubernetes variant exposes no backend Service port either; it reaches
-  APISIX only through a temporary local port-forward.
+- Token olmadan request APISIX tarafından `401` ve `application/problem+json` ile reddedilir.
+- Invalid token upstream çağrılmadan reddedilir.
+- Keycloak'ın ilgisiz `admin-cli` audience'ına issue edilmiş correctly signed token `403` ile reddedilir; `health-insurance-api` taşıyan token kabul edilir.
+- 1 MiB üzerindeki request `413`, local one-minute quota aşıldığında rate-limit header'larıyla `429` döner.
+- `8081`–`8084` portlarına direct host access başarısız olur; API service'leri yalnızca Compose network içinde expose edilir.
+- Kubernetes variant hiçbir backend Service port'u expose etmez; APISIX'e yalnızca temporary local port-forward ile ulaşılır.
+- Başka provider'a ait hospital token record'ları okuyamaz: `403`.
+- Hospital token pre-authorization veya claim approve edemez: `403`.
+- Pending/rejected pre-authorization claim oluşturamaz: `409`.
+- Aynı authorization için duplicate claim `409` döndürür.
+- Invoice match olmadan payment `409` döndürür.
+- Overpayment veya duplicate payment reference error döndürür ve invoice'u değiştirmez.
+- Validation sırasında Policy veya Authorization unavailable ise caller `503` alır ve local aggregate persist edilmez.
+- Kafka geçici unavailable ise decision committed kalır, outbox row unpublished kalır; Kafka restart sonrası relay resend eder.
+- Poison event toplam üç kez retry edilir ve sonra `.DLT` topic'te görünür.
+- Transient notification failure toplam üç bounded attempt alır; her attempt yeni transaction içindedir; exhaustion task'ı RabbitMQ DLQ'ya route eder.
+- Unsupported notification `taskVersion` retry edilmez ve dead-letter edilir.
+- Aynı valid `taskId` iki kez publish edilirse tek `DELIVERED` row oluşur ve duplicate sender invocation olmaz.
+- Redis'i durdurun ve coverage evaluation'ı tekrarlayın: safe log'lar cache unavailability raporlar, PostgreSQL authoritative result üretmeye devam eder.
+- Elasticsearch'ü durdurun: existing command workflow'ları devam eder ve committed claim projection outbox intent recoverable kalır; search geçici olarak fail olur.
+- Hospital user Search'e başka `providerId` verse bile signed token içindeki provider'a scope edilir.
+- Non-administrator hiçbir audit API çağramaz veya Audit Trail'e navigate edemez.
+- Invalid audit action ve 100 üzerindeki page size arbitrary database query'ye iletilmek yerine reddedilir.
+- Her service'in `audit_records` tablosunda update/delete/truncate girişimi PostgreSQL tarafından reddedilir.
+- 200 üzerindeki projection export page veya non-`SYSTEM_ADMIN` caller application boundary'de reddedilir.
+- Wrong expected count ile partial candidate activation `409` döndürür ve stable alias predecessor üzerinde kalır.
+- Başka rebuild alias'ı önce değiştirirse compare-and-swap stale activation veya rollback'i reddeder.
+- Older `sourceRevision` event daha yeni search state'i overwrite edemez.
+- `Transient` classification ve `-ConfirmReplay` olmadan DLT/DLQ replay publish öncesinde durur; original'lar quarantine'de kalır.
 
-- A hospital token with another provider cannot read the records: `403`.
-- A hospital token cannot approve a pre-authorization or claim: `403`.
-- A pending/rejected pre-authorization cannot create a claim: `409`.
-- A duplicate claim for the same authorization returns `409`.
-- Payment before invoice matching returns `409`.
-- An overpayment or duplicate payment reference returns an error and does not
-  change the invoice.
-- If Policy or Authorization is unavailable during validation, the caller gets
-  `503` and the local aggregate is not persisted.
-- If Kafka is temporarily unavailable, the decision remains committed and its
-  outbox row remains unpublished; restarting Kafka allows the relay to resend.
-- A poison event is retried three total times and then appears on the `.DLT` topic.
-- A transient notification failure gets three total bounded attempts, each in a
-  new transaction; exhaustion routes the task to the RabbitMQ DLQ.
-- An unsupported notification `taskVersion` is not retried and is dead-lettered.
-- Publishing the same valid `taskId` twice results in one `DELIVERED` row and no
-  duplicate sender invocation.
-- Stop Redis and repeat a coverage evaluation: safe logs report cache
-  unavailability while PostgreSQL still produces the authoritative result.
-- Stop Elasticsearch: existing command workflows continue and committed claim
-  projection outbox intent remains recoverable; search temporarily fails.
-- A hospital user supplying another `providerId` to Search is still scoped to the
-  provider in the signed token.
-- A non-administrator cannot invoke any audit API or navigate to Audit Trail.
-- Invalid audit actions and page sizes above 100 are rejected rather than passed
-  to an arbitrary database query.
-- Attempting to update, delete, or truncate any service's `audit_records` table
-  is rejected by PostgreSQL.
-- A projection export page larger than 200 or a non-`SYSTEM_ADMIN` caller is
-  rejected at the application boundary.
-- Activating a partial candidate with the wrong expected count returns `409` and
-  leaves the stable alias on its predecessor.
-- If another rebuild changes the alias first, compare-and-swap rejects the stale
-  activation or rollback.
-- An event with an older `sourceRevision` cannot overwrite a newer search state.
-- DLT/DLQ replay without `Transient` classification and `-ConfirmReplay` stops
-  before publishing; originals remain quarantined.
+## En son doğrulanmış backend checkpoint
 
-## Latest verified backend checkpoint
+API-only run `20260914231932`, 2026-09-14 tarihinde gerçek local PostgreSQL, Kafka, RabbitMQ, Notification Worker, Elasticsearch ve Keycloak instance'larına karşı tamamlandı. Content-aware Search assertion generated policy için tam beş record döndürdü. Rehearsal sırasında bulunan detaylı result ve defect'ler [backend end-to-end verification guide](../development/backend-end-to-end-local-verification.md) içinde kaydedilmiştir.
 
-The API-only run `20260914231932` completed on 2026-09-14 against real local
-PostgreSQL, Kafka, RabbitMQ, Notification Worker, Elasticsearch and Keycloak
-instances. The content-aware Search assertion returned exactly five records for
-the generated policy. Detailed results and defects found during the rehearsal
-are recorded in the
-[backend end-to-end verification guide](../development/backend-end-to-end-local-verification.md).
+## Sıfırlama
 
-## Reset
-
-Demo data is stored in disposable local Docker volumes. To retain it, stop with
-`docker compose stop`. To remove it, explicitly run `docker compose down -v`
-after confirming that no local data is needed; this deletes all four database
-volumes plus RabbitMQ, Redis, Kafka, and every retained Elasticsearch index.
-Candidate/predecessor deletion is deliberately not part of the rebuild or
-rollback scripts.
+Demo data disposable local Docker volume'larda saklanır. Tutmak için `docker compose stop` kullanın. Silmek için, local data'ya ihtiyaç olmadığını doğruladıktan sonra açıkça `docker compose down -v` çalıştırın; bu dört database volume'unu, RabbitMQ, Redis, Kafka ve retained tüm Elasticsearch index'lerini siler. Candidate/predecessor deletion bilinçli olarak rebuild veya rollback script'lerinin parçası değildir.
