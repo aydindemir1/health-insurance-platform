@@ -1,398 +1,233 @@
-# Health Insurance Claims and Pre-Authorization Platform
+# Sağlık Sigortası Hasar ve Ön Provizyon Platformu
 
-A portfolio-grade healthcare insurance platform that demonstrates modern Java
-full-stack engineering through a realistic business workflow. A healthcare
-provider requests authorization for a member's service, an insurer verifies
-policy coverage and decides the request, and an approved service proceeds to
-claim adjudication, invoice reconciliation, payment, and settlement.
+Gerçekçi bir iş akışı üzerinden modern Java full-stack mühendisliğini gösteren, portföy seviyesinde bir sağlık sigortası platformudur. Bir sağlık hizmeti sağlayıcısı, bir üyenin alacağı hizmet için provizyon talep eder; sigorta şirketi poliçe kapsamını doğrular ve talep hakkında karar verir; onaylanan hizmet daha sonra hasar değerlendirmesi, fatura mutabakatı, ödeme ve kapatma süreçlerine ilerler.
 
-> **Current checkpoint:** Milestones 0–10 are implemented. Authorization,
-> Policy, and Claims/Billing own minimized append-only audit journals and expose
-> independently secured, bounded `SYSTEM_ADMIN` read APIs. The Operations
-> Portal provides a service-aware audit view without joining service databases.
-> Policy also uses a resilient
-> Redis cache-aside adapter; Claims/Billing emits transactionally durable search
-> projections; Search Service builds a provider-scoped Elasticsearch read model.
-> Every Java runtime emits ECS JSON with correlation IDs, and the Compose stack
-> includes Elasticsearch, Kibana, APM Server, and externally attached Elastic
-> Java agents. Search projections can now be rebuilt online from bounded,
-> service-owned snapshots through a versioned candidate index and atomic alias
-> swap. Monotonic source revisions reject stale writes, while bounded Kafka DLT
-> and RabbitMQ DLQ tools support explicit inspect/classify/replay workflows.
-> APISIX is the only host-published business API boundary and
-> applies OIDC/JWKS validation, traffic limits, correlation IDs, defensive
-> headers, and RFC 9457 gateway errors. Compose and Testcontainers exercise the
-> real infrastructure paths.
+> **Mevcut kontrol noktası:** Milestone 0–10 uygulanmıştır. Authorization,
+> Policy ve Claims/Billing servisleri, minimize edilmiş yalnızca eklemeye açık
+> (append-only) denetim günlüklarının sahibidir ve bağımsız olarak güvenliği
+> sağlanmış, sınırlandırılmış `SYSTEM_ADMIN` okuma API'leri sunar. Operations
+> Portal, servis veritabanlarını birleştirmeden servis farkındalığına sahip bir
+> denetim görünümü sağlar. Policy ayrıca dayanıklı bir Redis cache-aside adaptörü
+> kullanır; Claims/Billing işlemsel olarak kalıcı arama projeksiyonları üretir;
+> Search Service ise hizmet sağlayıcı kapsamlı bir Elasticsearch okuma modeli
+> oluşturur. Her Java çalışma zamanı correlation ID'leri ile ECS JSON logları
+> üretir ve Compose yığını Elasticsearch, Kibana, APM Server ile dışarıdan
+> bağlanan Elastic Java agent'larını içerir. Arama projeksiyonları artık
+> servislerin sahip olduğu sınırlandırılmış snapshot'lardan, sürümlenmiş aday
+> indeks ve atomik alias değişimi kullanılarak çevrim içi yeniden oluşturulabilir.
+> Monotonik kaynak revizyonları eski yazmaları reddederken, sınırlandırılmış Kafka
+> DLT ve RabbitMQ DLQ araçları açık inspect/classify/replay iş akışlarını destekler.
+> APISIX host üzerinde yayınlanan tek business API sınırıdır ve OIDC/JWKS
+> doğrulaması, trafik limitleri, correlation ID'leri, savunmacı header'lar ve
+> RFC 9457 gateway hataları uygular. Compose ve Testcontainers gerçek altyapı
+> yollarını çalıştırır.
 
-## Why this project exists
+## Bu proje neden var?
 
-The project connects professional hospital-information-system experience with
-the Java/Spring and React/TypeScript ecosystem. It is deliberately more than a
-CRUD portfolio sample: aggregate state transitions, monetary invariants,
-provider ownership, concurrency, database ownership, and service failure are
-part of the model.
+Bu proje, profesyonel Hastane Bilgi Yönetim Sistemi deneyimini Java/Spring ve React/TypeScript ekosistemiyle birleştirir. Bilinçli olarak basit bir CRUD portföy örneğinden daha fazlasıdır: aggregate durum geçişleri, parasal invariant'lar, hizmet sağlayıcı sahipliği, concurrency, veritabanı sahipliği ve servis arızaları modelin bir parçasıdır.
 
-The business problem is split into four bounded contexts and one operational
-worker:
+İş problemi dört bounded context ve bir operasyonel worker'a ayrılmıştır:
 
-| Bounded context | Owns | Does not own |
+| Bounded context | Sahip olduğu alan | Sahip olmadığı alan |
 | --- | --- | --- |
-| Authorization | Pre-authorization request, requested service/amount, provider, decision | Policy rules, claims, invoices, payments |
-| Policy | Policy validity/status and coverage definitions/limits | Authorization decisions or limit reservation |
-| Claims and Billing | Claim adjudication, invoice reconciliation, payments, settlement | Authorization or policy source data |
-| Notification Worker | Technical delivery lifecycle and idempotency evidence | Contact, member, policy, clinical, authorization, or claim source data |
-| Search | Denormalized operational claim/pre-authorization projections | Aggregate truth, commands, policy rules, or financial transactions |
+| Authorization | Ön provizyon talebi, talep edilen hizmet/tutar, hizmet sağlayıcı, karar | Poliçe kuralları, hasarlar, faturalar, ödemeler |
+| Policy | Poliçe geçerliliği/durumu ve kapsam tanımları/limitleri | Provizyon kararları veya limit rezervasyonu |
+| Claims and Billing | Hasar değerlendirmesi, fatura mutabakatı, ödemeler, kapatma | Authorization veya Policy kaynak verileri |
+| Notification Worker | Teknik teslimat yaşam döngüsü ve idempotency kanıtı | İletişim, üye, poliçe, klinik, provizyon veya hasar kaynak verileri |
+| Search | Denormalize operasyonel hasar/ön provizyon projeksiyonları | Aggregate gerçeği, command'lar, poliçe kuralları veya finansal işlemler |
 
-The Operations Portal exposes the pre-authorization workflow, cross-context
-search, and a `SYSTEM_ADMIN` audit view. Policy and Claims/Billing command
-workflows remain available through secured APIs and the synthetic demo script.
+Operations Portal; ön provizyon iş akışını, context'ler arası aramayı ve `SYSTEM_ADMIN` denetim görünümünü sunar. Policy ve Claims/Billing command iş akışları güvenliği sağlanmış API'ler ve sentetik demo script'i üzerinden kullanılabilir durumda kalır.
 
-## Implemented capabilities
+## Uygulanan yetenekler
 
-### Milestone 0 — Build and runtime baseline
+### Milestone 0 — Build ve çalışma zamanı temeli
 
-- Java 21 across Maven, Dockerfiles, and GitHub Actions.
-- Spring Boot 4.1.1 services built through Maven Wrapper.
-- Multi-stage container images with non-root runtime users.
-- Docker Compose for Keycloak, APISIX, Kafka, RabbitMQ, four PostgreSQL databases, four
-  API services, and the Notification Worker.
-- Actuator health endpoints and database health-gated startup.
-- Secret-safe configuration through ignored `.env` files and committed examples.
+- Maven, Dockerfile'lar ve GitHub Actions genelinde Java 21.
+- Maven Wrapper ile build edilen Spring Boot 4.1.1 servisleri.
+- Root olmayan çalışma zamanı kullanıcılarına sahip multi-stage container image'ları.
+- Keycloak, APISIX, Kafka, RabbitMQ, dört PostgreSQL veritabanı, dört API servisi ve Notification Worker için Docker Compose.
+- Actuator health endpoint'leri ve veritabanı sağlık durumuna bağlı başlangıç.
+- Ignore edilen `.env` dosyaları ve commit edilen örnekler ile secret-safe yapılandırma.
 
 ### Milestone 1 — Authorization Service
 
-- Clean Architecture with domain, application, infrastructure, and presentation
-  boundaries enforced by ArchUnit.
-- Rich `PreAuthorization` aggregate and `Money` value object.
-- Submission, detail, approval, rejection, and a provider-scoped paginated work
-  queue with filtering and sorting.
-- Lightweight CQRS through separate command/query input and output models.
-- Transaction decorators keep Spring out of application use cases.
-- Optimistic concurrency prevents two specialists from deciding the same request.
-- RFC 9457 Problem Details for validation, authorization, conflict, not-found,
-  and dependency failures.
+- Domain, application, infrastructure ve presentation sınırları ArchUnit ile zorlanan Clean Architecture.
+- Zengin `PreAuthorization` aggregate'i ve `Money` value object'i.
+- Gönderim, detay, onay, ret ve filtreleme/sıralama destekli provider kapsamlı sayfalı iş kuyruğu.
+- Ayrı command/query input ve output modelleri ile lightweight CQRS.
+- Transaction decorator'ları Spring'i application use case'lerinin dışında tutar.
+- Optimistic concurrency iki uzmanın aynı talep hakkında eş zamanlı karar vermesini engeller.
+- Validation, authorization, conflict, not-found ve dependency hataları için RFC 9457 Problem Details.
 
 ### Milestone 2 — React Operations Portal
 
-- Vite, React, and strict TypeScript foundation.
-- Feature-Sliced dependency direction:
+- Vite, React ve strict TypeScript temeli.
+- Feature-Sliced bağımlılık yönü:
   `app -> pages -> widgets -> features -> entities -> shared`.
-- Keycloak Authorization Code + PKCE login/logout and role-aware UI.
-- TanStack Query server-state management and typed API client.
-- React Hook Form + Zod validation.
-- Dashboard, work queue, filters, sorting, pagination, submission, detail, and
-  specialist decision interfaces.
-- Loading, error, empty, unauthorized, and not-found states.
-- Vitest, Testing Library, architecture checks, linting, and production build.
+- Keycloak Authorization Code + PKCE login/logout ve role-aware UI.
+- TanStack Query server-state yönetimi ve typed API client.
+- React Hook Form + Zod doğrulaması.
+- Dashboard, iş kuyruğu, filtreleme, sıralama, pagination, gönderim, detay ve uzman karar arayüzleri.
+- Loading, error, empty, unauthorized ve not-found durumları.
+- Vitest, Testing Library, mimari kontroller, lint ve production build.
 
 ### Milestone 3 — Policy Service
 
-- Policy aggregate with member ownership, status, inclusive validity dates, and
-  one or more coverage definitions.
-- Coverage rules for service code, requested amount, currency, and maximum limit.
-- Synchronous coverage verification before Authorization accepts a request.
-- Fail-closed dependency behavior: a denied or unavailable policy evaluation
-  does not create a pending pre-authorization.
-- Private PostgreSQL schema and Liquibase migrations.
+- Üye sahipliği, durum, kapsayıcı geçerlilik tarihleri ve bir veya daha fazla coverage tanımı içeren Policy aggregate'i.
+- Hizmet kodu, talep edilen tutar, para birimi ve maksimum limit için coverage kuralları.
+- Authorization bir talebi kabul etmeden önce senkron kapsam doğrulaması.
+- Fail-closed dependency davranışı: reddedilen veya erişilemeyen poliçe değerlendirmesi pending bir ön provizyon oluşturmaz.
+- Özel PostgreSQL şeması ve Liquibase migration'ları.
 
-Coverage evaluation currently answers eligibility only; it does **not** reserve
-or consume shared benefit limits across requests. This is an explicit future
-domain concern.
+Coverage değerlendirmesi şu anda yalnızca uygunluğu yanıtlar; talepler arasında paylaşılan hak/benefit limitlerini **rezerve etmez veya tüketmez**. Bu, geleceğe bırakılmış açık bir domain konusudur.
 
 ### Milestone 4 — Claims and Billing Service
 
-- Claim and Invoice modeled as separate aggregate roots in one bounded context.
-- A claim can only start from an approved, provider-owned pre-authorization.
-- Claim lifecycle: `SUBMITTED -> UNDER_REVIEW -> APPROVED|REJECTED`.
-- Invoice lifecycle: `ISSUED -> MATCHED|DISPUTED -> SETTLED`, or `VOID` after
-  claim rejection when unpaid.
-- Partial payments, dispute resolution, agreed payable amount, and automatic
-  settlement when fully paid.
-- Invariants against negative amounts, wrong currencies, over-approval,
-  overpayment, illegal transitions, and duplicate payment references.
-- Database-level uniqueness and optimistic locking for local idempotency and
-  concurrent-update protection.
+- Claim ve Invoice aynı bounded context içinde ayrı aggregate root'lar olarak modellenmiştir.
+- Bir claim yalnızca onaylanmış ve ilgili provider'a ait ön provizyondan başlayabilir.
+- Claim yaşam döngüsü: `SUBMITTED -> UNDER_REVIEW -> APPROVED|REJECTED`.
+- Invoice yaşam döngüsü: `ISSUED -> MATCHED|DISPUTED -> SETTLED`; ödeme yapılmamış ret durumunda `VOID`.
+- Kısmi ödemeler, uyuşmazlık çözümü, mutabık kalınan ödenecek tutar ve tam ödeme sonrası otomatik settlement.
+- Negatif tutar, yanlış para birimi, fazla onay, fazla ödeme, yasadışı durum geçişleri ve yinelenen ödeme referanslarına karşı invariant'lar.
+- Lokal idempotency ve eş zamanlı güncelleme koruması için veritabanı seviyesinde uniqueness ve optimistic locking.
 
-### Milestone 5 — Transactional Outbox and Kafka
+### Milestone 5 — Transactional Outbox ve Kafka
 
-- Approval/rejection integration events are inserted into Authorization's
-  PostgreSQL outbox in the same transaction as the decision.
-- A scheduled relay publishes versioned JSON to
-  `health.authorization.pre-authorization.v1` with the aggregate ID as key.
-- Failed broker sends remain unpublished and are retried by the next poll.
-- Claims/Billing consumes approval events and automatically starts a claim and
-  invoice in one local transaction.
-- `processed_messages` and business uniqueness constraints make duplicate
-  delivery a no-op.
-- Consumer failures receive three total fixed-backoff attempts, then the
-  original record is published to the `.DLT` topic.
-- Real PostgreSQL and Apache Kafka Testcontainers tests verify duplicate delivery
-  and poison-message routing.
+- Onay/ret integration event'leri, karar ile aynı transaction içinde Authorization PostgreSQL outbox'ına eklenir.
+- Zamanlanmış relay, aggregate ID'yi key olarak kullanarak sürümlenmiş JSON'u
+  `health.authorization.pre-authorization.v1` topic'ine yayınlar.
+- Başarısız broker gönderimleri unpublished kalır ve bir sonraki poll'da tekrar denenir.
+- Claims/Billing onay event'lerini tüketir ve tek bir lokal transaction içinde otomatik olarak claim ve invoice başlatır.
+- `processed_messages` ve business uniqueness constraint'leri yinelenen teslimatı no-op haline getirir.
+- Consumer hataları toplam üç fixed-backoff denemesi alır; ardından orijinal kayıt `.DLT` topic'ine yayınlanır.
+- Gerçek PostgreSQL ve Apache Kafka Testcontainers testleri duplicate delivery ve poison-message routing davranışını doğrular.
 
 ### Milestone 6 — Notification Worker
 
-- Framework-independent notification delivery aggregate and use case.
-- Provider-reference recipient model that excludes contact and health data.
-- Sender and repository output ports with `taskId` as the downstream idempotency
-  key.
-- Duplicate delivered tasks are application-level no-ops.
-- Reusing a `taskId` for different notification intent is rejected as a contract
-  conflict rather than silently treated as a duplicate.
-- Clean Architecture rules protect the new worker core.
-- Private PostgreSQL persistence with a Liquibase-managed delivery table,
-  database constraints, and operational indexes.
-- A real PostgreSQL 17 Testcontainer proves migration, Hibernate schema
-  validation, and `RECEIVED`/`DELIVERED` round trips.
-- PostgreSQL 17 and RabbitMQ 4.1 Testcontainers prove the real persistence,
-  broker-routing, duplicate-delivery, acknowledgement, and DLQ paths.
-- Authorization stores a minimal, versioned notification task in a dedicated
-  outbox in the same transaction as its decision and Kafka integration event.
-- A full Spring/PostgreSQL integration test proves all three writes commit
-  together and all roll back when notification intent persistence fails.
-- A scheduled AMQP relay locks an ordered batch, publishes persistent JSON with
-  `taskId`/`causationId` message metadata, and marks the row published only
-  after a positive correlated publisher confirm.
-- Mandatory publishing plus publisher returns prevents a broker acknowledgement
-  for an unroutable message from being mistaken for successful task delivery.
-- Durable direct exchange, delivery queue, dead-letter exchange, and DLQ names
-  are explicit and covered by topology tests.
-- The relay is feature-gated by `NOTIFICATION_OUTBOX_ENABLED`; Compose enables it
-  and supplies RabbitMQ connection settings from the ignored `.env`.
-- The Authorization Java 21 verification suite now has 59 passing tests,
-  including positive confirm, negative confirm, unroutable return, safe wire
-  payload, and topology checks.
-- The worker maps the v1 JSON envelope into an application command and rejects
-  unsupported contract versions before invoking the use case.
-- A Spring transaction decorator commits delivery persistence before the
-  listener sends manual `basicAck`; a lost acknowledgement can therefore cause
-  only an idempotent redelivery.
-- Only explicit transient delivery failures receive three total attempts with
-  bounded exponential backoff. Permanent contract/invariant failures are tried
-  once. Exhausted/permanent work is negatively acknowledged without requeue and
-  routed to the durable DLQ.
-- Retry wraps the transaction decorator, so every attempt starts a new
-  transaction; a successful commit occurs before `basicAck`.
-- A local log sender demonstrates the output-port boundary without contact data
-  or external provider credentials; it is not presented as email/SMS delivery.
+- Framework bağımsız notification delivery aggregate'i ve use case'i.
+- İletişim ve sağlık verisini dışlayan provider-reference alıcı modeli.
+- Downstream idempotency key olarak `taskId` kullanan sender ve repository output port'ları.
+- Daha önce teslim edilmiş duplicate task'lar application seviyesinde no-op'tur.
+- Aynı `taskId`'nin farklı notification intent için yeniden kullanılması sessizce duplicate sayılmak yerine contract conflict olarak reddedilir.
+- Clean Architecture kuralları yeni worker core'unu korur.
+- Liquibase yönetimli delivery tablosu, veritabanı constraint'leri ve operasyonel indeksler ile özel PostgreSQL persistence.
+- Gerçek PostgreSQL 17 Testcontainer; migration, Hibernate schema validation ve `RECEIVED`/`DELIVERED` round-trip'lerini doğrular.
+- PostgreSQL 17 ve RabbitMQ 4.1 Testcontainers gerçek persistence, broker routing, duplicate delivery, acknowledgement ve DLQ yollarını doğrular.
+- Authorization, karar ve Kafka integration event ile aynı transaction içinde özel bir outbox'a minimal, sürümlenmiş notification task yazar.
+- Tam Spring/PostgreSQL integration testi üç yazmanın birlikte commit olduğunu ve notification intent persistence başarısız olduğunda tamamının rollback edildiğini kanıtlar.
+- Zamanlanmış AMQP relay sıralı bir batch'i kilitler, `taskId`/`causationId` message metadata ile persistent JSON yayınlar ve satırı yalnızca pozitif correlated publisher confirm sonrasında published olarak işaretler.
+- Mandatory publishing ve publisher return'leri, route edilemeyen bir mesaj için broker acknowledgement'ın başarılı task teslimatı sanılmasını engeller.
+- Durable direct exchange, delivery queue, dead-letter exchange ve DLQ adları açıktır ve topology testleriyle kapsanır.
+- Relay, `NOTIFICATION_OUTBOX_ENABLED` feature flag'i ile kontrol edilir; Compose bunu etkinleştirir ve ignore edilen `.env` üzerinden RabbitMQ bağlantı ayarlarını sağlar.
+- Authorization Java 21 doğrulama paketi; positive confirm, negative confirm, unroutable return, güvenli wire payload ve topology kontrolleri dahil 59 başarılı teste sahiptir.
+- Worker, v1 JSON envelope'u application command'a map eder ve desteklenmeyen contract sürümlerini use case'i çağırmadan reddeder.
+- Spring transaction decorator, listener manuel `basicAck` göndermeden önce delivery persistence'ı commit eder; bu nedenle kaybolan acknowledgement yalnızca idempotent bir redelivery oluşturabilir.
+- Yalnızca açık transient delivery hataları bounded exponential backoff ile toplam üç kez denenir. Kalıcı contract/invariant hataları bir kez denenir. Tükenen/kalıcı işler requeue edilmeden negative acknowledgement alır ve durable DLQ'ya yönlendirilir.
+- Retry, transaction decorator'ı sarar; böylece her deneme yeni bir transaction başlatır ve başarılı commit `basicAck`'ten önce gerçekleşir.
+- Lokal log sender, iletişim verisi veya harici provider credential'ları olmadan output-port sınırını gösterir; email/SMS teslimatı olarak sunulmaz.
+- Tekrarlanabilir sentetik demo, Kafka ile ilerleyen claims ve billing akışlarını tamamlarken üç karar notification'ını `DELIVERED` olarak doğrular.
 
-- The repeatable synthetic demo verifies three decision notifications as
-  `DELIVERED` while also completing Kafka-driven claims and billing flows.
+### Milestone 7 — Redis, arama ve observability
 
-### Milestone 7 — Redis, search, and observability
+- Policy Service; 30 saniye TTL, privacy-safe hash'lenmiş key'ler, policy bazlı invalidation ve Redis erişilemezken fail-open davranışı olan açık bir cache output port ve Redis cache-aside adaptörü kullanır.
+- PostgreSQL authoritative kaynak olmaya devam eder; authoritative coverage kararı alınamazsa Authorization yine fail-closed davranır.
+- Claims/Billing her arama projeksiyonunu finansal state transition ile aynı transaction içindeki özel PostgreSQL outbox'ına yazar.
+- Search Service, Authorization kararlarını ve Claims/Billing projeksiyonlarını tüketir; ardından deterministic dokümanları Elasticsearch 9.5.3'e idempotent olarak indeksler.
+- Güvenliği sağlanmış search API text, type, status, provider ve pagination destekler. Hastane kullanıcıları trusted JWT `provider_id` değerine zorlanır; sigorta rolleri provider'lar arasında arama yapabilir.
+- React portal, FSD bağımlılık yönünü korurken ayrı bir typed API boundary üzerinden sayfalı Healthcare Search ekranı sunar.
+- `X-Correlation-ID` portal tarafından üretilir, HTTP filter'ları tarafından doğrulanıp echo edilir, REST client'lar ile propagate edilir ve consumer'larda Kafka/RabbitMQ identifier'larından türetilir. Her request/message sonrasında MDC temizlenir.
+- Beş Java runtime'ın tamamı Spring Boot ECS structured console logging kullanır. Docker image'ları Elastic APM Java Agent 1.56.0'ı dışarıdan bağlar; APM Server ve Kibana Elasticsearch ile aynı Elastic Stack 9.5.3 sürümünü kullanır.
+- Unit ve gerçek Testcontainers testleri; cache failure davranışı, transactional search outbox yazmaları, projection mapping, provider scope, Elasticsearch sorguları ve correlation işleme davranışını kapsar.
 
-- Policy Service uses an explicit cache output port and Redis cache-aside adapter
-  with a 30-second TTL, privacy-safe hashed keys, per-policy invalidation, and
-  fail-open behavior when Redis is unavailable.
-- PostgreSQL remains authoritative; Authorization still fails closed if an
-  authoritative coverage decision cannot be obtained.
-- Claims/Billing persists each search projection in a dedicated PostgreSQL
-  outbox in the same transaction as the financial state transition.
-- Search Service consumes Authorization decisions and Claims/Billing projections,
-  then idempotently indexes deterministic documents in Elasticsearch 9.5.3.
-- The secured search API supports text, type, status, provider and pagination.
-  Hospital users are forced to the trusted JWT `provider_id`; insurer roles can
-  search across providers.
-- The React portal exposes a paginated Healthcare Search page through a separate
-  typed API boundary while preserving FSD dependency direction.
-- `X-Correlation-ID` is generated by the portal, validated and echoed by HTTP
-  filters, propagated by REST clients, and derived from Kafka/RabbitMQ identifiers
-  in consumers. MDC is cleared after every request/message.
-- All five Java runtimes use Spring Boot ECS structured console logging. Docker
-  images attach Elastic APM Java Agent 1.56.0 externally; APM Server and Kibana
-  use the same Elastic Stack 9.5.3 version as Elasticsearch.
-- Unit and real Testcontainers tests cover cache failure behavior, transactional
-  search outbox writes, projection mapping, provider scope, Elasticsearch queries,
-  and correlation handling.
+### Milestone 8 — APISIX gateway ve merkezi edge security
 
-### Milestone 8 — APISIX gateway and centralized edge security
+- Apache APISIX 3.18 declarative, dosya tabanlı standalone modda çalışır; Admin API ve etcd lokal data plane'de yoktur.
+- `9080` portu host üzerinde yayınlanan tek business API giriş noktasıdır. Authorization, Policy, Claims/Billing ve Search portları Compose içinde kalır.
+- Keycloak bearer token'ları; OIDC discovery/JWKS üzerinden gateway seviyesinde RS256 imza, issuer, expiry ve `health-insurance-api` audience doğrulamasından geçer; ardından Spring Security doğrulaması uygulanır.
+- Ortak edge policy correlation ID'leri, açık CORS, source address başına dakikada 120 request, 1 MiB body limiti, upstream timeout'ları, no-store ve savunmacı response header'ları sağlar.
+- Sınırlandırılmış APISIX infrastructure adapter, gateway-native hataları RFC 9457 `application/problem+json` formatına dönüştürür; upstream business Problem Details değiştirilmeden geçer.
+- Portal ve sentetik demo tek bir API origin kullanır. Tekrarlanabilir doğrulama script'i; eksik/geçersiz token ve yanlış-audience reddini, yetkili routing'i, correlation, CORS, payload limiting ve rate limiting davranışını doğrular.
 
-- Apache APISIX 3.18 runs in declarative, file-driven standalone mode; the Admin
-  API and etcd are absent from the local data plane.
-- Port `9080` is the only host-published business API entry point. Authorization,
-  Policy, Claims/Billing and Search ports remain internal to Compose.
-- Keycloak bearer tokens receive gateway-level RS256 signature, issuer, expiry and
-  `health-insurance-api` audience validation through OIDC discovery/JWKS, followed
-  by Spring Security validation.
-- Shared edge policy provides correlation IDs, explicit CORS, 120 requests per
-  minute per source address, a 1 MiB body limit, upstream timeouts, no-store and
-  defensive response headers.
-- A bounded APISIX infrastructure adapter converts gateway-native failures to
-  RFC 9457 `application/problem+json`; upstream business Problem Details pass
-  through unchanged.
-- The portal and synthetic demo use one API origin. A repeatable verification
-  script proves missing/invalid token and wrong-audience rejection, authorized routing, correlation,
-  CORS, payload limiting and rate limiting.
+### Milestone 9 — Audit ve data governance
 
-### Milestone 9 — Audit and data governance
+- [ADR-011](docs/adr/011-service-owned-append-only-audit.md), senkron merkezi audit bağımlılığı yerine servis sahipli lokal audit journal tanımlar.
+- Authorization submission/decision, Policy issuance ve Claims/Billing state transition'ları; aggregate ve ilgili outbox'larla aynı PostgreSQL transaction içinde minimize edilmiş audit evidence ekler.
+- Typed audit contract actor subject/roles, provider scope, correlation ID, kontrollü action/reason code'ları ve status delta içerir. Üye, poliçe, tanı, hizmet, tutar, karar metni ve request body'lerini içermez.
+- Her sahip veritabanında Liquibase yönetimli `audit_records` journal vardır. PostgreSQL trigger'ları `UPDATE`, `DELETE` ve `TRUNCATE` işlemlerini reddeder; JSON constraint'leri değişiklik dokümanlarını `fromStatus` ve `toStatus` ile sınırlar.
+- Her servis application input port üzerinden kendi sayfalı audit sorgusunu sunar. Controller ve use-case kontrollerinin ikisi de `SYSTEM_ADMIN` gerektirir; aggregate identifier'ları ve servis-lokal allowlist edilmiş action'lar tek filtrelerdir, page size 100 ile sınırlandırılır ve ordering deterministiktir.
+- Portal'ın yalnızca administrator'a açık Audit Trail sayfası APISIX üzerinden aynı anda tek bir owner servisi sorgular. Bilinçli olarak merkezi audit store veya cross-database join oluşturmaz.
+- Integration testleri zorunlu audit persistence başarısız olduğunda transaction rollback'i ve veritabanı seviyesinde mutation reddini kanıtlar. Sentetik demo authorization, policy, claim, invoice ve payment transition'ları için beklenen audit evidence'ı doğrular.
+- Data-governance threat model hassas alanları ve storage surface'lerini sınıflandırır, minimization kurallarını ve retention class'larını dokümante eder ve residual risk'leri kaydeder. Yasal retention onayı ve otomatik disposal daha sonraki operasyonel çalışmalardır; bu portföy düzenleyici uyumluluk iddiasında bulunmaz.
 
-- [ADR-011](docs/adr/011-service-owned-append-only-audit.md) defines a local,
-  service-owned audit journal instead of a synchronous central audit dependency.
-- Authorization submission/decision, Policy issuance, and Claims/Billing state
-  transitions append minimized audit evidence in the same PostgreSQL transaction
-  as their aggregate and any relevant outboxes.
-- The typed audit contract contains actor subject/roles, provider scope,
-  correlation ID, controlled action/reason codes and status delta. It excludes
-  member, policy, diagnosis, service, amount, decision text and request bodies.
-- Each owning database has a Liquibase-managed `audit_records` journal.
-  PostgreSQL triggers reject `UPDATE`, `DELETE`, and `TRUNCATE`; JSON constraints
-  limit change documents to `fromStatus` and `toStatus`.
-- Every service exposes its own paginated audit query through an application
-  input port. Controller and use-case checks both require `SYSTEM_ADMIN`;
-  aggregate identifiers and service-local allowlisted actions are the only
-  filters, page size is capped at 100, and ordering is deterministic.
-- The portal's administrator-only Audit Trail page queries one owning service at
-  a time through APISIX. It deliberately does not create a central audit store
-  or cross-database join.
-- Integration tests prove transaction rollback when required audit persistence
-  fails and prove database-level mutation rejection. The synthetic demo verifies
-  expected audit evidence for authorization, policy, claim, invoice, and payment
-  transitions.
-- The data-governance threat model classifies sensitive fields and storage
-  surfaces, documents minimization rules and retention classes, and records
-  residual risks. Legal retention approval and automated disposal remain later
-  operational work; this portfolio does not claim regulatory compliance.
+### Milestone 10 — Arama ve mesajlaşma recovery
 
-### Milestone 10 — Search and messaging recovery
+- [ADR-012](docs/adr/012-versioned-search-rebuild-and-controlled-message-recovery.md), servis sahipli projection export, sürümlenmiş fiziksel indeksler, stable alias activation, stale-write protection, rollback ve kontrollü broker recovery tanımlar.
+- Authorization ve Claims/Billing, yalnızca `SYSTEM_ADMIN` erişimli ve page-size sınırlandırılmış snapshot API'leri sunar; bunlar sadece kendi veritabanlarıyla desteklenir. Stable ordering ve transport-specific DTO'lar database-per-service ve Clean Architecture sınırlarını korur.
+- Her projection owner tarafından tanımlanan monotonik `sourceRevision` taşır. Elasticsearch conditional upsert eşit veya daha yeni revizyonu kabul eder ve eski bir event'i no-op'a dönüştürür; M10 öncesi dokümanlar güvenle baseline revision 1'e map edilir.
+- Search Service izole sürümlenmiş aday oluşturur, bounded ingestion'ı doğrular, refresh yapıp distinct document count'u karşılaştırır ve ardından `healthcare-operations` alias'ında atomik compare-and-swap gerçekleştirir. Önceki index açık rollback için korunur.
+- `demo/rebuild-search-index.ps1`, runtime-only token ile APISIX üzerinden mevcut snapshot'ları koordine eder. Duplicate deterministic ID'leri algılar ve projection payload'larını veya credential'ları diske yazmaz.
+- Recovery status güvenli outbox age/attempt count'larını, Kafka group lag'i ve RabbitMQ queue depth'i raporlar. DLT/DLQ araçları yalnızca digest ve bounded metadata sunar; replay için transient classification, explicit confirmation flag, allowlist edilmiş route ve maksimum recovery attempt gerekir.
+- Gerçek PostgreSQL ve Elasticsearch integration testleri owner export'ları, stale-revision reddi, legacy document compatibility, count-gated activation, retained predecessor, atomic alias swap ve rollback'i doğrular. Canlı Compose provasında 55 dokümanlı predecessor silinmeden 70 dokümanlı candidate aktive edilmiştir.
+- Lokal coordinator bilinçli olarak durable production workflow değildir: run state bellektedir ve broker operasyonları lokal operator erişimi kullanır. [Recovery runbook](docs/operations/search-and-messaging-recovery.md) bu sınırları ve güvenli failure prosedürünü kaydeder.
 
-- [ADR-012](docs/adr/012-versioned-search-rebuild-and-controlled-message-recovery.md)
-  defines service-owned projection export, versioned physical indices, stable
-  alias activation, stale-write protection, rollback, and controlled broker
-  recovery.
-- Authorization and Claims/Billing expose `SYSTEM_ADMIN`-only, page-size-capped
-  snapshot APIs backed exclusively by their own databases. Stable ordering and
-  transport-specific DTOs preserve database-per-service and Clean Architecture
-  boundaries.
-- Every projection carries an owner-defined monotonic `sourceRevision`.
-  Elasticsearch conditional upsert accepts an equal/newer revision and turns an
-  older event into a no-op; pre-M10 documents safely map to baseline revision 1.
-- Search Service creates an isolated versioned candidate, validates bounded
-  ingestion, refreshes and compares the distinct document count, then performs
-  an atomic compare-and-swap of the `healthcare-operations` alias. The prior
-  index is retained for explicit rollback.
-- `demo/rebuild-search-index.ps1` coordinates current snapshots through APISIX
-  with a runtime-only token. It detects duplicate deterministic IDs and never
-  writes projection payloads or credentials to disk.
-- Recovery status reports safe outbox age/attempt counts, Kafka group lag, and
-  RabbitMQ queue depth. DLT/DLQ tools expose only digests and bounded metadata;
-  replay requires a transient classification, an explicit confirmation flag,
-  an allowlisted route, and a maximum recovery attempt.
-- Real PostgreSQL and Elasticsearch integration tests prove owner exports,
-  stale-revision rejection, legacy-document compatibility, count-gated
-  activation, retained predecessor, atomic alias swap, and rollback. A live
-  Compose rehearsal activated a 70-document candidate without deleting the
-  55-document predecessor.
-- The local coordinator is intentionally not a durable production workflow:
-  run state is in memory and broker operations use local operator access. The
-  [recovery runbook](docs/operations/search-and-messaging-recovery.md) records
-  these limits and the safe failure procedure.
+### Milestone 11 — Kubernetes ve deployment security
 
-### Milestone 11 — Kubernetes and deployment security
+- Kustomize base, bu repository'nin sahip olduğu yedi stateless workload'u paketler: beş Spring uygulaması, React/Nginx portal ve APISIX.
+- PostgreSQL, Kafka, RabbitMQ, Redis, Elasticsearch, Keycloak ve APM açık operator-owned service contract'lar olarak kalır. Repository, basit lokal StatefulSet'lerle production-grade stateful operasyon iddiasında bulunmaz.
+- `health-insurance` namespace Restricted Pod Security Standard'ı uygular. Container'lar sabit non-root identity, read-only root filesystem, RuntimeDefault seccomp, drop edilmiş Linux capability'leri, kapatılmış privilege escalation ve bounded writable temporary volume'lar kullanır.
+- Her workload'un token automount'u kapalı ve gereksiz RBAC permission'ları olmayan özel ServiceAccount'u vardır. Default-deny NetworkPolicy'ler yalnızca dokümante edilmiş caller ve dependency yollarını açar.
+- Startup, readiness ve liveness probe'ları; resource request/limit'leri; graceful shutdown; rolling update; topology spread; PDB ve konservatif HPA'lar availability davranışını açık hale getirir. Notification Worker'da yalnızca CPU tabanlı HPA bilinçli olarak yoktur çünkü queue-depth scaling dış metrik gerektirir.
+- Namespace ResourceQuota/LimitRange policy'leri kontrolsüz kaynak tüketimini sınırlar ve APISIX mutable tag yerine doğrulanmış registry digest'e pin edilir.
+- Secret'lar isimleriyle referans edilir ve Kustomize tarafından asla render edilmez. Guard edilmiş lokal helper ignore edilen environment değerlerini okuyup Secret YAML'ı diske yazmadan doğrudan Kubernetes API'ye gönderir.
+- Production odaklı base ve tek replica'lı local overlay'in ikisi de render edilir ve repository policy validation'dan geçer. Milestone 12 ayrıca paketi Argo CD üzerinden disposable Minikube cluster'a uygulamıştır.
 
-- A Kustomize base packages the seven stateless workloads owned by this
-  repository: five Spring applications, the React/Nginx portal, and APISIX.
-- PostgreSQL, Kafka, RabbitMQ, Redis, Elasticsearch, Keycloak, and APM remain
-  explicit operator-owned service contracts. The repository does not imply
-  production-grade stateful operation with simplistic local StatefulSets.
-- The `health-insurance` namespace enforces the Restricted Pod Security
-  Standard. Containers use fixed non-root identities, read-only root
-  filesystems, RuntimeDefault seccomp, dropped Linux capabilities, disabled
-  privilege escalation, and bounded writable temporary volumes.
-- Every workload has a dedicated ServiceAccount with token automount disabled
-  and no unnecessary RBAC permissions. Default-deny NetworkPolicies open only
-  documented caller and dependency paths.
-- Startup, readiness, and liveness probes, resource requests/limits, graceful
-  shutdown, rolling updates, topology spread, PDBs, and conservative HPAs make
-  availability behavior explicit. Notification Worker deliberately has no
-  CPU-only HPA because queue-depth scaling requires an external metric.
-- Namespace ResourceQuota/LimitRange policies bound runaway consumption, and
-  APISIX is pinned to a verified registry digest rather than a mutable tag.
-- Secrets are referenced by name and never rendered by Kustomize. The guarded
-  local helper reads ignored environment values and sends them directly to the
-  Kubernetes API without writing Secret YAML to disk.
-- Both the production-oriented base and one-replica local overlay render and
-  pass repository policy validation. Milestone 12 additionally applied the
-  package through Argo CD to a disposable Minikube cluster.
+Bkz. [Milestone 11 tamamlanma kaydı](docs/milestones/milestone-11-kubernetes-deployment-security.md),
+[ADR-013](docs/adr/013-kustomize-and-secure-stateless-workloads.md) ve
+[Kubernetes deployment rehberi](docs/deployment/kubernetes.md).
 
-See the [Milestone 11 completion record](docs/milestones/milestone-11-kubernetes-deployment-security.md),
-[ADR-013](docs/adr/013-kustomize-and-secure-stateless-workloads.md), and the
-[Kubernetes deployment guide](docs/deployment/kubernetes.md).
+### Milestone 12 — CI/CD ve software supply chain
 
-### Milestone 12 — CI/CD and software supply chain
+- Jenkins vacancy-aligned ana orchestrator'dır. GitHub `main` branch'ini checkout eder, Java 21/Maven Wrapper ve Node kullanır ve herhangi bir publication öncesinde backend ve frontend kalite stage'lerini çalıştırır.
+- SonarQube analizi blocking Quality Gate ile takip edilir. Gate başarısızsa publication ilerleyemez.
+- Maven snapshot artifact'ları least-privilege Jenkins publisher üzerinden Nexus Community Edition'a yayınlanır. Nexus EULA kabulü otomatik script varsayılanı değil, açık administrator aksiyonudur.
+- Beş Java servisi ve operations portal için CycloneDX JSON SBOM'ları üretilip arşivlenir.
+- Altı OCI image private Harbor project'e immutable full Git SHA tag'leriyle yayınlanır. Publication contract içinde `latest` yasaktır ve push/pull operasyonlarını least-privilege Harbor robot account gerçekleştirir.
+- Kustomize aynı immutable image revision'ı Git'te kaydeder. Argo CD, staging desired state'i Kubernetes'e senkronize etmek için restricted AppProject ve pull-based Application kullanır.
+- Doğrulanmış checkpoint; yedi Ready Argo CD control-plane pod'u ve desired-state revision `c9c1baa496df1c0126648573c5f25a75f6967a5c` üzerinde `Synced` durumda, `Succeeded` operation'a sahip `health-insurance-staging` Application içerir.
+- Registry failure'ları resumable publication failure'dır: başarılı testler ve Quality Gate'ler sadece Nexus veya Harbor retry için tekrarlanmaz. Trivy vacancy scope dışında olduğu ve laptop tabanlı bu eğitim ortamı için orantısız olduğu için opsiyonel kalır.
 
-- Jenkins is the primary vacancy-aligned orchestrator. It checks out GitHub
-  `main`, uses Java 21/Maven Wrapper and Node, and runs backend and frontend
-  quality stages before any publication.
-- SonarQube analysis is followed by a blocking Quality Gate. Publication cannot
-  proceed when the gate fails.
-- Maven snapshot artifacts are published to Nexus Community Edition through a
-  least-privilege Jenkins publisher. Nexus EULA acceptance is an explicit
-  administrator action rather than an automatic script default.
-- CycloneDX JSON SBOMs are generated and archived for five Java services and
-  the operations portal.
-- Six OCI images are published to the private Harbor project using immutable
-  full Git SHA tags. `latest` is forbidden in the publication contract, and a
-  least-privilege Harbor robot account performs push/pull operations.
-- Kustomize records the same immutable image revision in Git. Argo CD uses a
-  restricted AppProject and pull-based Application to synchronize staging
-  desired state to Kubernetes.
-- The verified checkpoint contained seven Ready Argo CD control-plane pods and
-  a `health-insurance-staging` Application with `Synced` state and a `Succeeded`
-  operation at desired-state revision `c9c1baa496df1c0126648573c5f25a75f6967a5c`.
-- Registry failures are resumable publication failures: successful tests and
-  Quality Gates are not repeated merely to retry Nexus or Harbor. Trivy remains
-  optional because it is outside the vacancy scope and disproportionate for
-  this laptop-based educational environment.
+Build #10, source revision
+`6c07fa81df22330699c58574059b89e58777f0ed` için son tamamen başarılı pipeline kanıtıdır: Java/React doğrulaması, SonarQube Quality Gate, provenance içeren Nexus publication, SBOM üretimi ve altı Harbor image publication'ın tamamı başarılı olmuştur. Bu kanıttan sonra Jenkins build çalıştırılmamıştır.
 
-Build #10 is the final all-green pipeline proof for source revision
-`6c07fa81df22330699c58574059b89e58777f0ed`: Java/React verification, SonarQube
-Quality Gate, Nexus publication with provenance, SBOM generation, and six Harbor
-image publications all succeeded. No Jenkins build was run after this proof.
+Mevcut Jenkins/SonarQube stack, 15 Eylül 2026'da `--no-build` ile yeniden başlatılmıştır. Üç kalite container'ının tamamı healthy durumdaydı, Jenkins-to-Sonar network erişimi ve webhook geçerliydi ve SonarQube Build #10'un tam Git revision'ı için Quality Gate sonucunu `OK` olarak raporladı. Overall coverage `80.3%`, new violation sayısı ise sıfırdı. Authenticated evidence [Jenkins ve SonarQube doğrulama rehberinde](docs/development/jenkins-sonarqube-local-verification.md) kaydedilmiştir.
 
-The existing Jenkins/SonarQube stack was started again with `--no-build` on
-15 September 2026. All three quality containers were healthy, Jenkins-to-Sonar
-network access and the webhook were valid, and SonarQube reported Quality Gate
-`OK` for Build #10's exact Git revision. Overall coverage was `80.3%`, with zero
-new violations. The authenticated evidence is recorded
-in the [Jenkins and SonarQube verification guide](docs/development/jenkins-sonarqube-local-verification.md).
+Persist edilmiş Nexus instance da build, pull veya republish yapılmadan yeniden doğrulanmıştır. Altı Maven snapshot component scoped publisher role üzerinden erişilebilirdi. Anonymous repository access kapalıydı ve `403` ile doğrulandı; authenticated artifact download başarılı olmaya devam etti. Build #10 ayrıca Git SHA, build URL ve JAR SHA-256 içeren beş provenance classifier yayınlamıştır; kanıt [Nexus doğrulama rehberinde](docs/development/nexus-local-verification.md) kaydedilmiştir.
 
-The persisted Nexus instance was also revalidated without building, pulling or
-republishing. Six Maven snapshot components were available through the scoped
-publisher role. Anonymous repository access was disabled and verified as `403`;
-authenticated artifact download remained successful. Build #10 additionally
-published five provenance classifiers containing Git SHA, build URL, and JAR
-SHA-256; the evidence is recorded in the
-[Nexus verification guide](docs/development/nexus-local-verification.md).
+Harbor daha sonra herhangi bir application image yeniden build edilmeden mevcut 2.15.2 image'larından restore edilmiştir. Private project anonymous erişimi reddeder, 90 günlük least-privilege robot başarılı şekilde push/pull gerçekleştirmiştir ve altı repository'nin tamamı kaydedilmiş manifest digest'lerle aynı full Git SHA tag'ini sunar. Docker Desktop mount düzeltmeleri ve runtime evidence [Harbor doğrulama rehberinde](docs/development/harbor-local-verification.md) yer alır.
 
-Harbor was then restored from existing 2.15.2 images without rebuilding any
-application image. The private project rejects anonymous access, a 90-day
-least-privilege robot pushed and pulled successfully, and all six repositories
-expose the same full Git SHA tag with recorded manifest digests. The Docker
-Desktop mount fixes and runtime evidence are in the
-[Harbor verification guide](docs/development/harbor-local-verification.md).
+Bkz. [Milestone 12 tamamlanma kaydı](docs/milestones/milestone-12-ci-cd-software-supply-chain.md),
+[ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md),
+[CI/CD mimarisi](docs/architecture/ci-cd-supply-chain.md) ve
+[CI/CD demosu](docs/demo/milestone-12-ci-cd-demo.md).
 
-See the [Milestone 12 completion record](docs/milestones/milestone-12-ci-cd-software-supply-chain.md),
-[ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md), the
-[CI/CD architecture](docs/architecture/ci-cd-supply-chain.md), and the
-[CI/CD demo](docs/demo/milestone-12-ci-cd-demo.md).
-
-## Architecture overview
+## Mimariye genel bakış
 
 ```mermaid
 flowchart LR
-    User[Hospital and insurance users] --> Portal[React Operations Portal]
+    User[Hastane ve sigorta kullanıcıları] --> Portal[React Operations Portal]
     Portal -->|OIDC Authorization Code + PKCE| KC[Keycloak]
     Portal -->|Bearer token| Gateway[APISIX Gateway]
     Gateway --> Auth[Authorization Service]
     Gateway --> Policy
     Gateway --> Claims
-    Auth -->|Synchronous coverage evaluation| Policy[Policy Service]
-    Auth -->|Decision events via transactional outbox| Kafka{{Apache Kafka}}
-    Auth -->|Notification tasks via confirm-aware relay| Rabbit{{RabbitMQ}}
-    Kafka -->|Approved event, idempotent consumer| Claims[Claims & Billing Service]
+    Auth -->|Senkron kapsam değerlendirmesi| Policy[Policy Service]
+    Auth -->|Transactional outbox üzerinden karar event'leri| Kafka{{Apache Kafka}}
+    Auth -->|Confirm-aware relay üzerinden notification task'ları| Rabbit{{RabbitMQ}}
+    Kafka -->|Onay event'i, idempotent consumer| Claims[Claims & Billing Service]
     Rabbit -->|Bounded retry, manual ack, DLQ| Notifications[Notification Worker]
     Claims -->|Search projection outbox| Kafka
-    Kafka -->|Decision and financial projections| Search[Search Service]
-    Gateway -->|Secured operations query| Search
+    Kafka -->|Karar ve finansal projeksiyonlar| Search[Search Service]
+    Gateway -->|Güvenliği sağlanmış operasyon sorgusu| Search
     Policy -->|Cache-aside| Redis[(Redis)]
     Search --> Elastic[(Elasticsearch)]
     Elastic --> Kibana[Kibana]
@@ -401,218 +236,184 @@ flowchart LR
     Claims -. telemetry .-> APM
     Search -. telemetry .-> APM
     Notifications -. telemetry .-> APM
-    Claims -. manual compatibility path .-> Auth
+    Claims -. manuel compatibility yolu .-> Auth
     Auth --> AuthDB[(Authorization DB)]
     Policy --> PolicyDB[(Policy DB)]
     Claims --> ClaimsDB[(Claims/Billing DB)]
-    Auth --> AuthAudit[(Local audit journal)]
-    Policy --> PolicyAudit[(Local audit journal)]
-    Claims --> ClaimsAudit[(Local audit journal)]
+    Auth --> AuthAudit[(Lokal audit journal)]
+    Policy --> PolicyAudit[(Lokal audit journal)]
+    Claims --> ClaimsAudit[(Lokal audit journal)]
     Notifications --> NotificationDB[(Notification DB)]
 ```
 
-Deployment and software-supply-chain view:
+Deployment ve software-supply-chain görünümü:
 
 ```mermaid
 flowchart LR
-    Developer[Developer] -->|commit and push| GitHub[GitHub main]
+    Developer[Developer] -->|commit ve push| GitHub[GitHub main]
     GitHub --> Actions[GitHub Actions PR CI]
     GitHub --> Jenkins[Jenkins delivery pipeline]
-    Jenkins --> Verify[Java 21 and React verification]
+    Jenkins --> Verify[Java 21 ve React doğrulaması]
     Verify --> Sonar[SonarQube Quality Gate]
-    Sonar -->|pass| Nexus[Nexus Maven repositories]
-    Sonar -->|pass| SBOM[CycloneDX SBOM archive]
+    Sonar -->|pass| Nexus[Nexus Maven repository'leri]
+    Sonar -->|pass| SBOM[CycloneDX SBOM arşivi]
     Sonar -->|pass| Harbor[Private Harbor OCI registry]
     Harbor -->|full Git SHA| Kustomize[Kustomize staging revision]
     Kustomize --> GitHub
-    GitHub --> Argo[Argo CD AppProject and Application]
+    GitHub --> Argo[Argo CD AppProject ve Application]
     Argo --> Kubernetes[Kubernetes / Minikube]
-    Kubernetes --> Workloads[Seven stateless workloads]
-    Workloads -. external contracts .-> Dependencies[(Databases, brokers, IAM, search, APM)]
+    Kubernetes --> Workloads[Yedi stateless workload]
+    Workloads -. external contract'lar .-> Dependencies[(Veritabanları, broker'lar, IAM, search, APM)]
 ```
 
-GitHub Actions remains the repository-hosted pull-request verification example.
-Jenkins demonstrates the vacancy-aligned local delivery and publication chain.
-Neither system stores committed credentials; publication identities are
-bootstrapped into runtime-only credential stores.
+GitHub Actions repository-hosted pull-request doğrulama örneği olarak kalır.
+Jenkins, vacancy-aligned lokal delivery ve publication zincirini gösterir.
+Hiçbir sistem commit edilmiş credential saklamaz; publication identity'leri runtime-only credential store'lara bootstrap edilir.
 
-The GitHub workflows use read-only permissions, path-scoped triggers, bounded
-timeouts, per-ref concurrency cancellation and full Git SHA run summaries.
-Backend runs as a five-service Java 21 matrix; frontend enforces lint, tests and
-the production bundle budget; Gateway CI starts the digest-pinned APISIX image.
-The latest evidence and one honestly classified historical matrix failure are
-recorded in the [GitHub Actions verification guide](docs/development/github-actions-verification.md).
+GitHub workflow'ları read-only permission'lar, path-scoped trigger'lar, bounded timeout'lar, ref başına concurrency cancellation ve full Git SHA run summary'leri kullanır.
 
-Each backend service applies the same dependency rule:
+Backend beş servisli Java 21 matrix olarak çalışır; frontend lint, test ve production bundle budget uygular; Gateway CI digest-pinned APISIX image'ını başlatır. En güncel kanıt ve dürüstçe sınıflandırılmış tarihsel bir matrix failure [GitHub Actions doğrulama rehberinde](docs/development/github-actions-verification.md) kaydedilmiştir.
+
+Her backend servisi aynı dependency rule'u uygular:
 
 ```text
 Presentation/API -> Application -> Domain
 Infrastructure --------^----------^
 ```
 
-- **Domain** contains plain Java aggregates, value objects, rules, and domain
-  exceptions. It has no Spring, JPA, HTTP, Keycloak, or messaging dependency.
-- **Application** contains input/output ports, commands, queries, DTOs, security
-  context, and orchestration. It depends on the domain, not adapters.
-- **Infrastructure** implements JPA repositories, HTTP clients, OAuth2/security,
-  transaction decorators, and Spring bean composition.
-- **Presentation** maps HTTP/JWT input to input ports and maps results/errors back
-  to transport representations.
+- **Domain** plain Java aggregate, value object, rule ve domain exception'larını içerir. Spring, JPA, HTTP, Keycloak veya messaging bağımlılığı yoktur.
+- **Application** input/output port'ları, command'lar, query'ler, DTO'lar, security context ve orchestration içerir. Adapter'lara değil domain'e bağımlıdır.
+- **Infrastructure** JPA repository'leri, HTTP client'ları, OAuth2/security, transaction decorator'ları ve Spring bean composition'ı uygular.
+- **Presentation** HTTP/JWT input'unu input port'larına map eder ve result/error'ları transport representation'larına geri map eder.
 
-See the complete [documentation index](docs/README.md),
-[C4 container view](docs/architecture/c4-container.md), and
-[technical walkthrough](docs/project-technical-walkthrough.md).
+Tam [dokümantasyon indeksi](docs/README.md),
+[C4 container görünümü](docs/architecture/c4-container.md) ve
+[teknik walkthrough](docs/project-technical-walkthrough.md) için ilgili dokümanlara bakın.
 
-## Key workflows
+## Temel iş akışları
 
-### Pre-authorization
+### Ön provizyon
 
-1. A hospital user signs in through Keycloak.
-2. The API derives the provider UUID from the trusted `provider_id` token claim.
-3. Authorization asks Policy to evaluate member, policy, service, date, amount,
-   and currency.
-4. When covered, Authorization persists a `PENDING` request.
-5. An insurance specialist approves or rejects it.
-6. Domain state checks and JPA optimistic locking prevent duplicate/concurrent
-   decisions.
+1. Hastane kullanıcısı Keycloak üzerinden oturum açar.
+2. API, provider UUID'sini trusted `provider_id` token claim'inden türetir.
+3. Authorization; üye, poliçe, hizmet, tarih, tutar ve para birimi için Policy'den değerlendirme ister.
+4. Kapsam uygunsa Authorization `PENDING` talebi persist eder.
+5. Sigorta uzmanı talebi onaylar veya reddeder.
+6. Domain state kontrolleri ve JPA optimistic locking duplicate/concurrent kararları engeller.
 
-### Claim, invoice, and payment
+### Hasar, fatura ve ödeme
 
-1. Authorization commits an approval and its outbox event atomically.
-2. The relay publishes the event at least once; Claims/Billing consumes it and
-   atomically creates a submitted claim, issued invoice, and processed marker.
-3. A claim approver starts review, then approves an amount or rejects the claim.
-4. Approval reconciles the invoice: a full match becomes `MATCHED`; a difference
-   becomes `DISPUTED` until an insurance specialist agrees the payable amount.
-5. Positive, unique payments accumulate. The invoice becomes `SETTLED` exactly
-   when the payable balance reaches zero.
+1. Authorization onayı ve outbox event'ini atomik olarak commit eder.
+2. Relay event'i en az bir kez yayınlar; Claims/Billing bunu tüketir ve submitted claim, issued invoice ve processed marker'ı atomik olarak oluşturur.
+3. Claim approver incelemeyi başlatır, ardından bir tutarı onaylar veya claim'i reddeder.
+4. Onay invoice'u reconcile eder: tam eşleşme `MATCHED`, fark ise sigorta uzmanı payable amount üzerinde anlaşana kadar `DISPUTED` olur.
+5. Pozitif ve unique ödemeler birikir. Invoice, payable balance tam olarak sıfıra ulaştığında `SETTLED` olur.
 
-Detailed message order and concurrent cases are in the
-[workflow sequence diagrams](docs/architecture/workflow-sequences.md).
+Detaylı message order ve concurrent durumlar
+[workflow sequence diagramlarında](docs/architecture/workflow-sequences.md) yer alır.
 
-## Security model
+## Güvenlik modeli
 
-Keycloak performs authentication; every backend is an OAuth2 resource server.
-Authentication and authorization remain separate concerns.
+Keycloak authentication gerçekleştirir; her backend OAuth2 resource server'dır.
+Authentication ve authorization ayrı concern'ler olarak kalır.
 
-| Realm role | Implemented permissions |
+| Realm rolü | Uygulanan yetkiler |
 | --- | --- |
-| `HOSPITAL_USER` | Submit and read provider-owned pre-authorizations/claims |
-| `INSURANCE_SPECIALIST` | Decide pre-authorizations; reconcile invoices and record payments |
-| `CLAIM_APPROVER` | Start claim review and approve/reject claims |
-| `SYSTEM_ADMIN` | Administrative policy and cross-provider read/reconciliation authority |
+| `HOSPITAL_USER` | Provider'a ait ön provizyon/claim gönderme ve okuma |
+| `INSURANCE_SPECIALIST` | Ön provizyon kararı; invoice mutabakatı ve payment kaydı |
+| `CLAIM_APPROVER` | Claim incelemesini başlatma ve claim onaylama/reddetme |
+| `SYSTEM_ADMIN` | Yönetimsel policy ve provider'lar arası okuma/mutabakat yetkisi |
 
-Endpoint annotations provide an early role gate. Application use cases repeat
-business authorization so rules remain effective outside HTTP. Hospital reads
-and commands are also limited to the provider in the signed token; a request
-body cannot impersonate another provider.
+Endpoint annotation'ları erken bir role gate sağlar. Application use case'leri business authorization'ı tekrar uygular; böylece kurallar HTTP dışında da geçerlidir. Hastane read ve command'ları signed token içindeki provider ile de sınırlandırılır; request body başka bir provider'ı taklit edemez.
 
-No credentials, tokens, client secrets, connection-string passwords, real
-identities, or real health data belong in this repository. All demo UUIDs and
-business values are synthetic.
+Credential, token, client secret, connection-string password, gerçek kimlik veya gerçek sağlık verisi bu repository'de bulunmamalıdır. Tüm demo UUID'leri ve business değerleri sentetiktir.
 
-The realm declares `providerId` as a managed user-profile attribute: users can
-view it, only administrators can edit it, and the public client maps it to the
-signed `provider_id` access-token claim. This explicit declaration matters
-because Keycloak 26 ignores undeclared custom attributes by default.
+Realm, `providerId` alanını managed user-profile attribute olarak tanımlar: kullanıcılar görebilir, yalnızca administrator'lar düzenleyebilir ve public client bunu signed access token içindeki `provider_id` claim'ine map eder. Bu açık tanım önemlidir çünkü Keycloak 26 varsayılan olarak tanımlanmamış custom attribute'ları yok sayar.
 
-## Technology inventory
+## Teknoloji envanteri
 
-### Used now
+### Şu anda kullanılanlar
 
 - Java 21, Spring Boot 4.1.1, Spring MVC, Spring Security OAuth2 Resource Server.
-- Spring Kafka 4.1.1 and Apache Kafka 4.1.1.
+- Spring Kafka 4.1.1 ve Apache Kafka 4.1.1.
 - Spring Data JPA/Hibernate, PostgreSQL 17, Liquibase.
 - JUnit, AssertJ, Mockito, ArchUnit, Testcontainers.
 - React 19, TypeScript 6, Vite 8, React Router 8.
 - TanStack Query, React Hook Form, Zod, Keycloak JS.
 - Vitest, Testing Library, oxlint.
-- Keycloak 26.4, Docker, Docker Compose, Kubernetes, Minikube, and Kustomize.
-- Git, GitHub, GitHub Actions, Jenkins 2.568.3, and SonarQube Community.
-- Nexus Repository Community Edition 3.84.1 and Harbor 2.15.2.
-- Argo CD 3.5.2 with restricted AppProject/Application GitOps resources.
-- Apache APISIX 3.18 with OIDC, request ID, CORS, limit, validation and response policies.
+- Keycloak 26.4, Docker, Docker Compose, Kubernetes, Minikube ve Kustomize.
+- Git, GitHub, GitHub Actions, Jenkins 2.568.3 ve SonarQube Community.
+- Nexus Repository Community Edition 3.84.1 ve Harbor 2.15.2.
+- Restricted AppProject/Application GitOps kaynaklarıyla Argo CD 3.5.2.
+- OIDC, request ID, CORS, limit, validation ve response policy'leriyle Apache APISIX 3.18.
 - Redis 8.2, Elasticsearch/Kibana/APM Server 9.5.3, Elastic APM Java Agent 1.56.
 
-### Deliberately not introduced
+### Bilinçli olarak eklenmeyenler
 
-- Helm: Kustomize already solves the current environment-overlay requirement.
-- Terraform and Ansible: no cloud infrastructure or machine fleet is owned by
-  this repository.
-- TFS/Azure DevOps Server: the implemented Git/Jenkins stages are documented as
-  transferable equivalents instead of installing another tool only by name.
-- Trivy as a mandatory release gate: optional scanning is not part of the
-  vacancy requirement or accepted local portfolio scope.
+- Helm: Kustomize mevcut environment-overlay ihtiyacını zaten karşılıyor.
+- Terraform ve Ansible: bu repository herhangi bir cloud infrastructure veya machine fleet sahibi değildir.
+- TFS/Azure DevOps Server: uygulanmış Git/Jenkins stage'leri, yalnızca isim olarak başka araç kurmak yerine taşınabilir eşdeğerler olarak dokümante edilmiştir.
+- Zorunlu release gate olarak Trivy: opsiyonel scanning vacancy requirement veya kabul edilmiş lokal portföy scope'unun parçası değildir.
 
-## Repository layout
+## Repository yapısı
 
 ```text
 apps/
-  operations-portal/          React + TypeScript web application
+  operations-portal/          React + TypeScript web uygulaması
 services/
-  authorization-service/     Pre-authorization bounded context
-  policy-service/             Policy and coverage bounded context
-  claims-billing-service/     Claims, invoices, and payments bounded context
-  search-service/             Elasticsearch operational read model
+  authorization-service/     Ön provizyon bounded context'i
+  policy-service/             Policy ve coverage bounded context'i
+  claims-billing-service/     Claims, invoice ve payment bounded context'i
+  search-service/             Elasticsearch operasyonel read model
   notification-worker/        RabbitMQ notification delivery worker
 infra/
-  apisix/                     Declarative gateway and security policies
-  cicd/                       Jenkins, SonarQube, Nexus, and Harbor local tooling
-  keycloak/                   Importable realm/client/role configuration
-deploy/kubernetes/            Kustomize base, local overlay, and safe apply tooling
-deploy/gitops/                Argo CD project, application, and staging revision
-demo/                         Synthetic data catalogue and API seed script
+  apisix/                     Declarative gateway ve security policy'leri
+  cicd/                       Jenkins, SonarQube, Nexus ve Harbor lokal araçları
+  keycloak/                   Import edilebilir realm/client/role yapılandırması
+deploy/kubernetes/            Kustomize base, local overlay ve güvenli apply araçları
+deploy/gitops/                Argo CD project, application ve staging revision
+demo/                         Sentetik veri kataloğu ve API seed script'i
 docs/
-  adr/                        Architecture decision records
-  architecture/               C4, component, data, sequence, UI, deployment views
-  demo/                       Repeatable demonstration guide
-  screenshots/                Milestone UI evidence using synthetic data
+  adr/                        Architecture Decision Record'ları
+  architecture/               C4, component, data, sequence, UI, deployment görünümleri
+  demo/                       Tekrarlanabilir demo rehberi
+  screenshots/                Sentetik veri kullanan milestone UI kanıtları
   project-technical-walkthrough.md
-.github/workflows/            Backend and frontend CI
-Jenkinsfile                   Quality, publication, SBOM, and registry pipeline
-compose.yaml                  Local runtime topology
+.github/workflows/            Backend ve frontend CI
+Jenkinsfile                   Quality, publication, SBOM ve registry pipeline
+compose.yaml                  Lokal runtime topology
 ```
 
-## Run locally
+## Lokal çalıştırma
 
-### Prerequisites
+### Ön koşullar
 
-- Docker Desktop with Compose support.
-- Java 21 for running backend services outside containers.
-- Node.js compatible with the portal dependencies.
+- Compose desteğine sahip Docker Desktop.
+- Container dışından backend servislerini çalıştırmak için Java 21.
+- Portal dependency'leriyle uyumlu Node.js.
 
-### Kubernetes deployment package
+### Kubernetes deployment paketi
 
-Milestone 11 provides a production-oriented Kustomize base and a local overlay
-for Authorization, Policy, Claims/Billing, Notification Worker, Search, the
-operations portal and APISIX. Validate the package without changing a cluster:
+Milestone 11; Authorization, Policy, Claims/Billing, Notification Worker, Search, operations portal ve APISIX için production-oriented Kustomize base ve local overlay sağlar. Cluster'ı değiştirmeden paketi doğrulayın:
 
 ```powershell
 .\scripts\validate-kubernetes.ps1
 ```
 
-The manifests enforce fixed non-root users, read-only root filesystems, dropped
-capabilities, seccomp, resource bounds, health probes, graceful termination,
-rolling updates, topology spread, PDBs, HPAs, dedicated token-free
-ServiceAccounts and default-deny NetworkPolicies. Stateful infrastructure is an
-external contract. When a disposable local cluster is already active, follow
-the [Kubernetes deployment guide](docs/deployment/kubernetes.md); rendering alone
-must not be reported as a successful rollout.
+Manifest'ler sabit non-root kullanıcılar, read-only root filesystem'ler, drop edilmiş capability'ler, seccomp, resource bound'ları, health probe'ları, graceful termination, rolling update, topology spread, PDB, HPA, dedicated token-free ServiceAccount ve default-deny NetworkPolicy uygular. Stateful infrastructure external contract'tır. Disposable bir lokal cluster zaten aktifse [Kubernetes deployment rehberini](docs/deployment/kubernetes.md) izleyin; yalnızca rendering başarılı rollout olarak raporlanmamalıdır.
 
-### Local CI/CD and GitOps
+### Lokal CI/CD ve GitOps
 
-Milestone 12 separates quality, artifact publication, image publication, and
-deployment. The local stacks are resource-limited and use named volumes, so
-restarting them does not require recreating every image or repository.
+Milestone 12 kalite, artifact publication, image publication ve deployment'ı ayırır. Lokal stack'ler resource-limited'dır ve named volume kullanır; bu nedenle yeniden başlatmak her image veya repository'yi yeniden oluşturmayı gerektirmez.
 
-First-time quality and artifact setup:
+İlk kalite ve artifact kurulumu:
 
 ```powershell
 .\infra\cicd\start-quality-stack.ps1
 .\infra\cicd\bootstrap-quality-stack.ps1
 
 .\infra\cicd\start-artifact-stack.ps1
-# Legal opt-in: run only after reviewing and accepting the Nexus CE EULA.
+# Yasal opt-in: yalnızca Nexus CE EULA'yı inceleyip kabul ettikten sonra çalıştırın.
 .\infra\cicd\accept-nexus-eula.ps1 -AcceptEula
 .\infra\cicd\bootstrap-artifact-stack.ps1
 
@@ -620,29 +421,25 @@ First-time quality and artifact setup:
 .\infra\cicd\harbor\bootstrap-local-harbor.ps1
 ```
 
-Run the Jenkins quality pipeline without publication by default, or explicitly
-enable Nexus and Harbor publication:
+Varsayılan olarak publication olmadan Jenkins kalite pipeline'ını çalıştırın veya Nexus ve Harbor publication'ı açıkça etkinleştirin:
 
 ```powershell
 .\infra\cicd\run-local-pipeline.ps1
 .\infra\cicd\run-local-pipeline.ps1 -PublishArtifacts
 ```
 
-| CI/CD component | Local endpoint | Responsibility |
+| CI/CD bileşeni | Lokal endpoint | Sorumluluk |
 | --- | --- | --- |
 | Jenkins | `http://localhost:8086` | Pipeline orchestration |
-| SonarQube | `http://localhost:9000` | Analysis and blocking Quality Gate |
-| Nexus | `http://localhost:8087` | Maven snapshot/release repositories |
+| SonarQube | `http://localhost:9000` | Analiz ve blocking Quality Gate |
+| Nexus | `http://localhost:8087` | Maven snapshot/release repository'leri |
 | Harbor | `http://localhost:8088` | Private OCI registry |
-| Minikube | context `portfolio-ci` | Disposable Kubernetes proof |
+| Minikube | context `portfolio-ci` | Disposable Kubernetes kanıtı |
 | Argo CD | namespace `argocd` | Pull-based GitOps reconciliation |
 
-The ignored `infra/cicd/.env` holds local bootstrap values. Jenkins receives
-least-privilege Nexus and Harbor credentials through its credential store;
-secrets must never be copied into the Jenkinsfile, Kustomize, screenshots, or
-Git history.
+Ignore edilen `infra/cicd/.env` lokal bootstrap değerlerini tutar. Jenkins least-privilege Nexus ve Harbor credential'larını credential store üzerinden alır; secret'lar Jenkinsfile, Kustomize, screenshot veya Git history içine asla kopyalanmamalıdır.
 
-For the disposable GitOps proof:
+Disposable GitOps kanıtı için:
 
 ```powershell
 minikube start -p portfolio-ci --driver=docker --cpus=2 --memory=8192 `
@@ -654,33 +451,24 @@ kubectl --context portfolio-ci get pods -n argocd
 kubectl --context portfolio-ci get application health-insurance-staging -n argocd
 ```
 
-The Argo CD Application intentionally has no unconditional automated sync.
-Review the rendered revision and use the manual promotion procedure in the
-[CI/CD demo](docs/demo/milestone-12-ci-cd-demo.md). `Synced` proves that desired
-state was applied. `Progressing` or `Degraded` workload health is expected when
-operator-owned databases, brokers, IAM, observability endpoints, or Secrets are
-not provisioned in the disposable cluster.
+Argo CD Application bilinçli olarak koşulsuz automated sync içermez. Render edilen revision'ı inceleyin ve [CI/CD demosundaki](docs/demo/milestone-12-ci-cd-demo.md) manuel promotion prosedürünü kullanın. `Synced`, desired state'in uygulandığını kanıtlar. Operator-owned veritabanları, broker'lar, IAM, observability endpoint'leri veya Secret'lar disposable cluster'da provision edilmediyse workload health'in `Progressing` veya `Degraded` olması beklenir.
 
-Traceability uses one full Git SHA across Jenkins, a Nexus provenance attachment,
-the Harbor tag and OCI revision label, the Kustomize source-revision annotation,
-and the Kubernetes runtime image digest. This allows an interviewer to move from
-a running pod back to its exact image, artifact, pipeline run, and source commit.
+Traceability; Jenkins, Nexus provenance attachment, Harbor tag ve OCI revision label, Kustomize source-revision annotation ve Kubernetes runtime image digest genelinde tek bir full Git SHA kullanır. Böylece bir interviewer çalışan pod'dan tam image, artifact, pipeline run ve source commit'e geri gidebilir.
 
-### Full backend stack
+### Tam backend stack
 
-Create a local ignored environment file from the safe template and replace every
-placeholder. Do not commit the resulting file.
+Güvenli template'ten lokal ignore edilen environment dosyası oluşturun ve tüm placeholder'ları değiştirin. Oluşan dosyayı commit etmeyin.
 
 ```powershell
 Copy-Item .env.example .env
 docker compose up --build
 ```
 
-| Component | Local URL/port |
+| Bileşen | Lokal URL/port |
 | --- | --- |
 | Keycloak | `http://localhost:8080` |
 | APISIX business API | `http://localhost:9080` |
-| Authorization, Policy, Claims/Billing, Search | Compose network only |
+| Authorization, Policy, Claims/Billing, Search | Yalnızca Compose ağı |
 | Redis | `localhost:6379` |
 | Elasticsearch | `http://localhost:9200` |
 | Kibana | `http://localhost:5601` |
@@ -693,16 +481,9 @@ docker compose up --build
 | Claims/Billing PostgreSQL | `localhost:5435` |
 | Notification PostgreSQL | `localhost:5436` |
 
-Compose healthchecks call each HTTP service's Spring Boot readiness endpoint.
-APISIX and synchronous service dependencies wait for `service_healthy`, not
-merely a started container. Notification Worker intentionally has no HTTP
-listener, so its container healthcheck verifies the PID 1 JVM process while
-RabbitMQ and its PostgreSQL dependency retain their own readiness checks.
+Compose healthcheck'leri her HTTP servisinin Spring Boot readiness endpoint'ini çağırır. APISIX ve senkron servis dependency'leri yalnızca container'ın başlamasını değil `service_healthy` durumunu bekler. Notification Worker bilinçli olarak HTTP listener içermez; bu nedenle container healthcheck PID 1 JVM process'ini doğrularken RabbitMQ ve PostgreSQL dependency'si kendi readiness kontrollerini korur.
 
-The imported `health-insurance` realm defines roles and the public
-`health-insurance-web` client. Create local users through the Keycloak admin UI.
-A hospital user needs a synthetic UUID `providerId` attribute; the realm maps it
-to the access token's `provider_id` claim. No demo passwords are committed.
+Import edilen `health-insurance` realm roller ile public `health-insurance-web` client'ını tanımlar. Lokal kullanıcıları Keycloak admin UI üzerinden oluşturun. Hastane kullanıcısının sentetik UUID `providerId` attribute'una ihtiyacı vardır; realm bunu access token içindeki `provider_id` claim'ine map eder. Demo password'leri commit edilmez.
 
 ### Operations portal
 
@@ -712,12 +493,9 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The web client uses Authorization Code + PKCE and
-stores no client secret. Its default API origin is APISIX at port `9080`. Copy
-`apps/operations-portal/.env.example` to its local
-`.env` only when overriding URLs.
+`http://localhost:5173` adresini açın. Web client Authorization Code + PKCE kullanır ve client secret saklamaz. Varsayılan API origin APISIX'in `9080` portudur. Yalnızca URL'leri override edecekseniz `apps/operations-portal/.env.example` dosyasını lokal `.env` dosyasına kopyalayın.
 
-### Backend services outside containers
+### Container dışında backend servisleri
 
 ```powershell
 docker compose up -d authorization-db policy-db claims-billing-db keycloak
@@ -732,40 +510,32 @@ Set-Location services/claims-billing-service
 .\mvnw.cmd spring-boot:run
 ```
 
-Run each Maven command in its own terminal and provide the database/OIDC
-environment variables described by that service's `application.yml`.
+Her Maven komutunu ayrı terminalde çalıştırın ve ilgili servisin `application.yml` dosyasında tanımlanan database/OIDC environment variable'larını sağlayın.
 
-## Synthetic demo
+## Sentetik demo
 
-The [demo scenario](docs/demo/demo-scenario.md) explains local users, roles,
-happy paths, negative paths, and safe reset. After the stack is healthy, set
-three runtime-only access-token environment variables and run:
+[Demo senaryosu](docs/demo/demo-scenario.md) lokal kullanıcıları, rolleri, happy path'leri, negative path'leri ve güvenli reset işlemini açıklar. Stack healthy olduktan sonra runtime-only üç access-token environment variable belirleyin ve çalıştırın:
 
 ```powershell
 .\demo\seed-demo-data.ps1
 ```
 
-The script creates:
+Script şunları oluşturur:
 
-- a covered synthetic policy;
-- pending and rejected pre-authorizations;
-- a fully settled approved claim/invoice with partial payments;
-- a disputed invoice awaiting reconciliation.
-- three `DELIVERED` provider notification records created through RabbitMQ.
-- APISIX security verification evidence for 401, 413, 429, CORS and correlation.
+- kapsam dahilinde sentetik bir poliçe;
+- pending ve rejected ön provizyonlar;
+- kısmi ödemeleri olan tamamen settled onaylı claim/invoice;
+- mutabakat bekleyen disputed invoice;
+- RabbitMQ üzerinden oluşturulan üç `DELIVERED` provider notification kaydı;
+- 401, 413, 429, CORS ve correlation için APISIX security verification kanıtı.
 
-It generates unique business references on each run, never stores or prints
-tokens, and uses no real patient data. The source catalogue is
-[demo/demo-data.json](demo/demo-data.json).
+Her çalıştırmada unique business reference'lar üretir, token'ları saklamaz veya yazdırmaz ve gerçek hasta verisi kullanmaz. Kaynak katalog [demo/demo-data.json](demo/demo-data.json) dosyasındadır.
 
-For a repeatable local-only Keycloak setup, set the three runtime variables
-described in the demo guide and use
-`demo/prepare-and-seed-local-demo.ps1`. It creates temporary users and an
-uncommitted direct-grant seeder client; the browser still uses Code + PKCE.
+Tekrarlanabilir local-only Keycloak kurulumu için demo rehberinde açıklanan üç runtime variable'ı ayarlayın ve `demo/prepare-and-seed-local-demo.ps1` kullanın. Bu script geçici kullanıcılar ve commit edilmeyen direct-grant seeder client oluşturur; browser yine Code + PKCE kullanır.
 
-## Tests and verification
+## Testler ve doğrulama
 
-Run every backend suite from its own service directory:
+Her backend test paketini kendi servis dizininden çalıştırın:
 
 ```powershell
 Set-Location services/authorization-service
@@ -784,48 +554,17 @@ Set-Location ../search-service
 .\mvnw.cmd --batch-mode test
 ```
 
-The full suites use Testcontainers for real PostgreSQL persistence and
-concurrency tests, so Docker must be running. On 8 September 2026, the Milestone
-5 checkpoint contained **109 passing tests**: Authorization 50, Policy 21, and
-Claims/Billing 38. The portal also passed oxlint, 6 Vitest tests in 5 files, and
-its production build. Always rerun the commands; these counts are dated
-evidence, not a substitute for verification.
+Tam paketler gerçek PostgreSQL persistence ve concurrency testleri için Testcontainers kullanır; bu nedenle Docker çalışıyor olmalıdır. 8 Eylül 2026'da Milestone 5 checkpoint'inde **109 başarılı test** vardı: Authorization 50, Policy 21, Claims/Billing 38. Portal ayrıca oxlint, 5 dosyadaki 6 Vitest testi ve production build'den geçti. Komutları her zaman yeniden çalıştırın; bu sayılar tarihli kanıttır, doğrulamanın yerine geçmez.
 
-Milestone 6 adds Authorization transaction/relay proof and a Notification Worker
-suite. The producer test proves commit/rollback across the aggregate, Kafka
-event outbox, and notification task outbox. Worker tests prove producer JSON
-compatibility, version mapping, classified retry, one transaction per attempt,
-commit-before-ack, idempotent duplicate handling, and real RabbitMQ dead-letter
-routing. On 8 September 2026 the four backend suites passed **141 tests**:
-Authorization 59, Policy 21, Claims/Billing 38, and Notification Worker 23.
-Commands, not prose, remain the source of truth.
+Milestone 6 Authorization transaction/relay kanıtı ve Notification Worker test paketi ekler. Producer testi aggregate, Kafka event outbox ve notification task outbox genelinde commit/rollback davranışını kanıtlar. Worker testleri producer JSON compatibility, version mapping, classified retry, attempt başına bir transaction, commit-before-ack, idempotent duplicate handling ve gerçek RabbitMQ dead-letter routing'i doğrular. 8 Eylül 2026'da dört backend paketi **141 testten** geçti: Authorization 59, Policy 21, Claims/Billing 38, Notification Worker 23. Gerçeğin kaynağı prose değil komutlardır.
 
-Milestone 7 raises the verified checkpoint to **157 backend tests** on 9
-September 2026: Authorization 61, Policy 25, Claims/Billing 41, Notification
-Worker 23, and Search Service 7. The portal passed 7 Vitest tests in 6 files,
-oxlint, and its TypeScript/Vite production build. Real Redis and Elasticsearch
-tests require Docker; run large Testcontainers suites serially on constrained
-Docker Desktop installations to avoid infrastructure startup-time contention.
+Milestone 7 doğrulanmış checkpoint'i 9 Eylül 2026'da **157 backend testine** çıkarır: Authorization 61, Policy 25, Claims/Billing 41, Notification Worker 23, Search Service 7. Portal 6 dosyadaki 7 Vitest testi, oxlint ve TypeScript/Vite production build'den geçti. Gerçek Redis ve Elasticsearch testleri Docker gerektirir; infrastructure startup-time contention'ını önlemek için kısıtlı Docker Desktop ortamlarında büyük Testcontainers paketlerini seri çalıştırın.
 
-Milestone 8 changes no domain/application behavior, so the 157-test backend
-baseline remains applicable and is rerun in full. Gateway CI starts the real
-APISIX 3.18 image with the repository's declarative configuration and asserts an
-RFC 9457 401 with a generated correlation ID. The Compose-backed verification
-script additionally exercises valid routing, CORS, 1 MiB rejection and rate
-limiting using runtime-only tokens.
+Milestone 8 domain/application davranışını değiştirmez; bu nedenle 157 testlik backend baseline geçerliliğini korur ve tamamı yeniden çalıştırılır. Gateway CI repository'nin declarative configuration'ıyla gerçek APISIX 3.18 image'ını başlatır ve üretilmiş correlation ID ile RFC 9457 401 doğrular. Compose-backed verification script ayrıca runtime-only token'larla geçerli routing, CORS, 1 MiB reddi ve rate limiting'i çalıştırır.
 
-Milestone 10 was verified on 10 September 2026 with **193 passing backend
-tests**: Authorization 73, Policy 33, Claims/Billing 51, Notification Worker 23,
-and Search Service 13. Search's five real-Elasticsearch integration tests cover
-stale and legacy revisions plus activation/rollback. The portal passed oxlint,
-9 Vitest tests in 8 files, and its production TypeScript/Vite build. These dated
-counts are evidence, never a substitute for rerunning the commands.
+Milestone 10, 10 Eylül 2026'da **193 başarılı backend testiyle** doğrulanmıştır: Authorization 73, Policy 33, Claims/Billing 51, Notification Worker 23, Search Service 13. Search'ün beş gerçek-Elasticsearch integration testi stale ve legacy revision'lar ile activation/rollback davranışını kapsar. Portal oxlint, 8 dosyadaki 9 Vitest testi ve production TypeScript/Vite build'den geçti. Bu tarihli sayılar kanıttır; komutları yeniden çalıştırmanın yerine geçmez.
 
-Milestone 11 changes deployment packaging rather than domain behavior. Its
-focused checks render the production base and local overlay, assert seven
-workloads, enforce security contexts, probes, resources, ServiceAccounts,
-NetworkPolicies, PDBs, HPAs, and verify that credentials are references rather
-than committed values:
+Milestone 11 domain davranışı yerine deployment packaging'i değiştirir. Odaklı kontroller production base ve local overlay'i render eder, yedi workload'u doğrular, security context, probe, resource, ServiceAccount, NetworkPolicy, PDB ve HPA'ları uygular ve credential'ların commit edilmiş değerler değil reference olduğunu doğrular:
 
 ```powershell
 .\scripts\validate-kubernetes.ps1
@@ -833,28 +572,22 @@ kubectl kustomize deploy/kubernetes/base
 kubectl kustomize deploy/kubernetes/overlays/local
 ```
 
-Milestone 12 adds supply-chain contract checks without replacing real pipeline
-execution:
+Milestone 12, gerçek pipeline execution'ın yerine geçmeden supply-chain contract kontrolleri ekler:
 
 ```powershell
 .\scripts\validate-ci-pipeline.ps1
 .\scripts\validate-supply-chain.ps1
 ```
 
-The real local checkpoint proved Jenkins Build #10 end to end: Java/React
-quality, SonarQube Quality Gate, Nexus artifacts and provenance, CycloneDX
-archives, six Harbor images with matching OCI revision labels, seven Ready Argo
-CD pods, and a successful GitOps sync of the same immutable image revision.
+Gerçek lokal checkpoint Jenkins Build #10'u uçtan uca doğruladı: Java/React kalite, SonarQube Quality Gate, Nexus artifact'ları ve provenance, CycloneDX arşivleri, eşleşen OCI revision label'larına sahip altı Harbor image, yedi Ready Argo CD pod'u ve aynı immutable image revision'ın başarılı GitOps sync'i.
 
-Validate the living portfolio documentation separately. This command checks
-local Markdown links, JSON and PowerShell syntax, the expected screenshot set,
-and renders every Mermaid block:
+Yaşayan portföy dokümantasyonunu ayrıca doğrulayın. Bu komut lokal Markdown link'lerini, JSON ve PowerShell syntax'ını, beklenen screenshot set'ini kontrol eder ve tüm Mermaid bloklarını render eder:
 
 ```powershell
 .\scripts\validate-documentation.ps1
 ```
 
-Verify the portal:
+Portal'ı doğrulayın:
 
 ```powershell
 Set-Location apps/operations-portal
@@ -863,200 +596,154 @@ npm test
 npm run build
 ```
 
-Test coverage includes domain invariants, application orchestration, role and
-provider authorization, controller contracts, bean/transaction wiring, Clean
-Architecture and FSD import rules, Liquibase/JPA persistence, uniqueness, and
-optimistic concurrency.
+Test coverage; domain invariant'ları, application orchestration, role ve provider authorization, controller contract'ları, bean/transaction wiring, Clean Architecture ve FSD import kuralları, Liquibase/JPA persistence, uniqueness ve optimistic concurrency'yi kapsar.
 
-## API summary
+## API özeti
 
-All business endpoints require a valid Keycloak bearer token.
-External callers prepend `http://localhost:9080`; individual service ports are
-not published to the host.
+Tüm business endpoint'leri geçerli Keycloak bearer token gerektirir.
+External caller'lar `http://localhost:9080` prefix'ini kullanır; bireysel servis portları host'a yayınlanmaz.
 
-| Method | Endpoint | Required responsibility |
+| Method | Endpoint | Gerekli sorumluluk |
 | --- | --- | --- |
-| `POST` | `/api/v1/pre-authorizations` | Hospital submission |
-| `GET` | `/api/v1/pre-authorizations` | Provider-scoped or specialist work queue |
-| `GET` | `/api/v1/pre-authorizations/{id}` | Authorized detail |
-| `POST` | `/api/v1/pre-authorizations/{id}/approval` | Insurance decision |
-| `POST` | `/api/v1/pre-authorizations/{id}/rejection` | Insurance decision |
-| `POST` | `/api/v1/policies` | Policy administration |
-| `POST` | `/api/v1/coverage-evaluations` | Synchronous eligibility check |
-| `POST` | `/api/v1/claims` | Hospital claim creation |
-| `GET` | `/api/v1/claims/{id}` | Authorized claim detail |
-| `GET` | `/api/v1/claims/by-pre-authorization/{id}` | Observe event-created claim/invoice |
+| `POST` | `/api/v1/pre-authorizations` | Hastane gönderimi |
+| `GET` | `/api/v1/pre-authorizations` | Provider kapsamlı veya specialist iş kuyruğu |
+| `GET` | `/api/v1/pre-authorizations/{id}` | Yetkili detay |
+| `POST` | `/api/v1/pre-authorizations/{id}/approval` | Sigorta kararı |
+| `POST` | `/api/v1/pre-authorizations/{id}/rejection` | Sigorta kararı |
+| `POST` | `/api/v1/policies` | Poliçe yönetimi |
+| `POST` | `/api/v1/coverage-evaluations` | Senkron uygunluk kontrolü |
+| `POST` | `/api/v1/claims` | Hastane claim oluşturma |
+| `GET` | `/api/v1/claims/{id}` | Yetkili claim detayı |
+| `GET` | `/api/v1/claims/by-pre-authorization/{id}` | Event ile oluşturulan claim/invoice'u gözlemleme |
 | `POST` | `/api/v1/claims/{id}/review` | Claim approver |
 | `POST` | `/api/v1/claims/{id}/approval` | Claim approver |
 | `POST` | `/api/v1/claims/{id}/rejection` | Claim approver |
-| `GET` | `/api/v1/invoices/{id}` | Authorized invoice detail |
-| `POST` | `/api/v1/invoices/{id}/dispute-resolution` | Insurance reconciliation |
-| `POST` | `/api/v1/invoices/{id}/payments` | Insurance payment recording |
-| `GET` | `/api/v1/search` | Provider-scoped or insurer operations search |
-| `GET` | `/api/v1/admin/search-projections/pre-authorizations` | Bounded Authorization snapshot; system administrator |
-| `GET` | `/api/v1/admin/search-projections/claims` | Bounded Claims/Billing snapshot; system administrator |
-| `POST` | `/api/v1/admin/search-rebuilds` | Create versioned candidate; system administrator |
-| `POST` | `/api/v1/admin/search-rebuilds/{runId}/records` | Ingest 1–200 projections; system administrator |
+| `GET` | `/api/v1/invoices/{id}` | Yetkili invoice detayı |
+| `POST` | `/api/v1/invoices/{id}/dispute-resolution` | Sigorta mutabakatı |
+| `POST` | `/api/v1/invoices/{id}/payments` | Sigorta payment kaydı |
+| `GET` | `/api/v1/search` | Provider kapsamlı veya sigorta operasyon araması |
+| `GET` | `/api/v1/admin/search-projections/pre-authorizations` | Sınırlandırılmış Authorization snapshot; system administrator |
+| `GET` | `/api/v1/admin/search-projections/claims` | Sınırlandırılmış Claims/Billing snapshot; system administrator |
+| `POST` | `/api/v1/admin/search-rebuilds` | Sürümlenmiş candidate oluşturma; system administrator |
+| `POST` | `/api/v1/admin/search-rebuilds/{runId}/records` | 1–200 projection ingest etme; system administrator |
 | `POST` | `/api/v1/admin/search-rebuilds/{runId}/activation` | Count-gated alias activation; system administrator |
-| `POST` | `/api/v1/admin/search-rebuilds/{runId}/rollback` | Explicit retained-index rollback; system administrator |
-| `GET` | `/actuator/health` | Public liveness/readiness information |
+| `POST` | `/api/v1/admin/search-rebuilds/{runId}/rollback` | Korunan index'e açık rollback; system administrator |
+| `GET` | `/actuator/health` | Public liveness/readiness bilgisi |
 
-The pre-authorization collection accepts `status`, `memberId`, `policyNumber`,
-`page`, `size`, `sortBy`, and `direction`. Supported sort fields are
-`createdAt`, `requestedAmount`, and `status`; page size is limited to 100.
+Ön provizyon collection `status`, `memberId`, `policyNumber`, `page`, `size`, `sortBy` ve `direction` kabul eder. Desteklenen sort field'ları `createdAt`, `requestedAmount` ve `status`'tur; page size 100 ile sınırlandırılır.
 
-## Documentation and visual evidence
+## Dokümantasyon ve görsel kanıtlar
 
-![Synthetic pre-authorization work queue](docs/screenshots/02-pre-authorization-work-queue.png)
+![Sentetik ön provizyon iş kuyruğu](docs/screenshots/02-pre-authorization-work-queue.png)
 
-![Synthetic specialist decision view](docs/screenshots/05-specialist-decision.png)
+![Sentetik uzman karar görünümü](docs/screenshots/05-specialist-decision.png)
 
-![RabbitMQ notification delivery queue and DLQ](docs/screenshots/06-rabbitmq-notification-queues.png)
+![RabbitMQ notification delivery queue ve DLQ](docs/screenshots/06-rabbitmq-notification-queues.png)
 
-![Live versioned search rebuild](docs/screenshots/11-search-rebuild-recovery.png)
+![Canlı sürümlenmiş search rebuild](docs/screenshots/11-search-rebuild-recovery.png)
 
-![Jenkins supply-chain evidence](docs/screenshots/12-jenkins-supply-chain.png)
+![Jenkins supply-chain kanıtı](docs/screenshots/12-jenkins-supply-chain.png)
 
 ![Harbor private project](docs/screenshots/13-harbor-artifacts.png)
 
-![Argo CD GitOps synchronization](docs/screenshots/14-argocd-gitops-sync.png)
+![Argo CD GitOps senkronizasyonu](docs/screenshots/14-argocd-gitops-sync.png)
 
-![Nexus Maven artifacts](docs/screenshots/15-nexus-maven-artifacts.png)
+![Nexus Maven artifact'ları](docs/screenshots/15-nexus-maven-artifacts.png)
 
 ![Docker CI/CD runtime](docs/screenshots/16-docker-cicd-runtime.png)
 
-![Kubernetes and Argo CD runtime](docs/screenshots/17-kubernetes-argocd-runtime.png)
+![Kubernetes ve Argo CD runtime](docs/screenshots/17-kubernetes-argocd-runtime.png)
 
-![Policy Service live local runtime](docs/screenshots/18-policy-service-runtime.png)
+![Policy Service canlı lokal runtime](docs/screenshots/18-policy-service-runtime.png)
 
-![Authorization Service live local runtime](docs/screenshots/19-authorization-service-runtime.png)
+![Authorization Service canlı lokal runtime](docs/screenshots/19-authorization-service-runtime.png)
 
-Authorization infrastructure evidence is captured separately for
+Authorization infrastructure kanıtları
 [PostgreSQL](docs/screenshots/20-authorization-postgresql-runtime.png),
-[Kafka](docs/screenshots/21-authorization-kafka-runtime.png), and
-[RabbitMQ](docs/screenshots/22-authorization-rabbitmq-runtime.png).
+[Kafka](docs/screenshots/21-authorization-kafka-runtime.png) ve
+[RabbitMQ](docs/screenshots/22-authorization-rabbitmq-runtime.png) için ayrı ayrı kaydedilmiştir.
 
-Claims/Billing live evidence covers the
-[PostgreSQL financial lifecycle](docs/screenshots/23-claims-billing-postgresql-runtime.png)
-and the [Kafka idempotent consumer](docs/screenshots/24-claims-billing-kafka-consumer-runtime.png).
+Claims/Billing canlı kanıtları
+[PostgreSQL finansal yaşam döngüsünü](docs/screenshots/23-claims-billing-postgresql-runtime.png)
+ve [Kafka idempotent consumer'ı](docs/screenshots/24-claims-billing-kafka-consumer-runtime.png) kapsar.
 
-- [Engineering documentation index](docs/README.md)
-- [Technical walkthrough and interview guide](docs/project-technical-walkthrough.md)
-- [C4 context](docs/architecture/c4-context.md) and
+- [Mühendislik dokümantasyonu indeksi](docs/README.md)
+- [Teknik walkthrough ve mülakat rehberi](docs/project-technical-walkthrough.md)
+- [C4 context](docs/architecture/c4-context.md) ve
   [container](docs/architecture/c4-container.md)
 - [Clean Architecture](docs/architecture/clean-architecture.md)
-- [Data ownership/ER model](docs/architecture/data-model.md)
-- [Workflow sequences](docs/architecture/workflow-sequences.md)
+- [Veri sahipliği/ER modeli](docs/architecture/data-model.md)
+- [İş akışı sequence'ları](docs/architecture/workflow-sequences.md)
 - [Event-driven messaging](docs/architecture/event-driven-messaging.md)
-- [Frontend architecture](docs/architecture/frontend-architecture.md)
-- [Local deployment](docs/architecture/local-deployment.md)
-- [Kubernetes deployment and security](docs/deployment/kubernetes.md)
-- [CI/CD and software supply chain](docs/architecture/ci-cd-supply-chain.md)
-- [Local troubleshooting](docs/development/troubleshooting.md)
-- [Policy Service local learning and verification](docs/development/policy-service-local-verification.md)
-- [Authorization Service local learning and verification](docs/development/authorization-service-local-verification.md)
-- [Claims and Billing Service local learning and verification](docs/development/claims-billing-service-local-verification.md)
-- [Backend end-to-end local verification](docs/development/backend-end-to-end-local-verification.md)
-- [Operations Portal local learning and verification](docs/development/operations-portal-local-verification.md)
-- [Operations Portal business analysis](docs/business/operations-portal-business-analysis.md)
-- [Claims and Billing Service business analysis](docs/business/claims-billing-service-business-analysis.md)
-- [Search and messaging recovery runbook](docs/operations/search-and-messaging-recovery.md)
-- [Demo scenario](docs/demo/demo-scenario.md)
-- [Milestone 12 CI/CD demo](docs/demo/milestone-12-ci-cd-demo.md)
-- [Milestone 11 completion record](docs/milestones/milestone-11-kubernetes-deployment-security.md)
-- [Milestone 12 completion record](docs/milestones/milestone-12-ci-cd-software-supply-chain.md)
-- [Screenshot catalogue](docs/screenshots/README.md)
-- [ADRs](docs/adr/)
+- [Frontend mimarisi](docs/architecture/frontend-architecture.md)
+- [Lokal deployment](docs/architecture/local-deployment.md)
+- [Kubernetes deployment ve security](docs/deployment/kubernetes.md)
+- [CI/CD ve software supply chain](docs/architecture/ci-cd-supply-chain.md)
+- [Lokal troubleshooting](docs/development/troubleshooting.md)
+- [Policy Service lokal öğrenme ve doğrulama](docs/development/policy-service-local-verification.md)
+- [Authorization Service lokal öğrenme ve doğrulama](docs/development/authorization-service-local-verification.md)
+- [Claims and Billing Service lokal öğrenme ve doğrulama](docs/development/claims-billing-service-local-verification.md)
+- [Backend uçtan uca lokal doğrulama](docs/development/backend-end-to-end-local-verification.md)
+- [Operations Portal lokal öğrenme ve doğrulama](docs/development/operations-portal-local-verification.md)
+- [Operations Portal iş analizi](docs/business/operations-portal-business-analysis.md)
+- [Claims and Billing Service iş analizi](docs/business/claims-billing-service-business-analysis.md)
+- [Search ve messaging recovery runbook](docs/operations/search-and-messaging-recovery.md)
+- [Demo senaryosu](docs/demo/demo-scenario.md)
+- [Milestone 12 CI/CD demosu](docs/demo/milestone-12-ci-cd-demo.md)
+- [Milestone 11 tamamlanma kaydı](docs/milestones/milestone-11-kubernetes-deployment-security.md)
+- [Milestone 12 tamamlanma kaydı](docs/milestones/milestone-12-ci-cd-software-supply-chain.md)
+- [Screenshot kataloğu](docs/screenshots/README.md)
+- [ADR'ler](docs/adr/)
 
-## Design decisions and trade-offs
+## Tasarım kararları ve trade-off'lar
 
-- **Synchronous REST today:** coverage and approved-authorization checks require
-  immediate answers and have clear owners. This is simple and traceable but
-  creates availability coupling; calls fail closed.
-- **Database per service:** prevents hidden coupling and establishes ownership,
-  at the cost of cross-service joins and distributed consistency work.
-- **Claims plus Billing together:** separate aggregates share one bounded context
-  and local transaction while the domain is young. They can be split only after
-  independent ownership or scaling needs emerge.
-- **Lightweight CQRS:** command/query models are explicit without the operational
-  cost of a second read store.
-- **End-user token relay:** preserves current provider context across services.
-  Workload identity/token exchange is a future production security decision.
-- **At-least-once Kafka delivery:** avoids dual writes through a database outbox;
-  duplicates are expected and neutralized by the consumer inbox.
-- **RabbitMQ for operational work:** notification tasks use a competing-consumer
-  queue while Kafka remains the durable business-event stream. Publisher
-  confirms and mandatory returns protect the producer boundary; consumer
-  idempotency handles inevitable redelivery.
-- **Kustomize rather than Helm:** plain Kubernetes resources and overlays cover
-  the current environment variation and remain directly consumable by Argo CD.
-- **External stateful services:** Kubernetes owns stateless application
-  scheduling, not pretend single-node production databases or brokers.
-- **Fail-closed publication:** Jenkins waits for the SonarQube Quality Gate
-  before Nexus or Harbor receives artifacts.
-- **Immutable GitOps promotion:** Harbor and Kustomize share a full Git SHA;
-  Argo CD pulls reviewed desired state instead of accepting an imperative push.
-- **Resumable publication:** a Nexus, Harbor, or Argo failure is retried at that
-  boundary and does not invalidate successful tests for the unchanged commit.
+- **Günümüzde senkron REST:** coverage ve approved-authorization kontrolleri anlık cevap gerektirir ve açık owner'lara sahiptir. Bu yaklaşım basit ve izlenebilirdir ancak availability coupling oluşturur; çağrılar fail-closed davranır.
+- **Servis başına veritabanı:** gizli coupling'i engeller ve sahipliği netleştirir; karşılığında cross-service join ve distributed consistency çalışması gerektirir.
+- **Claims ile Billing birlikte:** domain henüz gençken ayrı aggregate'ler aynı bounded context ve lokal transaction'ı paylaşır. Yalnızca bağımsız ownership veya scaling ihtiyacı doğduğunda ayrılabilirler.
+- **Lightweight CQRS:** ikinci bir read store'un operasyonel maliyeti olmadan command/query modelleri açıkça ayrılır.
+- **End-user token relay:** servisler arasında mevcut provider context'ini korur. Workload identity/token exchange gelecekte verilecek production security kararıdır.
+- **At-least-once Kafka delivery:** database outbox ile dual write'ı önler; duplicate'ler beklenir ve consumer inbox tarafından etkisiz hale getirilir.
+- **Operasyonel işler için RabbitMQ:** notification task'ları competing-consumer queue kullanırken Kafka durable business-event stream olarak kalır. Publisher confirm ve mandatory return producer sınırını korur; consumer idempotency kaçınılmaz redelivery'yi yönetir.
+- **Helm yerine Kustomize:** plain Kubernetes resource'ları ve overlay'ler mevcut environment variation ihtiyacını karşılar ve doğrudan Argo CD tarafından tüketilebilir.
+- **Harici stateful servisler:** Kubernetes stateless application scheduling'in sahibidir; sahte tek node production veritabanı veya broker'ların değil.
+- **Fail-closed publication:** Jenkins, Nexus veya Harbor artifact almadan önce SonarQube Quality Gate'i bekler.
+- **Immutable GitOps promotion:** Harbor ve Kustomize aynı full Git SHA'yı paylaşır; Argo CD imperative push kabul etmek yerine review edilmiş desired state'i çeker.
+- **Resumable publication:** Nexus, Harbor veya Argo failure ilgili sınırda retry edilir ve değişmemiş commit için başarılı testleri geçersiz kılmaz.
 
-See ADR-001 through ADR-009 in [docs/adr](docs/adr/) for full context,
-alternatives, consequences, and rejected options.
-Gateway ownership and defence-in-depth are recorded in ADR-010.
+Tam context, alternatifler, sonuçlar ve reddedilen seçenekler için [docs/adr](docs/adr/) içindeki ADR-001–ADR-009'a bakın.
+Gateway ownership ve defence-in-depth ADR-010'da kaydedilmiştir.
 
-## Current limitations
+## Mevcut sınırlamalar
 
-- Policy benefit consumption and reservation across requests are not modeled.
-- Policy and Claims/Billing do not yet have portal screens.
-- Outbox retention/archival and a durable, audited recovery control plane are
-  not implemented. Local bounded DLT/DLQ inspect/classify/copy-replay tools are
-  available; no automatic or destructive replay exists.
-- No production workload identity/token exchange exists between services.
-- No circuit breaker is configured for synchronous dependencies.
-- A real email/SMS provider and contact-resolution boundary and centralized log
-  shipping remain outside the selected portfolio scope.
-- Kubernetes manifests were rendered and Argo CD synchronized staging desired
-  state to a disposable Minikube cluster. Production still needs external
-  secret management, workload identity, trusted TLS, managed stateful services,
-  and cluster metrics.
-- The privacy threat model, minimized audit evidence, and retention classes are
-  documented and enforced at current write/read boundaries. Lawful basis,
-  consent, approved retention durations, automated disposal, encryption/key
-  management, privileged-access controls, and regulatory sign-off require a
-  real data controller and later production work.
-- Search rebuild run state is local/in-memory, so restart-resumable checkpoints,
-  cancellation, workload identity, index lifecycle cleanup, and multi-operator
-  coordination remain production work.
+- Talepler arasında policy benefit tüketimi ve rezervasyonu modellenmemiştir.
+- Policy ve Claims/Billing için henüz portal ekranları yoktur.
+- Outbox retention/archival ve durable, audited recovery control plane uygulanmamıştır. Lokal bounded DLT/DLQ inspect/classify/copy-replay araçları vardır; otomatik veya destructive replay yoktur.
+- Servisler arasında production workload identity/token exchange yoktur.
+- Senkron dependency'ler için circuit breaker yapılandırılmamıştır.
+- Gerçek email/SMS provider, contact-resolution boundary ve centralized log shipping seçilen portföy scope'unun dışındadır.
+- Kubernetes manifest'leri render edilmiş ve Argo CD staging desired state'i disposable Minikube cluster'a senkronize etmiştir. Production için hâlâ external secret management, workload identity, trusted TLS, managed stateful service'ler ve cluster metric'leri gerekir.
+- Privacy threat model, minimize edilmiş audit evidence ve retention class'ları dokümante edilmiş ve mevcut write/read sınırlarında uygulanmıştır. Lawful basis, consent, onaylı retention duration'ları, automated disposal, encryption/key management, privileged-access control'leri ve regulatory sign-off gerçek data controller ve sonraki production çalışması gerektirir.
+- Search rebuild run state lokal/in-memory'dir; restart-resumable checkpoint'ler, cancellation, workload identity, index lifecycle cleanup ve multi-operator coordination production çalışması olarak kalır.
 
-## Roadmap
+## Yol haritası
 
-- [x] Milestone 0 — Java 21 build, Docker, CI, and configuration baseline
+- [x] Milestone 0 — Java 21 build, Docker, CI ve configuration baseline
 - [x] Milestone 1 — Clean Architecture Authorization Service
-- [x] Milestone 2 — React/TypeScript operations portal foundation
-- [x] Milestone 3 — Policy Service and coverage evaluation
-- [x] Milestone 4 — Claims and Billing lifecycle
+- [x] Milestone 2 — React/TypeScript operations portal temeli
+- [x] Milestone 3 — Policy Service ve coverage evaluation
+- [x] Milestone 4 — Claims ve Billing yaşam döngüsü
 - [x] Milestone 5 — Transactional Outbox, Kafka, idempotent consumer, retry/DLQ
 - [x] Milestone 6 — RabbitMQ notification worker
-- [x] Milestone 7 — Redis, Elasticsearch, Kibana, Elastic APM, correlation IDs
-- [x] Milestone 8 — APISIX gateway and centralized edge security policies
-- [x] Milestone 9 — Append-only audit trail, KVKK and data governance
-- [x] Milestone 10 — Elasticsearch and messaging recovery operations
-- [x] Milestone 11 — Kubernetes and deployment security
-- [x] Milestone 12 — CI/CD and software supply chain
-- [ ] Milestone 13 — Portfolio and interview finalization
+- [x] Milestone 7 — Redis, Elasticsearch, Kibana, Elastic APM, correlation ID'leri
+- [x] Milestone 8 — APISIX gateway ve merkezi edge security policy'leri
+- [x] Milestone 9 — Append-only audit trail, KVKK ve data governance
+- [x] Milestone 10 — Elasticsearch ve messaging recovery operasyonları
+- [x] Milestone 11 — Kubernetes ve deployment security
+- [x] Milestone 12 — CI/CD ve software supply chain
+- [ ] Milestone 13 — Portföy ve mülakat finalizasyonu
 
-Milestone 12 is complete. Jenkins executes the Java 21 and React quality stages,
-blocks publication on the SonarQube Quality Gate, publishes Maven snapshots to
-Nexus Community Edition, publishes immutable full-Git-SHA OCI tags to the
-private Harbor project, and hands the same image revision to the Argo CD
-staging Application. The local proof ended with all seven Argo CD pods Ready,
-Application `Synced`, operation `Succeeded`, at Git revision
-`c9c1baa496df1c0126648573c5f25a75f6967a5c`; all six Deployment specifications
-use Build #10 source/image revision `6c07fa81df22330699c58574059b89e58777f0ed`.
-See [ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md), the
-[CI/CD architecture](docs/architecture/ci-cd-supply-chain.md), and the
-[repeatable demo](docs/demo/milestone-12-ci-cd-demo.md). Trivy is intentionally
-not a required gate: it is outside the vacancy scope and added disproportionate
-cost to this local educational environment. At every later milestone, the
-README, diagrams, ADRs, synthetic demo, scenario, screenshots, technical
-walkthrough, test evidence, limitations, and roadmap are part of the definition
-of done—not end-of-project cleanup.
+Milestone 12 tamamlanmıştır. Jenkins Java 21 ve React quality stage'lerini çalıştırır, publication'ı SonarQube Quality Gate üzerinde bloklar, Maven snapshot'larını Nexus Community Edition'a yayınlar, immutable full-Git-SHA OCI tag'lerini private Harbor project'e yayınlar ve aynı image revision'ı Argo CD staging Application'a aktarır. Lokal kanıt yedi Argo CD pod'unun tamamı Ready, Application'ın `Synced`, operation'ın `Succeeded` olduğu Git revision `c9c1baa496df1c0126648573c5f25a75f6967a5c` üzerinde tamamlandı; altı Deployment specification'ın tamamı Build #10 source/image revision `6c07fa81df22330699c58574059b89e58777f0ed` kullanır.
+
+Bkz. [ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md),
+[CI/CD mimarisi](docs/architecture/ci-cd-supply-chain.md) ve
+[tekrarlanabilir demo](docs/demo/milestone-12-ci-cd-demo.md). Trivy bilinçli olarak required gate değildir: vacancy scope dışındadır ve bu lokal eğitim ortamına orantısız maliyet eklemiştir. Sonraki her milestone'da README, diagram'lar, ADR'ler, sentetik demo, senaryo, screenshot'lar, technical walkthrough, test evidence, limitation'lar ve roadmap; projenin sonunda yapılacak temizlik değil, definition of done'ın parçasıdır.
