@@ -1,79 +1,79 @@
-# ADR-011: Service-owned append-only audit journals
+# ADR-011: Servis sahipli append-only audit journal'ları
 
-- Status: Accepted
-- Date: 2026-09-09
+- Durum: Kabul edildi
+- Tarih: 2026-09-09
 
-## Context
+## Bağlam
 
-The platform must answer who changed a business record, which transition was
-performed, when it happened, and why it was allowed. Existing aggregate state,
-application logs, Kafka events, and Elastic APM traces solve different problems:
+Platform bir business record'u kimin değiştirdiğini, hangi transition'ın
+gerçekleştiğini, ne zaman olduğunu ve neden izin verildiğini yanıtlayabilmelidir.
+Mevcut aggregate state, application log'ları, Kafka event'leri ve Elastic APM
+trace'leri farklı problemleri çözer:
 
-- an aggregate stores current business truth, not a complete actor history;
-- logs are diagnostic output and may be sampled, rotated, or redacted;
-- integration events are contracts for other bounded contexts, not a compliance
-  journal;
-- traces describe request execution, not durable business evidence.
+- aggregate current business truth saklar; tam actor history saklamaz;
+- log'lar diagnostic output'tur ve sample, rotate veya redact edilebilir;
+- integration event'leri diğer bounded context'ler için contract'tır, compliance
+  journal değildir;
+- trace'ler request execution'ı anlatır, durable business evidence değildir.
 
-A central audit database called synchronously from every service would violate
-database-per-service ownership and would either couple business availability to
-the audit service or permit unaudited writes when that service is unavailable.
-Publishing audit only after commit would also leave a gap between business state
-and its evidence.
+Her servisin senkron çağırdığı merkezi audit database database-per-service
+ownership'i ihlal eder ve business availability'yi audit service'e bağlar veya
+servis erişilemezken unaudited write'a izin verir. Audit'i yalnızca commit sonrası
+publish etmek de business state ile evidence arasında boşluk bırakır.
 
-## Decision
+## Karar
 
-Each state-owning service owns an append-only audit journal in its existing
-PostgreSQL database. The business mutation and audit insert commit in the same
-local transaction. The application layer defines the audit intent; an
-infrastructure adapter persists it. Domain objects remain independent of JPA,
-Spring Security, HTTP, and audit storage.
+State sahibi her servis mevcut PostgreSQL database'inde append-only audit journal
+sahibidir. Business mutation ile audit insert aynı local transaction içinde
+commit edilir. Application layer audit intent'i tanımlar; infrastructure adapter
+persist eder. Domain object'leri JPA, Spring Security, HTTP ve audit storage'dan
+bağımsız kalır.
 
-The initial rollout covers:
+İlk rollout şunları kapsar:
 
-- Authorization: submission and `PENDING -> APPROVED|REJECTED` transitions;
+- Authorization: submission ve `PENDING -> APPROVED|REJECTED` transition'ları;
 - Policy: policy issuance;
 - Claims/Billing: claim lifecycle, invoice reconciliation/dispute resolution,
-  payment recording, settlement, and voiding;
-- Notification Worker: delivery lifecycle remains operational evidence and will
-  be classified separately; it is not a substitute for business audit.
+  payment recording, settlement ve voiding;
+- Notification Worker: delivery lifecycle operational evidence olarak kalır ve
+  ayrı sınıflandırılır; business audit yerine geçmez.
 
-Every audit record contains only this bounded contract:
+Her audit record yalnızca şu bounded contract'ı içerir:
 
-| Field | Purpose |
+| Alan | Amaç |
 | --- | --- |
-| `audit_id` | Globally unique immutable record identity |
-| `aggregate_type`, `aggregate_id` | Stable reference to the owning business record |
-| `action` | Controlled action name such as `PRE_AUTHORIZATION_APPROVED` |
-| `actor_subject` | Keycloak subject, or a controlled system principal |
-| `actor_roles` | Normalized application roles used for the decision |
-| `provider_id` | Trusted provider scope when the actor has one |
-| `correlation_id` | Diagnostic linkage; not proof of identity |
+| `audit_id` | Global unique immutable record identity |
+| `aggregate_type`, `aggregate_id` | Owner business record'a stable reference |
+| `action` | `PRE_AUTHORIZATION_APPROVED` gibi controlled action name |
+| `actor_subject` | Keycloak subject veya controlled system principal |
+| `actor_roles` | Decision için kullanılan normalized application role'leri |
+| `provider_id` | Actor varsa trusted provider scope |
+| `correlation_id` | Diagnostic linkage; identity kanıtı değildir |
 | `occurred_at` | Server-side UTC timestamp |
 | `reason_code` | Controlled, non-sensitive explanation category |
-| `changes` | Allowlisted state delta such as `fromStatus` and `toStatus` |
-| `retention_class` | Policy key, not a hard-coded legal duration |
+| `changes` | `fromStatus` ve `toStatus` gibi allowlisted state delta |
+| `retention_class` | Hard-coded legal duration değil policy key |
 
-The audit record must not duplicate member identifiers, diagnosis codes, policy
-numbers, invoice/payment references, access tokens, contact details, full
-request/response bodies, or free-text clinical/decision content. An authorized
-user can follow the aggregate reference to the owning service when business
-detail is legitimately required.
+Audit record member identifier, diagnosis code, policy number, invoice/payment
+reference, access token, contact detail, full request/response body veya free-text
+clinical/decision content'i duplicate etmemelidir. Yetkili user business detail
+meşru olarak gerektiğinde aggregate reference üzerinden owner servise gidebilir.
 
-Audit tables expose insert and read operations only. No application repository
-method updates or deletes a record. PostgreSQL protection will reject `UPDATE`
-and `DELETE` for the application path, and integration tests will prove both the
-atomic write and immutability rules. This is append-only enforcement, not a claim
-of cryptographic tamper evidence against a database administrator.
+Audit table'ları yalnızca insert ve read operation açar. Hiçbir application
+repository method record update veya delete etmez. PostgreSQL protection,
+application path için `UPDATE` ve `DELETE` işlemlerini reddeder; integration
+testleri hem atomic write hem immutability rule'larını kanıtlar. Bu append-only
+enforcement'tır; database administrator'a karşı cryptographic tamper evidence
+iddiası değildir.
 
-Audit queries are application use cases, not direct repository exposure. Each
-service-local read API is restricted to `SYSTEM_ADMIN`, paginated with a maximum
-size of 100, deterministically ordered, and filterable only by aggregate UUID and
-an allowlisted action. Adding a dedicated auditor role or time-range filter is a
-future security-model decision rather than silently broadening the current
-contract.
+Audit query'leri direct repository exposure değil application use case'leridir.
+Her service-local read API yalnızca `SYSTEM_ADMIN` erişimine açıktır, maksimum
+100 page size ile paginate edilir, deterministically order edilir ve yalnızca
+aggregate UUID ile allowlisted action üzerinden filter edilebilir. Dedicated
+auditor role veya time-range filter eklemek mevcut contract'ı sessizce
+genişletmek yerine gelecekteki security-model kararıdır.
 
-## Transaction and failure behavior
+## Transaction ve failure davranışı
 
 ```mermaid
 sequenceDiagram
@@ -94,37 +94,35 @@ sequenceDiagram
     end
 ```
 
-Audit persistence is fail-closed: an auditable state mutation must roll back when
-its journal insert fails. Read-only queries do not generate business audit rows;
-security access logging for audit reads is treated as a separate follow-up to
-avoid recursive audit creation.
+Audit persistence fail-closed'dur: auditable state mutation journal insert
+başarısız olduğunda rollback olmalıdır. Read-only query'ler business audit row
+üretmez; audit read security access logging recursive audit creation'ı önlemek
+için ayrı follow-up olarak ele alınır.
 
-## Consequences
+## Sonuçlar
 
-- Business state and its local audit evidence cannot diverge after a successful
-  transaction.
-- No service writes another service's database.
-- Audit availability does not introduce a synchronous network dependency.
-- A platform-wide audit timeline is eventually consistent if later projected
-  from service-owned records.
-- Schemas and adapters repeat a small intentional audit contract across services.
-- Local database administrators remain trusted; immutable backups, signatures,
-  or external write-once storage would be needed for stronger tamper evidence.
-- Retention is represented by policy keys until the data controller and legal
-  stakeholders approve concrete periods and disposal rules.
+- Başarılı transaction sonrasında business state ile local audit evidence ayrışamaz.
+- Hiçbir servis başka servisin database'ine yazmaz.
+- Audit availability senkron network dependency getirmez.
+- Platform-wide audit timeline ileride service-owned record'lardan project edilirse
+  eventually consistent olur.
+- Schema ve adapter'lar servisler arasında küçük ve bilinçli audit contract'ı tekrarlar.
+- Local database administrator'lar trusted kalır; daha güçlü tamper evidence için
+  immutable backup, signature veya external write-once storage gerekir.
+- Data controller ve legal stakeholder somut period ve disposal rule'larını
+  onaylayana kadar retention policy key'lerle temsil edilir.
 
-## Alternatives considered
+## Değerlendirilen alternatifler
 
-- **Central audit service called synchronously:** rejected because it introduces
-  distributed consistency and availability coupling.
-- **Kafka events as the audit system:** rejected because current integration
-  events are purpose-specific, minimized contracts and are not transactionally
-  queryable compliance records.
-- **Application logs as audit:** rejected because logs have different access,
-  rotation, redaction, and integrity semantics.
-- **Full before/after JSON snapshots:** rejected because they duplicate special
-  category health data and make minimization, schema evolution, and erasure more
-  difficult.
-- **Database triggers that infer every business meaning:** rejected as the sole
-  producer because a trigger sees rows but not the authenticated actor or use-case
-  intent. Database controls are still used to enforce immutability.
+- **Senkron çağrılan central audit service:** distributed consistency ve
+  availability coupling getirdiği için reddedildi.
+- **Audit sistemi olarak Kafka event'leri:** mevcut integration event'leri
+  purpose-specific, minimized contract olduğu ve transactionally queryable
+  compliance record olmadığı için reddedildi.
+- **Audit olarak application log'ları:** access, rotation, redaction ve integrity
+  semantics farklı olduğu için reddedildi.
+- **Tam before/after JSON snapshot'ları:** special-category health data'yı duplicate
+  ettiği ve minimization, schema evolution ve erasure'ı zorlaştırdığı için reddedildi.
+- **Her business meaning'i çıkaran database trigger'ları:** trigger row görür ancak
+  authenticated actor veya use-case intent'i görmez; bu nedenle sole producer
+  olarak reddedildi. Database control'leri immutability enforcement için yine kullanılır.
