@@ -1,131 +1,99 @@
-# Local Troubleshooting
+# Lokal Sorun Giderme
 
-This guide covers reproducible local-development failures through Milestone 8.
-Never paste passwords, access tokens, message payloads, or real health data into
-commands, issues, screenshots, or logs.
+Bu rehber Milestone 8'e kadar reproducible local-development failure'larını kapsar. Password, access token, message payload veya gerçek sağlık verisini command, issue, screenshot veya log içine asla yapıştırmayın.
 
-## The disposable Minikube profile has no API server
+## Disposable Minikube profile'ın API server'ı yok
 
-If `portfolio-ci` was interrupted during its first bootstrap, kubelet may report
-a missing `bootstrap-kubelet.conf` or kubeadm may reject an empty certificate
-SAN. Do not edit generated profile JSON. Because this cluster is explicitly
-disposable, remove only that exact profile and recreate it with the command in
-the Kubernetes deployment guide:
+`portfolio-ci` ilk bootstrap sırasında kesintiye uğradıysa kubelet missing `bootstrap-kubelet.conf` raporlayabilir veya kubeadm empty certificate SAN'i reddedebilir. Generated profile JSON'u edit etmeyin. Cluster explicit disposable olduğundan yalnızca exact profile'ı silin ve Kubernetes deployment guide'daki command ile yeniden oluşturun:
 
 ```powershell
 minikube delete -p portfolio-ci
 ```
 
-This removes the cluster state, not repository files, Compose volumes or local
-application images. Let the following `minikube start` finish uninterrupted.
+Bu cluster state'i siler; repository file, Compose volume veya local application image'larını silmez. Sonraki `minikube start` işleminin kesintisiz tamamlanmasına izin verin.
 
-## A Compose port is already allocated
+## Compose port zaten kullanılıyor
 
-Symptom:
+Belirti:
 
 ```text
 Bind for 0.0.0.0:5435 failed: port is already allocated
 ```
 
-Identify the owner before stopping anything:
+Bir şeyi durdurmadan önce owner'ı bulun:
 
 ```powershell
 docker ps -a --filter publish=5435 `
   --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
 ```
 
-If it is a deliberately retained older demo project, stop that exact project or
-its exact containers. Do not delete volumes unless their local data is known to
-be disposable. Changing the current Compose port hides the stale runtime and can
-make documentation and scripts inconsistent.
+Bu bilinçli olarak retained eski demo project ise yalnızca o exact project veya container'ları durdurun. Local data disposable olduğu doğrulanmadıkça volume silmeyin. Current Compose port'u değiştirmek stale runtime'ı gizler ve documentation/script consistency'sini bozabilir.
 
-## PostgreSQL reports password authentication failure after `.env` changes
+## `.env` değişikliğinden sonra PostgreSQL password authentication failure veriyor
 
-PostgreSQL's image reads `POSTGRES_USER` and `POSTGRES_PASSWORD` only when it
-initializes an empty data directory. Editing `.env` does not update roles inside
-an existing named volume.
+PostgreSQL image `POSTGRES_USER` ve `POSTGRES_PASSWORD` değerlerini yalnızca empty data directory initialize ederken okur. `.env` edit etmek existing named volume içindeki role'leri update etmez.
 
-For disposable synthetic data, reset only after confirming the loss is safe:
+Disposable synthetic data için data loss güvenli olduğu doğrulandıktan sonra reset edin:
 
 ```powershell
 docker compose down
 docker volume ls --filter label=com.docker.compose.project=health-insurance-platform
-# Remove only the exact stale database volumes you have verified.
+# Yalnızca doğruladığınız exact stale database volume'larını silin.
 docker compose up -d
 ```
 
-For valuable local data, do not delete the volume. Connect with the known
-original database administrator, rotate/create the required role, transfer
-ownership/grants, and keep the new secret only in `.env`.
+Değerli local data varsa volume'u silmeyin. Known original database administrator ile bağlanın, gerekli role'ü rotate/create edin, ownership/grant transfer edin ve yeni secret'ı yalnızca `.env` içinde tutun.
 
-## RabbitMQ or Notification Worker does not become ready
+## RabbitMQ veya Notification Worker ready olmuyor
 
-Inspect state and bounded logs:
+State ve bounded log'ları inceleyin:
 
 ```powershell
 docker compose ps -a
 docker compose logs --no-color --tail 120 rabbitmq notification-worker
 ```
 
-Expected evidence includes a healthy RabbitMQ container, a worker connection to
-`rabbitmq:5672`, successful Liquibase migration, and a started listener. Verify
-that `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD`, `NOTIFICATION_DB_USERNAME`, and
-`NOTIFICATION_DB_PASSWORD` exist in the ignored `.env`; do not print them.
+Beklenen evidence: healthy RabbitMQ container, worker'ın `rabbitmq:5672` bağlantısı, başarılı Liquibase migration ve started listener. Ignore edilen `.env` içinde `RABBITMQ_USERNAME`, `RABBITMQ_PASSWORD`, `NOTIFICATION_DB_USERNAME`, `NOTIFICATION_DB_PASSWORD` bulunduğunu doğrulayın; value'ları yazdırmayın.
 
-## A notification appears in the DLQ
+## Notification DLQ'ya düştü
 
-The delivery queue rejects without requeue after a permanent failure or after
-three total transient attempts. Inspect headers and safe technical identifiers,
-then classify the cause:
+Delivery queue permanent failure veya toplam üç transient attempt sonrasında requeue olmadan reject eder. Header ve safe technical identifier'ları inceleyin, sonra nedeni classify edin:
 
-- unsupported `taskVersion`, malformed JSON, or intent conflict: fix/deploy the
-  compatible consumer or producer contract before replay;
-- exhausted transient dependency failure: restore the dependency and verify its
-  downstream idempotency contract before replay;
-- never edit and replay a message using real contact or health information.
+- unsupported `taskVersion`, malformed JSON veya intent conflict: replay öncesi compatible consumer/producer contract'ı fix/deploy edin;
+- exhausted transient dependency failure: dependency'yi restore edin ve replay öncesi downstream idempotency contract'ını doğrulayın;
+- gerçek contact veya health information içeren message'ı edit edip replay etmeyin.
 
-Milestone 6 deliberately has no automatic DLQ replay. Manual replay requires an
-operational runbook, authorization, audit evidence, and an idempotency review.
+Milestone 6 bilinçli olarak automatic DLQ replay içermez. Manual replay operational runbook, authorization, audit evidence ve idempotency review gerektirir.
 
-## Testcontainers cannot start RabbitMQ or PostgreSQL
+## Testcontainers RabbitMQ veya PostgreSQL başlatamıyor
 
-Confirm Docker Desktop is running and the daemon is reachable:
+Docker Desktop'ın çalıştığını ve daemon'a erişilebildiğini doğrulayın:
 
 ```powershell
 docker info
 docker ps
 ```
 
-Run Maven from the service directory. The Notification Worker broker test starts
-both PostgreSQL 17 and RabbitMQ 4.1 containers; it is an integration test, not a
-mocked broker test.
+Maven'i service directory'den çalıştırın. Notification Worker broker testi hem PostgreSQL 17 hem RabbitMQ 4.1 container başlatır; mocked broker testi değildir.
 
-## Docker builds are slow on a cold cache
+## Docker build cold cache üzerinde yavaş
 
-Each service currently copies its source before invoking Maven, so a cold or
-invalidated Docker cache may download dependencies again. This is a performance
-limitation, not a correctness failure. A future build-only improvement can add a
-BuildKit Maven cache or dependency-first layer without changing runtime behavior.
+Her service şu anda Maven'i çağırmadan önce source'u kopyalar; bu nedenle cold veya invalidated Docker cache dependency'leri yeniden indirebilir. Bu correctness failure değil performance limitation'dır. Future build-only improvement, runtime behavior değiştirmeden BuildKit Maven cache veya dependency-first layer ekleyebilir.
 
-## Redis is unavailable
+## Redis unavailable
 
-Policy Service deliberately treats Redis as an optimization. Inspect only a
-bounded log tail and look for a cache warning followed by a successful database
-evaluation:
+Policy Service Redis'i bilinçli olarak optimization olarak görür. Yalnızca bounded log tail inceleyin ve cache warning sonrasında successful database evaluation arayın:
 
 ```powershell
 docker compose ps redis policy-service
 docker compose logs --no-color --tail 100 policy-service
 ```
 
-Do not change Authorization to accept unknown coverage. Redis failures fall back
-to Policy PostgreSQL; a PostgreSQL/Policy failure still returns `503` and creates
-no authorization. Never log or inspect raw cache values using real identifiers.
+Authorization'ı unknown coverage kabul edecek şekilde değiştirmeyin. Redis failure Policy PostgreSQL'e fallback eder; PostgreSQL/Policy failure yine `503` döndürür ve authorization oluşturmaz. Gerçek identifier ile raw cache value loglamayın veya inspect etmeyin.
 
-## Elasticsearch, Search Service, or Kibana is not ready
+## Elasticsearch, Search Service veya Kibana ready değil
 
-Elasticsearch and Kibana are memory-intensive on a cold Docker Desktop start.
-Inspect exact services and wait for the Elasticsearch health gate:
+Elasticsearch ve Kibana cold Docker Desktop start'ta memory-intensive olabilir. Exact service'leri inceleyin ve Elasticsearch health gate'i bekleyin:
 
 ```powershell
 docker compose ps elasticsearch search-service kibana apm-server
@@ -133,48 +101,32 @@ docker compose logs --no-color --tail 120 elasticsearch search-service kibana ap
 curl.exe -sS http://localhost:9200/_cluster/health
 ```
 
-If core claim commands succeed but search is stale, inspect unpublished
-`claim_search_outbox` rows and Search consumer logs. Do not repair this by writing
-directly to source-service databases or Elasticsearch. Restore the dependency,
-allow the relay/consumer to catch up, or follow the bounded
-[search rebuild runbook](../operations/search-and-messaging-recovery.md).
+Core claim command'ları başarılı fakat search stale ise unpublished `claim_search_outbox` row'ları ve Search consumer log'larını inceleyin. Source-service database veya Elasticsearch'e direct write ile tamir etmeyin. Dependency'yi restore edin, relay/consumer catch-up'a izin verin veya bounded [search rebuild runbook](../operations/search-and-messaging-recovery.md) izleyin.
 
-A full Search Testcontainers suite can time out while several large containers
-start concurrently. Run it alone before classifying the failure as a code defect:
+Full Search Testcontainers suite birkaç büyük container concurrent başlarken timeout olabilir. Code defect olarak classify etmeden önce tek başına çalıştırın:
 
 ```powershell
 Set-Location services/search-service
 .\mvnw.cmd --batch-mode --no-transfer-progress test
 ```
 
-## Search rebuild does not activate
+## Search rebuild activate olmuyor
 
-- `Candidate count ... does not match expected count` means one or more owner
-  pages/writes did not produce the exact distinct set. The service refreshes the
-  candidate before counting. Leave the current alias untouched and inspect the
-  failed run; never lower the expected count to force activation.
-- `Alias changed concurrently` means another operation moved the stable alias.
-  Stop and inspect `_cat/aliases` and `_cat/indices`; do not retry with a guessed
-  predecessor.
-- A `409` rollback after a Search Service restart is expected because the local
-  run registry is in memory. Both physical indices remain intact; perform a new
-  reviewed recovery rather than editing the alias blindly.
-- A pre-M10 document can omit `sourceRevision`. The reader treats it as baseline
-  revision 1 so search remains available, and the next owner rebuild replaces it.
+- `Candidate count ... does not match expected count`: bir veya daha fazla owner page/write exact distinct set üretmedi. Service count öncesi candidate'ı refresh eder. Current alias'a dokunmayın ve failed run'ı inspect edin; activation zorlamak için expected count'u düşürmeyin.
+- `Alias changed concurrently`: başka operation stable alias'ı taşıdı. Durun, `_cat/aliases` ve `_cat/indices` inceleyin; guessed predecessor ile retry etmeyin.
+- Search Service restart sonrası `409` rollback beklenir; local run registry memory'dedir. Physical index'ler intact kalır; alias'ı körlemesine edit etmek yerine yeni reviewed recovery yapın.
+- Pre-M10 document `sourceRevision` içermeyebilir. Reader bunu baseline revision 1 kabul eder; search available kalır ve sonraki owner rebuild bunu replace eder.
 
-Use only safe metadata during diagnosis:
+Diagnosis sırasında yalnızca safe metadata kullanın:
 
 ```powershell
 curl.exe -sS "http://localhost:9200/_cat/aliases/healthcare-operations?format=json&h=alias,index,is_write_index"
 curl.exe -sS "http://localhost:9200/_cat/indices/healthcare-operations-v*?format=json&h=index,docs.count,status"
 ```
 
-## Recovery inspection cannot find Kafka commands
+## Recovery inspection Kafka command'larını bulamıyor
 
-The runtime `apache/kafka-native` image is intentionally small and does not
-contain console administration binaries. Milestone 10 defines a tools-only
-`kafka-cli` Compose profile; use the committed scripts rather than installing
-packages in the broker container:
+Runtime `apache/kafka-native` image bilinçli olarak küçüktür ve console administration binary'lerini içermez. Milestone 10 tools-only `kafka-cli` Compose profile tanımlar; broker container içine package yüklemek yerine committed script'leri kullanın:
 
 ```powershell
 .\scripts\inspect-recovery-status.ps1 | ConvertTo-Json -Depth 6
@@ -182,26 +134,20 @@ packages in the broker container:
   -DltTopic health.authorization.pre-authorization.v1.DLT -MaxMessages 1
 ```
 
-An empty DLT/DLQ is a healthy result, not a script failure. If replayed data
-immediately returns to dead letter, stop: it was misclassified or its dependency
-is still unhealthy. Do not loop the command or reset Kafka offsets.
+Empty DLT/DLQ healthy result'tır; script failure değildir. Replayed data hemen tekrar dead-letter olursa durun: yanlış classify edilmiştir veya dependency hâlâ unhealthy'dir. Command'ı loop etmeyin veya Kafka offset reset etmeyin.
 
-## Correlation or APM data is missing
+## Correlation veya APM data eksik
 
-Send a safe bounded header, confirm it is echoed, then find the same
-`correlationId` field in ECS JSON:
+Safe bounded header gönderin, echo edildiğini doğrulayın, ardından ECS JSON içinde aynı `correlationId` field'ını bulun:
 
 ```powershell
 curl.exe -i -H "X-Correlation-ID: local-diagnostic-001" http://localhost:9080/api/v1/pre-authorizations
 docker compose logs --no-color --tail 100 authorization-service
 ```
 
-The Java agent is attached through `JAVA_TOOL_OPTIONS`; verify that environment
-and APM Server connectivity in the exact container without printing tokens or
-secrets. APM unavailability must not stop business processing. Correlation IDs
-connect evidence but do not provide distributed transaction semantics.
+Java agent `JAVA_TOOL_OPTIONS` ile attach edilir; token veya secret yazdırmadan exact container içinde environment ve APM Server connectivity'yi doğrulayın. APM unavailability business processing'i durdurmamalıdır. Correlation ID evidence'ı bağlar ancak distributed transaction semantics sağlamaz.
 
-## APISIX is unhealthy or returns 502/504
+## APISIX unhealthy veya 502/504 döndürüyor
 
 ```powershell
 docker compose ps apisix authorization-service policy-service claims-billing-service search-service keycloak
@@ -209,43 +155,25 @@ docker compose logs --no-color --tail 150 apisix
 docker compose config --quiet
 ```
 
-Confirm both read-only files under `infra/apisix` are mounted and the route file
-ends with `#END`. A `401` for a missing token proves the route and gateway-native
-RFC 9457 adapter loaded; it does not prove the upstream is ready. A `502` means
-the selected internal service could not be reached, while `504` indicates the
-bounded upstream timeout expired.
+`infra/apisix` altındaki iki read-only file'ın mount edildiğini ve route file'ın `#END` ile bittiğini doğrulayın. Missing token için `401`, route ve gateway-native RFC 9457 adapter'ın yüklendiğini kanıtlar; upstream ready olduğunu kanıtlamaz. `502`, seçilen internal service'e ulaşılamadığını; `504` bounded upstream timeout'un dolduğunu gösterir.
 
-The local stack intentionally uses HTTP for Keycloak discovery, so APISIX logs a
-security warning. Do not silence this by disabling checks in production; deploy
-trusted TLS for the public and backchannel identity-provider endpoints.
+Local stack Keycloak discovery için bilinçli olarak HTTP kullanır; bu nedenle APISIX security warning loglar. Production'da check'leri disable ederek susturmayın; public ve backchannel identity-provider endpoint'leri için trusted TLS deploy edin.
 
-The APISIX OpenID Connect plugin currently records a missing bearer token as an
-`error` before returning the expected `401`. Correlate the status and request ID
-before treating that line as an outage; alerting should not page on isolated
-client-side authentication failures.
+APISIX OpenID Connect plugin missing bearer token'ı expected `401` döndürmeden önce şu anda `error` olarak kaydeder. Bu satırı outage saymadan önce status ve request ID'yi correlate edin; alerting isolated client-side authentication failure için page etmemelidir.
 
-The rate limiter is local to the APISIX process. A verification run deliberately
-exhausts its one-minute window. Restart APISIX or wait for the reset header
-before an immediate manual demo. Multiple production replicas require a shared
-counter policy.
+Rate limiter APISIX process'e lokaldir. Verification run one-minute window'u bilinçli olarak tüketir. Immediate manual demo öncesi APISIX'i restart edin veya reset header süresini bekleyin. Multiple production replica shared counter policy gerektirir.
 
-## Jenkins, Nexus, Harbor, or Argo CD publication fails
+## Jenkins, Nexus, Harbor veya Argo CD publication fail oluyor
 
-Do not restart the complete pipeline when verification and the SonarQube gate
-already succeeded for the same commit. Resume at the failed boundary:
+Verification ve SonarQube gate aynı commit için zaten başarılıysa complete pipeline'ı restart etmeyin. Failed boundary'den devam edin:
 
-- Nexus `403` with an EULA message: an administrator explicitly runs
-  `infra/cicd/accept-nexus-eula.ps1 -AcceptEula`, then retries Maven publication.
-- Harbor reports HTTPS against an HTTP registry: the Docker daemon uses
-  `localhost:8088`; Jenkins reaches the API through `host.docker.internal:8088`.
-- Host-side Harbor robot login fails: `.env` escapes `$` as `$$` for Compose;
-  unescape it only in the current process and never print the secret.
-- Argo CD `Unknown`: wait for `argocd-repo-server`, then request a hard refresh.
-- Argo CD `Synced/Progressing`: Git delivery succeeded; workloads are waiting
-  for external Secrets or stateful dependencies.
+- Nexus `403` + EULA message: administrator açıkça `infra/cicd/accept-nexus-eula.ps1 -AcceptEula` çalıştırır, ardından Maven publication retry edilir.
+- Harbor HTTP registry için HTTPS raporluyorsa: Docker daemon `localhost:8088`, Jenkins API'ye `host.docker.internal:8088` üzerinden ulaşır.
+- Host-side Harbor robot login fail: `.env`, Compose için `$` karakterini `$$` olarak escape eder; yalnızca current process'te unescape edin, secret'ı yazdırmayın.
+- Argo CD `Unknown`: `argocd-repo-server` beklenir, ardından hard refresh istenir.
+- Argo CD `Synced/Progressing`: Git delivery başarılıdır; workload external Secret veya stateful dependency bekliyordur.
 
-Trivy is not a mandatory portfolio release gate. Do not rebuild the platform
-merely to obtain an optional local scan.
+Trivy mandatory portfolio release gate değildir. Optional local scan almak için platformu rebuild etmeyin.
 
 ```powershell
 kubectl --context portfolio-ci get pods -n argocd
@@ -253,28 +181,17 @@ kubectl --context portfolio-ci get application health-insurance-staging -n argoc
 docker compose --env-file infra/cicd/.env -f infra/cicd/compose.artifacts.yaml ps
 ```
 
-## Safe reset
+## Güvenli sıfırlama
 
-`docker compose stop` preserves containers and volumes. `docker compose down`
-removes containers and the network but preserves named volumes. `docker compose
-down -v` deletes all project volumes and therefore all local demo databases and
-broker state; use it only after explicit confirmation that the data is disposable.
+`docker compose stop` container ve volume'ları korur. `docker compose down` container ve network'ü kaldırır ama named volume'ları korur. `docker compose down -v` tüm project volume'larını ve dolayısıyla tüm local demo database/broker state'ini siler; yalnızca data'nın disposable olduğu explicit olarak doğrulandıktan sonra kullanın.
 
-## Kubernetes manifest or rollout diagnostics
+## Kubernetes manifest veya rollout diagnostics
 
-Validate only the deployment package before touching a cluster:
+Cluster'a dokunmadan önce yalnızca deployment package'ı validate edin:
 
 ```powershell
 .\scripts\validate-kubernetes.ps1
 kubectl kustomize deploy/kubernetes/overlays/local
 ```
 
-For a live local rollout, first confirm that `kubectl config current-context`
-names the disposable cluster, then use
-`deploy/kubernetes/scripts/apply-local.ps1`. A missing Secret blocks pod
-creation by design; populate the ignored `.env` rather than editing YAML.
-Readiness failures keep traffic away from a pod, while liveness failures restart
-it. If a process tries to write outside `/tmp`, fix its explicit writable mount
-instead of disabling the read-only root filesystem. Network timeouts should be
-checked against the default-deny NetworkPolicies and declared external ports
-before broadening egress.
+Live local rollout için önce `kubectl config current-context` değerinin disposable cluster'ı gösterdiğini doğrulayın, ardından `deploy/kubernetes/scripts/apply-local.ps1` kullanın. Missing Secret pod creation'ı tasarım gereği block eder; YAML edit etmek yerine ignore edilen `.env` doldurun. Readiness failure pod'a traffic gitmesini engeller, liveness failure onu restart eder. Process `/tmp` dışına write etmeye çalışırsa read-only root filesystem'i disable etmek yerine explicit writable mount düzeltin. Network timeout için egress'i genişletmeden önce default-deny NetworkPolicy ve declared external port'ları kontrol edin.
