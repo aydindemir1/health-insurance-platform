@@ -1,7 +1,7 @@
-# Logical Data Model and Ownership
+# Mantıksal Veri Modeli ve Sahiplik
 
-The diagram is logical: relationships crossing a service boundary are UUID or
-business-key references, not database foreign keys.
+Diyagram mantıksaldır: servis boundary'sini geçen relationship'ler database foreign
+key değil UUID veya business-key reference'dır.
 
 ```mermaid
 erDiagram
@@ -173,17 +173,17 @@ erDiagram
     }
 ```
 
-| Database owner | Tables | Other services' access |
+| Database sahibi | Tablolar | Diğer servislerin erişimi |
 | --- | --- | --- |
 | Policy Service | `policies`, `policy_coverages`, `audit_records` | REST coverage evaluation; secured service-owned audit API |
-| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox`, `audit_records` | Bounded search-rebuild snapshots; Kafka events; confirm-aware RabbitMQ task publishing; secured service-owned audit API |
-| Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages`, `claim_search_outbox`, `audit_records` | Bounded joined search-rebuild snapshots; Kafka claim search projections; secured service-owned audit API; no direct database access |
-| Notification Worker | `notification_deliveries` | No direct database access |
-| Search Service | Elasticsearch `healthcare-operations` alias over versioned projections | Secured Search and rebuild APIs; atomic alias rollback; never authoritative |
+| Authorization Service | `pre_authorizations`, `outbox_messages`, `notification_task_outbox`, `audit_records` | Bounded search-rebuild snapshot'ları; Kafka event'leri; confirm-aware RabbitMQ task publication; secured service-owned audit API |
+| Claims/Billing Service | `claims`, `invoices`, `invoice_payments`, `processed_messages`, `claim_search_outbox`, `audit_records` | Bounded joined search-rebuild snapshot'ları; Kafka claim search projection'ları; secured service-owned audit API; direct database access yok |
+| Notification Worker | `notification_deliveries` | Direct database access yok |
+| Search Service | Versioned projection'lar üzerindeki Elasticsearch `healthcare-operations` alias'ı | Secured Search ve rebuild API'leri; atomic alias rollback; hiçbir zaman authoritative değil |
 
-Cross-context references intentionally have no foreign keys. Each owner can
-change its schema independently; consistency across services is currently
-checked through explicit synchronous contracts or versioned broker messages.
-The three `audit_records` tables intentionally repeat the same minimized logical
-shape inside their owning databases. They are not one shared physical table;
-the portal queries one secured service API at a time.
+Cross-context reference'larda bilinçli olarak foreign key yoktur. Her owner schema'sını
+bağımsız değiştirebilir; servisler arası consistency şu anda explicit synchronous
+contract veya versioned broker message ile kontrol edilir. Üç `audit_records`
+tablosu owner database'leri içinde aynı minimized logical shape'i bilinçli olarak
+tekrarlar. Bunlar tek shared physical table değildir; portal aynı anda tek secured
+service API sorgular.
