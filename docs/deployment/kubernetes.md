@@ -1,11 +1,8 @@
-# Kubernetes deployment and security
+# Kubernetes deployment ve güvenlik
 
-## Deployment boundary
+## Deployment sınırı
 
-`deploy/kubernetes/base` contains the seven stateless workloads owned by this
-repository. Databases, brokers, IAM, search storage and observability backends
-are external contracts. This preserves database-per-service ownership and keeps
-stateful operational promises out of application manifests.
+`deploy/kubernetes/base`, bu repository tarafından sahiplenilen yedi stateless workload'u içerir. Database'ler, broker'lar, IAM, search storage ve observability backend'leri external contract'lardır. Bu yaklaşım database-per-service ownership'i korur ve stateful operasyon taahhütlerini application manifest'lerinin dışında tutar.
 
 ```mermaid
 flowchart TB
@@ -39,29 +36,21 @@ deploy/kubernetes/
   secrets.example.env      key names only
 ```
 
-## Security and availability controls
+## Güvenlik ve availability kontrolleri
 
-- Restricted Pod Security admission labels on `health-insurance`.
-- Fixed UID/GID `10001` for Java and `101` for Nginx; APISIX uses its verified
-  image UID/GID `636`.
-- RuntimeDefault seccomp, all Linux capabilities dropped, no privilege
-  escalation and read-only root filesystems.
-- Dedicated ServiceAccounts with token automount disabled and no RBAC grants.
-- Default-deny ingress/egress plus caller- and port-specific NetworkPolicies.
-- ResourceQuota bounds aggregate namespace consumption; LimitRange supplies
-  safe defaults and per-container ceilings for future workloads.
-- Both APISIX containers use the same immutable registry digest.
-- Startup, readiness and liveness probes on all seven workloads.
-- Requests/limits, graceful Spring shutdown, rolling updates, topology spread,
-  disruption budgets and conservative CPU HPAs.
-- No HPA for Notification Worker: queue-depth scaling requires an external
-  metric adapter and is safer than CPU-based consumer scaling.
-- The resource-constrained local overlay keeps every HPA at one replica and
-  uses `Recreate`, preventing cold-start CPU from causing a local scale-out
-  storm. The production-oriented base retains rolling updates and real HPA
-  ranges.
+- `health-insurance` namespace üzerinde Restricted Pod Security admission label'ları.
+- Java ve Nginx için sabit UID/GID `10001` ve `101`; APISIX doğrulanmış image UID/GID değeri `636` kullanır.
+- RuntimeDefault seccomp, tüm Linux capability'lerinin drop edilmesi, privilege escalation'ın kapalı olması ve read-only root filesystem'ler.
+- Token automount kapalı, RBAC grant içermeyen dedicated ServiceAccount'lar.
+- Default-deny ingress/egress ve yalnızca caller/port bazlı NetworkPolicy izinleri.
+- ResourceQuota namespace'in toplam tüketimini sınırlar; LimitRange future workload'lar için güvenli default ve container başına ceiling sağlar.
+- Her iki APISIX container aynı immutable registry digest'i kullanır.
+- Yedi workload'un tamamında startup, readiness ve liveness probe.
+- Request/limit'ler, graceful Spring shutdown, rolling update, topology spread, disruption budget ve konservatif CPU HPA'lar.
+- Notification Worker için HPA yoktur: queue-depth scaling external metric adapter gerektirir ve CPU tabanlı consumer scaling'den daha güvenlidir.
+- Resource-constrained local overlay her HPA'yı bir replica'da tutar ve `Recreate` kullanır; böylece cold-start CPU nedeniyle local scale-out storm oluşmaz. Production-oriented base rolling update ve gerçek HPA range'lerini korur.
 
-## Render and policy validation
+## Render ve policy doğrulaması
 
 ```powershell
 .\scripts\validate-kubernetes.ps1
@@ -69,7 +58,7 @@ kubectl kustomize deploy/kubernetes/base
 kubectl kustomize deploy/kubernetes/overlays/local
 ```
 
-For a live cluster API validation after the target namespace has been applied:
+Target namespace apply edildikten sonra live cluster API validation için:
 
 ```powershell
 .\scripts\validate-kubernetes.ps1 -ServerDryRun -Context portfolio-ci
@@ -77,11 +66,7 @@ For a live cluster API validation after the target namespace has been applied:
 
 ## Local overlay
 
-The local overlay expects the existing Compose databases, Redis, RabbitMQ,
-Elasticsearch, Keycloak and APM ports on `host.docker.internal`. The portfolio
-checkpoint uses the disposable `portfolio-ci` Minikube profile; Kind remains a
-supported alternative. Load the six locally built application images and the
-already-pulled APISIX image before applying:
+Local overlay mevcut Compose database, Redis, RabbitMQ, Elasticsearch, Keycloak ve APM portlarının `host.docker.internal` üzerinden erişilebilir olmasını bekler. Portfolio checkpoint disposable `portfolio-ci` Minikube profile'ını kullanır; Kind desteklenen bir alternatif olmaya devam eder. Apply etmeden önce lokal build edilmiş altı application image'ını ve daha önce pull edilmiş APISIX image'ını yükleyin:
 
 ```powershell
 minikube start -p portfolio-ci --driver=docker --cpus=2 --memory=4096 `
@@ -103,30 +88,22 @@ foreach ($image in $images) { minikube image load -p portfolio-ci $image }
 kubectl --context portfolio-ci get pods -n health-insurance
 ```
 
-The helper refuses a non-local context unless `-AllowNonLocalContext` is
-explicitly provided. It reads ignored `.env` values and does not print or write
-Secret payloads. APISIX's bearer-only compatibility value is generated in
-memory when it is absent.
+Helper, `-AllowNonLocalContext` açıkça verilmedikçe local olmayan context'i reddeder. Ignore edilen `.env` value'larını okur ve Secret payload'larını yazdırmaz veya dosyaya yazmaz. APISIX bearer-only compatibility value eksikse memory içinde üretilir.
 
-The overlay declares `namespace: health-insurance` itself so its local
-ExternalName Service and NetworkPolicy cannot accidentally land in `default`.
+Overlay `namespace: health-insurance` değerini kendi tanımlar; böylece local ExternalName Service ve NetworkPolicy yanlışlıkla `default` namespace'e düşmez.
 
-Local Kafka consumers and outbox relays are disabled because Compose advertises
-`localhost:9092` to clients. This avoids claiming a working cross-runtime Kafka
-path. Kafka/RabbitMQ behavior remains verified in the dedicated integration
-environment.
+Local Kafka consumer ve outbox relay'leri kapalıdır; çünkü Compose client'lara `localhost:9092` advertise eder. Bu, cross-runtime Kafka path çalışıyormuş gibi yanlış bir iddiada bulunmayı engeller. Kafka/RabbitMQ behavior dedicated integration environment içinde doğrulanmaya devam eder.
 
-Use port-forwarding instead of publishing every service:
+Her servisi publish etmek yerine port-forwarding kullanın:
 
 ```powershell
 kubectl --context portfolio-ci port-forward -n health-insurance service/apisix 9080:9080
 kubectl --context portfolio-ci port-forward -n health-insurance service/operations-portal 8088:8080
 ```
 
-## Verified gateway checkpoint
+## Doğrulanmış gateway checkpoint
 
-The 2026-09-15 Minikube checkpoint verified the Kubernetes APISIX Service with
-the committed `demo/verify-api-gateway.ps1` contract:
+2026-09-15 Minikube checkpoint, Kubernetes APISIX Service'i commit edilmiş `demo/verify-api-gateway.ps1` contract'ıyla doğruladı:
 
 ```text
 missing/invalid token: 401
@@ -138,27 +115,15 @@ rate limit:             429
 correlation preserved:  true
 ```
 
-The test used runtime-only Keycloak credentials. No backend Service port was
-published to the host; APISIX was reached through a temporary port-forward.
+Test runtime-only Keycloak credential'ları kullandı. Hiçbir backend Service port'u host'a publish edilmedi; APISIX'e temporary port-forward üzerinden erişildi.
 
 ## Production integration
 
-Replace example DNS names and local image tags through an environment overlay.
-Create Secrets through the organization's approved external secret controller;
-do not commit generated Secret YAML. Configure Metrics Server before expecting
-HPA decisions, use trusted TLS for Keycloak and dependencies, and use immutable
-registry digests supplied by the CI/CD milestone. The portfolio local overlay
-intentionally remains HTTP: adding a self-signed certificate would add trust-store
-and browser exceptions without proving a production control. A production
-environment should terminate an automatically issued, trusted certificate at
-APISIX and source certificate/private-key material through the approved external
-secret controller or workload identity; no private key belongs in Git.
+Example DNS name'leri ve local image tag'lerini environment overlay üzerinden değiştirin. Secret'ları organizasyonun onaylı external secret controller'ı ile oluşturun; generated Secret YAML commit etmeyin. HPA decision beklemeden önce Metrics Server configure edin, Keycloak ve dependency'ler için trusted TLS kullanın ve CI/CD milestone tarafından sağlanan immutable registry digest'lerini kullanın. Portfolio local overlay bilinçli olarak HTTP kalır: self-signed certificate eklemek production control kanıtlamak yerine trust-store ve browser exception yükü oluşturur. Production environment APISIX üzerinde automatically issued trusted certificate terminate etmeli ve certificate/private-key material'i approved external secret controller veya workload identity üzerinden almalıdır; hiçbir private key Git'e ait değildir.
 
 ## GitOps checkpoint
 
-Milestone 12 adds `deploy/gitops/environments/staging` and an Argo CD
-`AppProject`/`Application`. The overlay maps all six application images to the
-private Harbor project and one immutable full Git SHA.
+Milestone 12, `deploy/gitops/environments/staging` ve Argo CD `AppProject`/`Application` ekler. Overlay altı application image'ını private Harbor project'e ve tek immutable full Git SHA'ya map eder.
 
 ```text
 Application: health-insurance-staging
@@ -168,14 +133,6 @@ Git revision: 3ce1d4a93e94b670b237a4a387d5be7028696be0
 Image revision: 7fc3ea6b1086d3f5be2d7adeb9f43bda6bd6ad8d
 ```
 
-The local proof needs an 8 GiB Minikube limit when the application and seven
-Argo CD components share one Docker node. At 4 GiB the measured node reached
-99.7% memory and kubelet reported `container runtime is down`; raising the live
-container limit restored `Ready` without recreating the cluster. The installer
-also uses cached pinned images and relaxed local probe timing to avoid false
-restarts under Docker Desktop I/O latency.
+Application ile yedi Argo CD component aynı Docker node'u paylaştığında local proof için 8 GiB Minikube memory limit gerekir. 4 GiB'de ölçülen node memory kullanımı %99.7'ye ulaştı ve kubelet `container runtime is down` raporladı; live container limit yükseltildiğinde cluster yeniden oluşturulmadan `Ready` durumu geri geldi. Installer ayrıca Docker Desktop I/O latency altında false restart'ları önlemek için cached pinned image'lar ve gevşetilmiş local probe timing kullanır.
 
-`Progressing` or `Degraded` workload health is expected until operator-owned Secrets and
-external PostgreSQL, Kafka, RabbitMQ, Redis, Elasticsearch, Keycloak, and APM
-endpoints exist. Argo sync success proves desired-state delivery; it does not
-misrepresent absent stateful production dependencies as healthy.
+Operator-owned Secret'lar ile external PostgreSQL, Kafka, RabbitMQ, Redis, Elasticsearch, Keycloak ve APM endpoint'leri mevcut olana kadar workload health'in `Progressing` veya `Degraded` olması beklenir. Argo sync success desired-state delivery'yi kanıtlar; eksik stateful production dependency'leri sağlıklıymış gibi göstermez.
