@@ -1,43 +1,43 @@
-# ADR-014: Local CI/CD and software supply chain
+# ADR-014: Lokal CI/CD ve software supply chain
 
-## Status
+## Durum
 
-Accepted
+Kabul edildi
 
-## Context
+## Bağlam
 
-The portfolio must demonstrate the vacancy's Git, Jenkins, SonarQube, Nexus,
-Harbor, Kubernetes, and Argo CD workflow without pretending that a developer
-laptop is a production platform.
+Portföy; developer laptop'ın production platform olduğu izlenimini vermeden,
+ilandaki Git, Jenkins, SonarQube, Nexus, Harbor, Kubernetes ve Argo CD workflow'unu
+göstermelidir.
 
-## Decision
+## Karar
 
-Jenkins is the orchestration boundary. It checks out Git, runs backend and
-frontend quality stages, waits for the SonarQube Quality Gate, publishes Maven
-snapshots to Nexus, creates CycloneDX SBOMs, and publishes OCI images to a
-private Harbor project using full Git SHA tags. A reviewed GitOps commit updates
-the Kustomize image references; Argo CD reads `main` and performs the Kubernetes
-sync. Credentials remain in ignored local environment/runtime stores and are
-injected through Jenkins credentials.
+Jenkins orchestration boundary'dir. Git'i checkout eder, backend ve frontend
+quality stage'lerini çalıştırır, SonarQube Quality Gate'i bekler, Maven snapshot'larını
+Nexus'a publish eder, CycloneDX SBOM üretir ve OCI image'larını full Git SHA
+tag'leriyle private Harbor project'e publish eder. Review edilmiş GitOps commit,
+Kustomize image reference'larını günceller; Argo CD `main` branch'ini okur ve
+Kubernetes sync'i gerçekleştirir. Credential'lar ignore edilen local
+environment/runtime store'larda kalır ve Jenkins credentials üzerinden inject edilir.
 
-Nexus Community Edition EULA acceptance is an explicit administrator action,
-never an automatic default. Trivy is optional and is not a release gate for this
-educational environment. SonarQube remains the mandatory static quality gate;
-Harbor demonstrates private registry ownership and immutable delivery.
+Nexus Community Edition EULA kabulü explicit administrator action'dır, hiçbir
+zaman automatic default değildir. Trivy optional'dır ve bu educational environment
+için release gate değildir. SonarQube mandatory static quality gate olarak kalır;
+Harbor private registry ownership ve immutable delivery'yi gösterir.
 
-## Consequences
+## Sonuçlar
 
-- A failed publication can be resumed independently; successful tests are not
-  rerun merely because Nexus or Harbor was temporarily unavailable.
-- Image promotion is auditable because Git, Harbor, and Argo CD share the Git
-  SHA identity.
-- Local HTTP endpoints and Minikube-specific registry DNS are development-only.
-- Production still requires trusted TLS, external secret management, signed
-  artifacts, protected environments, HA runners, and organizational approvals.
+- Failed publication bağımsız olarak resume edilebilir; yalnızca Nexus veya Harbor
+  geçici erişilemez olduğu için successful test'ler tekrar çalıştırılmaz.
+- Git, Harbor ve Argo CD aynı Git SHA identity'yi paylaştığı için image promotion
+  auditable'dır.
+- Local HTTP endpoint'leri ve Minikube-specific registry DNS yalnızca development içindir.
+- Production hâlâ trusted TLS, external secret management, signed artifact,
+  protected environment, HA runner ve organizational approval gerektirir.
 
-## Alternatives
+## Alternatifler
 
-GitHub Actions could be the primary orchestrator, but Jenkins was selected to
-exercise the advertised stack. Helm was unnecessary because Kustomize already
-provides environment overlays. Terraform and Ansible were not introduced: this
-milestone provisions no cloud infrastructure or fleet configuration.
+GitHub Actions primary orchestrator olabilirdi ancak advertised stack'i çalıştırmak
+için Jenkins seçildi. Kustomize environment overlay sağladığı için Helm gerekli
+değildi. Terraform ve Ansible eklenmedi: bu milestone cloud infrastructure veya
+fleet configuration provision etmez.
