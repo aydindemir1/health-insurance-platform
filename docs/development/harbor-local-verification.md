@@ -1,43 +1,35 @@
-# Harbor local verification
+# Harbor lokal doğrulaması
 
-## Purpose
+## Amaç
 
-Harbor is the private OCI boundary between a successful quality gate and the
-GitOps deployment revision. This checkpoint verifies real Harbor behavior while
-reusing existing images; no application image is rebuilt.
+Harbor, başarılı quality gate ile GitOps deployment revision arasındaki private OCI boundary'dir. Bu checkpoint mevcut image'ları yeniden kullanarak gerçek Harbor behavior'ını doğrular; hiçbir application image rebuild edilmez.
 
-## Runtime verification — 15 September 2026
+## Runtime doğrulaması — 15 Eylül 2026
 
-Harbor 2.15.2 was started from the previously prepared runtime and local images.
-The first start exposed two Docker Desktop bind-mount defects:
+Harbor 2.15.2 daha önce hazırlanmış runtime ve local image'lardan başlatıldı. İlk start iki Docker Desktop bind-mount defect'i ortaya çıkardı:
 
-1. `/data/database` was empty but owned by `root:root`; Harbor PostgreSQL runs as
-   UID/GID `999:999` and could not create its `pg18` directory.
-2. A missing `/data/secret/registry/root.crt` had previously been materialized by
-   Docker as an empty directory, so it could not be mounted as a certificate file.
+1. `/data/database` boştu ancak `root:root` sahibiydi; Harbor PostgreSQL UID/GID `999:999` ile çalışır ve `pg18` dizinini oluşturamadı.
+2. Eksik `/data/secret/registry/root.crt` daha önce Docker tarafından empty directory olarak materialize edilmişti; bu nedenle certificate file olarak mount edilemedi.
 
-No registry or database data was deleted. The empty mount point was removed,
-database directory ownership was corrected, and the existing Harbor `prepare`
-image regenerated runtime secrets/configuration. The start script now performs
-the same bounded preflight before `prepare` so the setup is repeatable.
+Registry veya database data silinmedi. Empty mount point kaldırıldı, database directory ownership düzeltildi ve mevcut Harbor `prepare` image runtime secret/configuration'ı yeniden oluşturdu. Start script artık setup'ın repeatable olması için `prepare` öncesinde aynı bounded preflight'ı yapar.
 
-All ten Harbor containers subsequently reached healthy state.
+Ardından on Harbor container'ın tamamı healthy durumuna ulaştı.
 
-## Security and repository evidence
+## Güvenlik ve repository evidence
 
-| Check | Verified result |
+| Kontrol | Doğrulanan sonuç |
 |---|---|
 | Project | `health-insurance`, private |
 | Anonymous project API | `401 Unauthorized` |
-| Automatic Trivy scanning | Disabled; not a required release gate |
+| Automatic Trivy scanning | Disabled; required release gate değil |
 | Robot | `robot$health-insurance+jenkins-publisher`, enabled |
-| Credential lifetime | 7,776,000 seconds (90 days) |
-| Robot permissions | repository pull/push and artifact read/create only |
-| Robot push | Six existing images pushed successfully |
-| Robot pull | Authorization manifest returned `200` with the expected digest |
-| Tag policy | Every repository uses full SHA `6c07fa81df22330699c58574059b89e58777f0ed`; no `latest` |
+| Credential lifetime | 7,776,000 saniye (90 gün) |
+| Robot permission'ları | Yalnızca repository pull/push ve artifact read/create |
+| Robot push | Mevcut altı image başarıyla push edildi |
+| Robot pull | Authorization manifest expected digest ile `200` döndürdü |
+| Tag policy | Her repository full SHA `6c07fa81df22330699c58574059b89e58777f0ed` kullanır; `latest` yok |
 
-## Published OCI inventory
+## Publish edilmiş OCI envanteri
 
 | Repository | Manifest digest |
 |---|---|
@@ -48,26 +40,14 @@ All ten Harbor containers subsequently reached healthy state.
 | search-service | `sha256:b17aa0b5...` |
 | operations-portal | `sha256:9d9af944...` |
 
-These are registry manifest digests. The full Git SHA tag links the images to
-the Jenkins source revision, while digest addressing protects exact content.
-Each image also carries OCI `revision=6c07fa8...` and the GitHub repository
-`source` label. The same revision was committed to Kustomize and reconciled by
-Argo CD, completing the source-to-runtime trace contract.
+Bunlar registry manifest digest'leridir. Full Git SHA tag image'ları Jenkins source revision'a bağlarken digest addressing exact content'i korur. Her image ayrıca OCI `revision=6c07fa8...` ve GitHub repository `source` label'ını taşır. Aynı revision Kustomize'a commit edildi ve Argo CD tarafından reconcile edilerek source-to-runtime trace contract tamamlandı.
 
-## Operational boundary
+## Operasyonel boundary
 
-Trivy is installed with the official Harbor distribution but `auto_scan=false`.
-This is deliberate: the vacancy-aligned portfolio demonstrates registry RBAC,
-private repositories, immutable tags and GitOps promotion without making a
-resource-heavy vulnerability database update a mandatory gate. Production would
-define scanning/signing policy and an exception process at organization level.
+Trivy official Harbor distribution ile kuruludur ancak `auto_scan=false`. Bu bilinçlidir: vacancy-aligned portfolio registry RBAC, private repository, immutable tag ve GitOps promotion gösterir; resource-heavy vulnerability database update'ini mandatory gate yapmaz. Production scanning/signing policy ve exception process'i organization seviyesinde tanımlamalıdır.
 
-Harbor credentials remain in ignored local runtime state and Jenkins credential
-storage. The robot is time-bounded and can be rotated by rerunning the bootstrap;
-the administrator credential is never used by the publication pipeline.
+Harbor credential'ları ignore edilen local runtime state ve Jenkins credential storage içinde kalır. Robot time-bounded'dır ve bootstrap yeniden çalıştırılarak rotate edilebilir; administrator credential publication pipeline tarafından asla kullanılmaz.
 
-## .NET mapping
+## .NET eşlemesi
 
-Harbor corresponds to a private Azure Container Registry. The project is the
-registry namespace, the robot is a scoped service principal, the Git SHA is an
-immutable deployment tag, and the manifest digest is the exact content identity.
+Harbor, private Azure Container Registry'ye karşılık gelir. Project registry namespace, robot scoped service principal, Git SHA immutable deployment tag ve manifest digest exact content identity'dir.
