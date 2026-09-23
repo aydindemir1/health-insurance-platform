@@ -1,71 +1,72 @@
-# ADR-010: APISIX as the external API security boundary
+# ADR-010: Harici API security boundary olarak APISIX
 
-- Status: Accepted
-- Date: 2026-09-09
+- Durum: Kabul edildi
+- Tarih: 2026-09-09
 
-## Context
+## Bağlam
 
-The browser previously called four Spring services through separately published
-host ports. That duplicated public routing knowledge, enlarged the attack
-surface, and left traffic limits to each application. The platform needs one
-explicit external boundary without moving provider ownership or aggregate
-authorization out of the owning services.
+Browser daha önce dört Spring servisini ayrı ayrı publish edilmiş host port'ları
+üzerinden çağırıyordu. Bu public routing bilgisini çoğaltıyor, attack surface'i
+genişletiyor ve traffic limit'leri her application'a bırakıyordu. Platform,
+provider ownership veya aggregate authorization'ı owner servislerden taşımadan
+tek açık external boundary'ye ihtiyaç duyar.
 
-## Decision
+## Karar
 
-Run Apache APISIX 3.18 in file-driven standalone mode. Declarative configuration
-is versioned in Git, etcd is unnecessary for the local portfolio topology, and
-the Admin API is disabled. Only APISIX port `9080` is published for business
-APIs; the four Spring API ports are exposed only inside the Compose network.
+Apache APISIX 3.18 file-driven standalone modda çalıştırılır. Declarative
+configuration Git'te versionlanır, local portfolio topology için etcd gerekli
+değildir ve Admin API kapatılmıştır. Business API'ler için yalnızca APISIX
+`9080` portu publish edilir; dört Spring API portu yalnızca Compose network
+içinde expose edilir.
 
-Every external business route shares these policies:
+Her external business route şu policy'leri paylaşır:
 
-- Keycloak bearer-token signature, expiry, issuer and dedicated
-  `health-insurance-api` audience validation through OIDC discovery and JWKS;
-- UUID `X-Correlation-ID` generation or preservation;
-- explicit local-development CORS origin, methods and headers;
-- 120 requests per source address per 60-second local counter;
-- 1 MiB request-body limit and bounded upstream timeouts;
-- defensive response headers and no-store caching;
-- RFC 9457 JSON adaptation for failures generated before an upstream is called.
+- OIDC discovery ve JWKS üzerinden Keycloak bearer-token signature, expiry,
+  issuer ve dedicated `health-insurance-api` audience validation;
+- UUID `X-Correlation-ID` generation veya preservation;
+- açık local-development CORS origin, method ve header'ları;
+- source address başına 60 saniyelik local counter içinde 120 request;
+- 1 MiB request-body limit ve bounded upstream timeout'lar;
+- defensive response header'ları ve no-store caching;
+- upstream çağrılmadan önce oluşan failure'lar için RFC 9457 JSON adaptation.
 
-APISIX authenticates and governs traffic. Spring Security still validates the
-token, endpoint roles and provider ownership. The gateway must not become the
-owner of domain authorization, and internal service-to-service calls remain on
-the Compose network instead of looping through the external gateway.
+APISIX authentication ve traffic governance uygular. Spring Security token'ı,
+endpoint role'lerini ve provider ownership'i doğrulamaya devam eder. Gateway
+domain authorization'ın sahibi olmamalıdır; internal service-to-service call'lar
+external gateway üzerinden loop etmek yerine Compose network içinde kalır.
 
-The OIDC plugin schema requires a `client_secret`; bearer-only `use_jwks` skips
-introspection and never submits that compatibility value to Keycloak. It is
-still supplied from an environment variable and no credential is committed.
+OIDC plugin schema `client_secret` gerektirir; bearer-only `use_jwks`
+introspection'ı atlar ve bu compatibility value'yu Keycloak'a göndermez. Değer
+yine environment variable üzerinden sağlanır ve hiçbir credential commit edilmez.
 
-The API is represented by a bearer-only Keycloak client. Both the browser client
-and the local demo client map that client into the access token's `aud` claim.
-APISIX requires the claim and matches it against its `client_id`. This prevents a
-valid token issued by the same realm for an unrelated client from crossing the
-gateway boundary.
+API bearer-only Keycloak client ile temsil edilir. Browser client ve local demo
+client bu client'ı access token'ın `aud` claim'ine map eder. APISIX claim'i
+zorunlu kılar ve kendi `client_id` değeriyle eşleştirir. Böylece aynı realm
+tarafından ilgisiz client için üretilmiş valid token gateway boundary'yi geçemez.
 
-The executable gateway demo obtains a second token from Keycloak's unrelated
-`admin-cli` client and proves that APISIX returns `403` for its mismatched
-audience while accepting the purpose-built API token.
+Executable gateway demo, Keycloak'ın ilgisiz `admin-cli` client'ından ikinci bir
+token alır ve APISIX'in mismatched audience için `403` döndürdüğünü, purpose-built
+API token'ını ise kabul ettiğini doğrular.
 
-## Consequences
+## Sonuçlar
 
-- The portal and demo use one stable API origin.
-- Compromising or misconfiguring the gateway does not remove service-level
-  authorization checks.
-- Standalone local rate counters are per APISIX instance. A multi-replica
-  deployment must use a shared Redis policy or accept per-instance quotas.
-- Local Keycloak discovery uses HTTP and deliberately produces an APISIX warning.
-  Production requires trusted TLS between gateway and identity provider.
-- The small custom response adapter is gateway infrastructure, not business
-  logic, and has an isolated CI startup test.
+- Portal ve demo tek stable API origin kullanır.
+- Gateway compromise veya misconfiguration service-level authorization check'leri
+  ortadan kaldırmaz.
+- Standalone local rate counter'lar APISIX instance başınadır. Multi-replica
+  deployment shared Redis policy kullanmalı veya instance başına quota'yı kabul etmelidir.
+- Local Keycloak discovery HTTP kullanır ve bilinçli olarak APISIX warning üretir.
+  Production gateway ile identity provider arasında trusted TLS gerektirir.
+- Küçük custom response adapter gateway infrastructure'dır, business logic
+  değildir ve izole CI startup testine sahiptir.
 
-## Alternatives considered
+## Değerlendirilen alternatifler
 
-- **Expose each Spring service:** simplest, but no single traffic/security edge.
-- **Move all authorization to APISIX:** rejected because provider ownership and
-  state-dependent permissions belong to application use cases.
-- **Traditional APISIX with etcd/Admin API:** useful for dynamic control planes,
-  but unnecessary operational state for this local, Git-versioned topology.
-- **Spring Cloud Gateway:** viable in a Java-only estate, but APISIX directly
-  demonstrates the target gateway and avoids another JVM runtime.
+- **Her Spring servisini expose etmek:** en basit çözümdür ancak tek traffic/security
+  edge sağlamaz.
+- **Tüm authorization'ı APISIX'e taşımak:** provider ownership ve state-dependent
+  permission'lar application use case'lerine ait olduğu için reddedildi.
+- **etcd/Admin API kullanan geleneksel APISIX:** dynamic control plane için
+  yararlıdır ancak local, Git-versioned topology için gereksiz operational state ekler.
+- **Spring Cloud Gateway:** Java-only estate için uygundur ancak APISIX hedef
+  gateway'i doğrudan gösterir ve ek JVM runtime gerektirmez.
