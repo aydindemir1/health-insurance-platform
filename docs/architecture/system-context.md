@@ -1,35 +1,35 @@
-# System context
+# Sistem bağlamı
 
-The Health Insurance Platform connects healthcare providers with an insurer.
+Health Insurance Platform healthcare provider'ları bir insurer ile bağlar.
 
-## Actors
+## Aktörler
 
-- **Healthcare provider user:** submits treatment pre-authorization requests.
-- **Insurance specialist:** reviews, approves, or rejects pending requests.
-- **Claim approver:** adjudicates submitted insurance claims.
-- **System administrator:** manages identities and access policies in Keycloak.
+- **Healthcare provider user:** tedavi ön provizyon talepleri gönderir.
+- **Insurance specialist:** pending talepleri inceler, onaylar veya reddeder.
+- **Claim approver:** gönderilmiş insurance claim'leri adjudicate eder.
+- **System administrator:** Keycloak içinde identity ve access policy'lerini yönetir.
 
-## Current container boundaries
+## Mevcut container sınırları
 
-The Authorization Service owns the complete lifecycle of a pre-authorization.
-The Policy Service owns policy validity, coverages, and limits. Each service has
-a private PostgreSQL database; neither reads the other's schema. The Claims and
-Billing Service owns claims, invoices, payments, and reconciliation records.
+Authorization Service bir ön provizyonun complete lifecycle'ının sahibidir.
+Policy Service policy validity, coverage ve limit'lerin sahibidir. Her servis
+private PostgreSQL database kullanır; hiçbiri diğerinin schema'sını okumaz.
+Claims and Billing Service claims, invoices, payments ve reconciliation record'ların
+sahibidir.
 
-## Primary workflow
+## Ana iş akışı
 
-1. A provider submits a request for an insured member.
-2. Authorization validates the command and provider identity. The
-   provider identity comes from the authenticated user's trusted token claim
-   rather than the request body.
-3. Authorization asks Policy synchronously whether the member, service, date,
-   currency, and amount are eligible.
-4. Only an eligible request becomes a pending pre-authorization.
-5. An insurance specialist makes a decision; the aggregate enforces that only
-   a pending request can be decided.
-6. A provider starts a claim from an approved pre-authorization. Claims and
-   Billing verifies the current Authorization snapshot without reading its database.
-7. A claim approver adjudicates the claim. Approval reconciles the invoice;
-   rejection voids an unpaid invoice.
-8. Financial users resolve differences and record payments until settlement.
-9. A future milestone publishes lifecycle changes through transactional Outbox.
+1. Provider insured member için request gönderir.
+2. Authorization command ve provider identity'yi doğrular. Provider identity
+   request body'den değil authenticated user'ın trusted token claim'inden gelir.
+3. Authorization member, service, date, currency ve amount'un eligible olup
+   olmadığını Policy'ye senkron olarak sorar.
+4. Yalnızca eligible request pending pre-authorization olur.
+5. Insurance specialist karar verir; aggregate yalnızca pending request'in
+   karara bağlanabilmesini zorunlu kılar.
+6. Provider approved pre-authorization'dan claim başlatır. Claims and Billing
+   Authorization database'ini okumadan current Authorization snapshot'ı doğrular.
+7. Claim approver claim'i adjudicate eder. Approval invoice'u reconcile eder;
+   rejection unpaid invoice'u void eder.
+8. Financial user'lar farkları çözer ve settlement'a kadar payment kaydeder.
+9. Gelecekteki milestone lifecycle change'leri transactional Outbox üzerinden yayınlar.
