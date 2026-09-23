@@ -1,6 +1,6 @@
-# Event-Driven Messaging Architecture
+# Event-Driven Messaging Mimarisi
 
-## Delivery topology
+## Delivery topolojisi
 
 ```mermaid
 flowchart LR
@@ -15,7 +15,7 @@ flowchart LR
     C -. after 3 failed attempts .-> D{{.DLT topic}}
 ```
 
-## Notification command path (Milestone 6)
+## Notification command yolu (Milestone 6)
 
 ```mermaid
 flowchart LR
@@ -41,14 +41,15 @@ flowchart LR
     Worker -. exhausted/permanent nack .-> DLQ
 ```
 
-The producer writes, AMQP relay, safe JSON mapping, publisher-confirm/return
-decisions, durable delivery/DLQ topology, worker retry and acknowledgement are
-implemented. RabbitMQ and the worker have Compose runtime wiring, and a
-RabbitMQ/PostgreSQL Testcontainers test exercises real routing, duplicate
-delivery, persistence, acknowledgement, and dead-lettering. The adapters remain
-feature-gated for broker-free tests and standalone development.
+Producer write'ları, AMQP relay, safe JSON mapping, publisher-confirm/return
+kararları, durable delivery/DLQ topology, worker retry ve acknowledgement
+uygulanmıştır. RabbitMQ ve worker Compose runtime wiring'e sahiptir; bir
+RabbitMQ/PostgreSQL Testcontainers testi gerçek routing, duplicate delivery,
+persistence, acknowledgement ve dead-lettering davranışını çalıştırır.
+Adapter'lar broker-free testler ve standalone development için feature-gated
+kalmaya devam eder.
 
-### Persisted notification task intent v1
+### Persist edilen notification task intent v1
 
 ```json
 {
@@ -64,36 +65,36 @@ feature-gated for broker-free tests and standalone development.
 }
 ```
 
-These fields are now both the producer-outbox intent and the versioned AMQP JSON
-contract. `taskId` becomes the AMQP message ID, `causationId` the correlation ID,
-and `taskVersion` is also carried as a header. The contract deliberately
-excludes member, policy, diagnosis, amount, decision reason, contact address,
-rendered content, and security token data.
+Bu field'lar artık hem producer-outbox intent hem de versioned AMQP JSON contract'ıdır.
+`taskId` AMQP message ID, `causationId` correlation ID olur ve `taskVersion`
+header olarak da taşınır. Contract bilinçli olarak member, policy, diagnosis,
+amount, decision reason, contact address, rendered content ve security token data'yı
+dışlar.
 
-Publisher confirms prove that RabbitMQ accepted responsibility for the publish,
-not that a consumer processed it. Because a direct exchange may accept and then
-return an unroutable mandatory message, the relay requires both a positive
-confirm and the absence of a returned message before setting `published_at`.
+Publisher confirm, RabbitMQ'nun publish sorumluluğunu kabul ettiğini kanıtlar;
+consumer'ın mesajı işlediğini değil. Direct exchange mandatory bir unroutable
+message'ı kabul edip sonra return edebileceğinden relay, `published_at` set etmeden
+önce hem positive confirm hem de returned message bulunmamasını gerektirir.
 
 ### RabbitMQ failure policy
 
-| Failure | Attempts | Broker outcome | Rationale |
+| Failure | Deneme | Broker sonucu | Gerekçe |
 | --- | ---: | --- | --- |
-| Explicit transient delivery exception | 3 total, exponential bounded backoff | Ack after a successful committed attempt; otherwise nack without requeue | Temporary providers/dependencies can recover quickly |
-| Unsupported contract version | 1 | Nack without requeue → DLQ | Code deployment or contract handling is required |
-| Malformed JSON or invalid invariant | 1 | Nack without requeue → DLQ | Repeating identical data cannot repair it |
-| Delivered duplicate `taskId` with same intent | 1 | Idempotent no-op then ack | At-least-once redelivery is expected |
-| Same `taskId`, different intent | 1 | Nack without requeue → DLQ | Indicates producer/contract corruption |
+| Explicit transient delivery exception | Toplam 3, bounded exponential backoff | Başarılı committed attempt sonrası ack; aksi halde requeue olmadan nack | Geçici provider/dependency hızlıca iyileşebilir |
+| Unsupported contract version | 1 | Requeue olmadan nack → DLQ | Code deployment veya contract handling gerekir |
+| Malformed JSON veya invalid invariant | 1 | Requeue olmadan nack → DLQ | Aynı data'yı tekrar etmek problemi düzeltemez |
+| Aynı intent ile delivered duplicate `taskId` | 1 | Idempotent no-op ardından ack | At-least-once redelivery beklenir |
+| Aynı `taskId`, farklı intent | 1 | Requeue olmadan nack → DLQ | Producer/contract corruption göstergesidir |
 
-Default retry settings are configurable through `NOTIFICATION_RETRY_MAX_ATTEMPTS`,
-`NOTIFICATION_RETRY_INITIAL_INTERVAL`, `NOTIFICATION_RETRY_MULTIPLIER`, and
-`NOTIFICATION_RETRY_MAX_INTERVAL`. Defaults are three total attempts, 250 ms,
-2.0, and 2 seconds respectively.
+Default retry ayarları `NOTIFICATION_RETRY_MAX_ATTEMPTS`,
+`NOTIFICATION_RETRY_INITIAL_INTERVAL`, `NOTIFICATION_RETRY_MULTIPLIER` ve
+`NOTIFICATION_RETRY_MAX_INTERVAL` üzerinden configure edilir. Varsayılanlar
+toplam üç attempt, 250 ms, 2.0 ve 2 saniyedir.
 
 ## Event contract v1
 
-The topic contains both decision types. The payload is deliberately independent
-of JPA entities and HTTP response DTOs.
+Topic iki decision type'ını da içerir. Payload bilinçli olarak JPA entity ve HTTP
+response DTO'larından bağımsızdır.
 
 ```json
 {
@@ -114,15 +115,15 @@ of JPA entities and HTTP response DTOs.
 }
 ```
 
-`eventId` is the consumer idempotency key. `eventType` makes the business event
-explicit and `eventVersion` lets consumers reject unsupported contracts instead
-of silently misinterpreting them. `preAuthorizationId` is the Kafka
-message key and the Claims/Billing business uniqueness key. `decision` selects
-whether Claims/Billing starts work; both `PreAuthorizationApproved` and
-`PreAuthorizationRejected` are published. Additive evolution within v1 must
-retain existing meanings, while breaking changes require a new topic/contract
-version. `sourceRevision` is the owning aggregate's monotonic state revision;
-legacy v1 messages without it map to baseline revision 1.
+`eventId` consumer idempotency key'dir. `eventType` business event'i explicit
+hale getirir; `eventVersion` consumer'ların unsupported contract'ı sessizce yanlış
+yorumlamak yerine reject etmesini sağlar. `preAuthorizationId` Kafka message key ve
+Claims/Billing business uniqueness key'dir. `decision` Claims/Billing'in work
+başlatıp başlatmayacağını belirler; hem `PreAuthorizationApproved` hem
+`PreAuthorizationRejected` yayınlanır. v1 içindeki additive evolution mevcut
+meaning'leri korumalıdır; breaking change yeni topic/contract version gerektirir.
+`sourceRevision` owner aggregate'in monotonic state revision'ıdır; bu field olmayan
+legacy v1 message'lar baseline revision 1'e map edilir.
 
 ## Failure semantics
 
@@ -154,13 +155,13 @@ sequenceDiagram
     end
 ```
 
-The relay can publish a duplicate if it crashes after Kafka acknowledgement but
-before committing `published_at`. That window is why the inbox table is required.
-Outbox rows are retained as delivery evidence; retention/archival remains an
-operational follow-up. Milestone 10 adds bounded DLT inspection and reviewed
-copy-replay without claiming automatic recovery.
+Relay, Kafka acknowledgement sonrasında fakat `published_at` commit edilmeden crash
+olursa duplicate publish edebilir. Inbox table bu yüzden gereklidir. Outbox row'ları
+delivery evidence olarak tutulur; retention/archival operational follow-up olarak
+kalır. Milestone 10 automatic recovery iddiasında bulunmadan bounded DLT inspection
+ve reviewed copy-replay ekler.
 
-## Search projection path (Milestone 7)
+## Search projection yolu (Milestone 7)
 
 ```mermaid
 flowchart LR
@@ -173,16 +174,17 @@ flowchart LR
     Search -->|deterministic ID + monotonic revision| ES[(healthcare-operations alias)]
 ```
 
-Claim and invoice transitions update their aggregate and append a complete
-operational projection in one local transaction. The relay publishes only after
-commit and marks rows published only after Kafka acknowledgement. Search consumes
-at least once; `CLAIM-{claimId}` and `PRE_AUTHORIZATION-{id}` document IDs turn
-redelivery into replacement. Kafka partition keys preserve claim transition order
-for one aggregate. A conditional Elasticsearch upsert also rejects an older
-`sourceRevision`, so a delayed event cannot regress a newer snapshot during an
-online rebuild. Elasticsearch remains disposable and rebuildable read state.
+Claim ve invoice transition'ları aggregate'i update eder ve aynı local transaction
+içinde complete operational projection append eder. Relay yalnızca commit sonrası
+publish eder ve row'ları yalnızca Kafka acknowledgement sonrası published işaretler.
+Search at-least-once consume eder; `CLAIM-{claimId}` ve
+`PRE_AUTHORIZATION-{id}` document ID'leri redelivery'yi replacement'a çevirir.
+Kafka partition key'leri tek aggregate için claim transition sırasını korur.
+Conditional Elasticsearch upsert eski `sourceRevision` değerini de reddeder;
+böylece delayed event online rebuild sırasında newer snapshot'ı geriletemez.
+Elasticsearch disposable ve rebuild edilebilir read state olarak kalır.
 
-## Controlled dead-letter recovery (Milestone 10)
+## Kontrollü dead-letter recovery (Milestone 10)
 
 ```mermaid
 flowchart LR
@@ -195,15 +197,16 @@ flowchart LR
     Guard --> Verify[Verify state and lag before another record]
 ```
 
-Kafka tooling permits only the Authorization decision and Claims search DLT
-topics. RabbitMQ tooling permits only the notification DLQ and delivery route.
-Inspection hashes payloads in memory and prints only safe metadata. Replay is
-limited to ten records, requires `Transient` classification and
-`-ConfirmReplay`, attaches recovery ID/source/attempt metadata, and preserves
-the original dead-letter record. There is deliberately no discard command.
+Kafka tooling yalnızca Authorization decision ve Claims search DLT topic'lerine izin
+verir. RabbitMQ tooling yalnızca notification DLQ ve delivery route'a izin verir.
+Inspection payload'ı memory içinde hash'ler ve sadece safe metadata yazdırır. Replay
+on record ile sınırlandırılır, `Transient` classification ve `-ConfirmReplay`
+gerektirir, recovery ID/source/attempt metadata ekler ve original dead-letter record'u
+korur. Bilinçli olarak discard command yoktur.
 
-This is an operator-assisted local control, not a production recovery service:
-Kafka access is provided by the tools-only Compose profile, RabbitMQ credentials
-are runtime inputs, and no central audit/workload identity exists yet. Detailed
-commands and stop conditions are in the
-[search and messaging recovery runbook](../operations/search-and-messaging-recovery.md).
+Bu operator-assisted local control'dür; production recovery service değildir.
+Kafka access tools-only Compose profile tarafından sağlanır, RabbitMQ credential'ları
+runtime input'tur ve henüz central audit/workload identity yoktur. Detaylı command ve
+stop condition'lar
+[search and messaging recovery runbook](../operations/search-and-messaging-recovery.md)
+içindedir.
