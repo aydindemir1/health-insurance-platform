@@ -1,6 +1,6 @@
-# Search, cache, and observability architecture
+# Search, cache ve observability mimarisi
 
-## Runtime responsibilities
+## Runtime sorumlulukları
 
 ```mermaid
 flowchart LR
@@ -22,7 +22,7 @@ flowchart LR
     Elastic --> Kibana[Kibana]
 ```
 
-## Cache-aside sequence and failure behavior
+## Cache-aside sequence ve failure davranışı
 
 ```mermaid
 sequenceDiagram
@@ -45,9 +45,9 @@ sequenceDiagram
     P-->>A: Covered or denied
 ```
 
-The digest prevents policy/member identifiers from appearing in Redis keys. The
-cached value is an evaluation result, not a mutable Policy aggregate. Invalidation
-uses a per-policy Redis set so a successful policy creation removes known entries.
+Digest, policy/member identifier'larının Redis key'lerinde görünmesini engeller.
+Cached value mutable Policy aggregate değil evaluation result'tır. Invalidation
+per-policy Redis set kullanır; başarılı policy creation bilinen entry'leri kaldırır.
 
 ## Search projection sequence
 
@@ -70,18 +70,17 @@ sequenceDiagram
     Note right of S: Create or newer replaces; equal/older revisions are no-ops
 ```
 
-Search documents contain only operational identifiers and financial workflow
-fields required by the portal. Search does not authorize commands and cannot be
-used to reconstruct an aggregate. A rebuild uses current, bounded snapshots
-from the Authorization and Claims/Billing owner APIs; it never reads their
-databases or assumes Kafka retention contains a complete history. Transient
-consumer failures receive three total fixed-backoff attempts by default and
-then the original record is sent to the source topic's `.DLT`. Malformed JSON,
-missing event identity, unexpected event type/version, and invalid projection
-invariants are permanent `IllegalArgumentException` failures and go directly to
-the DLT without wasteful retries.
+Search document'ları yalnızca portal için gereken operational identifier ve financial
+workflow field'larını içerir. Search command authorize etmez ve aggregate reconstruct
+etmek için kullanılamaz. Rebuild, Authorization ve Claims/Billing owner API'lerinden
+current, bounded snapshot alır; database'lerini asla okumaz ve Kafka retention'ın
+complete history içerdiğini varsaymaz. Transient consumer failure varsayılan olarak
+toplam üç fixed-backoff attempt alır; ardından original record source topic'in
+`.DLT`'sine gönderilir. Malformed JSON, missing event identity, unexpected event
+type/version ve invalid projection invariant permanent `IllegalArgumentException`
+failure'dır ve gereksiz retry olmadan doğrudan DLT'ye gider.
 
-## Versioned rebuild and rollback
+## Versioned rebuild ve rollback
 
 ```mermaid
 sequenceDiagram
@@ -115,26 +114,25 @@ sequenceDiagram
     end
 ```
 
-Normal queries and event writes target the stable `healthcare-operations`
-alias. Physical candidates use `healthcare-operations-v{schema}-{opaqueRunId}`.
-Activation never deletes an index. Authorization uses its aggregate revision;
-Claims/Billing combines Claim and Invoice revisions so either transition advances
-the projection. Legacy documents without the new field map to revision 1 until
-a rebuild replaces them. Equal-revision delivery is deliberately a no-op: this
-keeps ordinary duplicates idempotent and prevents a divergent duplicate from
-winning only because it arrived later.
+Normal query ve event write'ları stable `healthcare-operations` alias'ını hedefler.
+Physical candidate'lar `healthcare-operations-v{schema}-{opaqueRunId}` kullanır.
+Activation hiçbir index'i silmez. Authorization aggregate revision kullanır;
+Claims/Billing Claim ve Invoice revision'larını birleştirir; böylece iki transition'dan
+biri projection'ı ilerletir. Yeni field olmayan legacy document'lar rebuild bunları
+değiştirene kadar revision 1'e map edilir. Equal-revision delivery bilinçli olarak
+no-op'tur; ordinary duplicate'leri idempotent tutar ve divergent duplicate'in sadece
+daha geç geldiği için kazanmasını engeller.
 
-Candidate count mismatch or concurrent alias movement returns RFC 9457 `409`
-and leaves the current read path untouched. The initial run registry is
-in-memory and therefore supports a local rehearsal, not a restart-resumable
-production job. See the
+Candidate count mismatch veya concurrent alias movement RFC 9457 `409` döndürür
+ve current read path'e dokunmaz. İlk run registry in-memory'dir; dolayısıyla local
+rehearsal destekler, restart-resumable production job değildir. Bkz.
 [recovery runbook](../operations/search-and-messaging-recovery.md).
 
-Search authentication and method-authorization failures also use RFC 9457
-`application/problem+json`. `@EnableMethodSecurity` enforces the rebuild
-controller role before invocation, while the application use case repeats the
-`SYSTEM_ADMIN` check as defense in depth. Normal hospital queries derive their
-provider scope from the signed JWT and cannot broaden it with request input.
+Search authentication ve method-authorization failure'ları da RFC 9457
+`application/problem+json` kullanır. `@EnableMethodSecurity` rebuild controller
+role'ünü invocation öncesinde enforce eder; application use case defense in depth
+olarak `SYSTEM_ADMIN` check'ini tekrarlar. Normal hospital query'leri provider scope'u
+signed JWT'den türetir ve request input ile genişletemez.
 
 ## Correlation propagation
 
@@ -151,17 +149,17 @@ flowchart LR
     ECS --> Operator[Log/APM investigation]
 ```
 
-The filter removes MDC in `finally`, preventing thread-pool leakage. Incoming IDs
-are limited to 64 alphanumeric, dot, underscore or hyphen characters. Logs use
-safe IDs and state; member health data, access tokens and message payloads must
-not be logged.
+Filter `finally` içinde MDC'yi temizler ve thread-pool leakage'ı engeller. Incoming
+ID'ler 64 alphanumeric, dot, underscore veya hyphen character ile sınırlandırılır.
+Log'lar safe ID ve state kullanır; member health data, access token ve message payload
+loglanmamalıdır.
 
-## Consistency matrix
+## Consistency matrisi
 
-| Concern | Source of truth | Consistency | Failure behavior |
+| Concern | Source of truth | Consistency | Failure davranışı |
 | --- | --- | --- | --- |
-| Policy and coverage | Policy PostgreSQL | Strong in local transaction | Redis bypass; database failure denies submission |
-| Claim/invoice state | Claims PostgreSQL | Strong in local transaction | Search intent remains in outbox |
-| Operations search | Elasticsearch alias over a derived index | Eventual | Core writes continue; failed candidate never activates |
-| Trace/metrics | APM Server/Elasticsearch | Best effort | Business processing continues |
-| Console logs | Container stdout | Immediate per process | Remain available if APM is unavailable |
+| Policy ve coverage | Policy PostgreSQL | Local transaction'da strong | Redis bypass; database failure submission'ı reddeder |
+| Claim/invoice state | Claims PostgreSQL | Local transaction'da strong | Search intent outbox'ta kalır |
+| Operations search | Derived index üzerindeki Elasticsearch alias | Eventual | Core write devam eder; failed candidate activate edilmez |
+| Trace/metrics | APM Server/Elasticsearch | Best effort | Business processing devam eder |
+| Console log'ları | Container stdout | Process başına immediate | APM unavailable olsa da kullanılabilir kalır |
