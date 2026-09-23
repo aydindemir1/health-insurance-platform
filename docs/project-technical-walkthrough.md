@@ -1,251 +1,104 @@
-# Technical Walkthrough: Milestones 0–7
+# Teknik Walkthrough: Milestone 0–7
 
-This document explains the implemented system through Milestone 8. It is a
-living technical narrative: every completed milestone updates it, the README, the
-architecture diagrams, the demo, and relevant screenshots.
+Bu doküman, Milestone 8'e kadar uygulanmış sistemi açıklar. Yaşayan bir teknik anlatıdır: tamamlanan her milestone bu dosyayı, README'yi, mimari diyagramları, demo'yu ve ilgili ekran görüntülerini günceller.
 
-## 1. Portfolio story
+## 1. Portföy hikâyesi
 
-The platform demonstrates a move from enterprise healthcare development into a
-modern Java and React stack without discarding the underlying domain knowledge.
-It models a provider asking an insurer to authorize a healthcare service, the
-insurer checking policy coverage and making a decision, and an approved service
-becoming a claim, invoice, reconciliation, and payment workflow.
+Platform, kurumsal sağlık yazılımı geliştirme deneyiminden modern Java ve React stack'ine geçişi, alttaki domain bilgisini kaybetmeden göstermeyi amaçlar. Bir healthcare provider'ın bir insurer'dan sağlık hizmeti için authorization istemesini, insurer'ın policy coverage kontrolü yapıp karar vermesini ve approved hizmetin claim, invoice, reconciliation ve payment workflow'una dönüşmesini modeller.
 
-This is not a collection of independent CRUD screens. The central value is in
-the invariants and boundaries:
+Bu, birbirinden bağımsız CRUD ekranlarından oluşan bir koleksiyon değildir. Merkezi değer, invariant ve boundary'lerdedir:
 
-- a provider cannot act on another provider's records;
-- an expired, inactive, mismatched, uncovered, over-limit, or wrong-currency
-  policy cannot produce a pending pre-authorization;
-- only an approved pre-authorization can start a claim;
-- decisions are legal state transitions, not arbitrary status updates;
-- an invoice cannot be overpaid and only becomes settled when fully paid;
-- concurrent decisions are detected using optimistic locking;
-- each service owns its database and communicates through an API, never through
-  another service's tables.
+- bir provider başka bir provider'ın record'ları üzerinde işlem yapamaz;
+- expired, inactive, mismatched, uncovered, over-limit veya wrong-currency policy pending pre-authorization üretemez;
+- yalnızca approved pre-authorization claim başlatabilir;
+- decision'lar arbitrary status update değil, legal state transition'lardır;
+- invoice overpay edilemez ve yalnızca tamamen ödendiğinde settled olur;
+- concurrent decision'lar optimistic locking ile tespit edilir;
+- her service kendi database'inin sahibidir ve başka service'in table'ları üzerinden değil API üzerinden iletişim kurar.
 
-## 2. Delivered milestones
+## 2. Teslim edilen milestone'lar
 
-### Milestone 0 — Reproducible Java 21 foundation
+### Milestone 0 — Tekrarlanabilir Java 21 temeli
 
-The backend, Dockerfiles, and GitHub Actions were aligned on Java 21. Maven
-Wrapper keeps Maven execution reproducible. Docker uses multi-stage builds so
-Maven is absent from the runtime image, and the final process runs as a
-non-root user. Spring Boot actuator health endpoints support local diagnostics.
+Backend, Dockerfile'lar ve GitHub Actions Java 21 üzerinde hizalandı. Maven Wrapper, Maven çalıştırmasını reproducible tutar. Docker multi-stage build kullanır; böylece runtime image içinde Maven bulunmaz ve final process non-root user olarak çalışır. Spring Boot actuator health endpoint'leri local diagnostic sağlar.
 
 ### Milestone 1 — Authorization bounded context
 
-The Authorization Service was reorganized around Clean Architecture. The
-`PreAuthorization` aggregate owns submission and decision invariants. Input
-ports describe the operations that the application offers; output ports
-describe persistence and coverage verification needs. Spring configuration
-composes plain application services with transactional decorators. JPA, OAuth2,
-HTTP, and Spring MVC stay in outer adapters.
+Authorization Service, Clean Architecture etrafında yeniden düzenlendi. `PreAuthorization` aggregate submission ve decision invariant'larının sahibidir. Input port'lar application'ın sunduğu operation'ları, output port'lar ise persistence ve coverage verification ihtiyacını tanımlar. Spring configuration plain application service'leri transactional decorator'larla compose eder. JPA, OAuth2, HTTP ve Spring MVC outer adapter'larda kalır.
 
-The service offers submission, paginated work-queue search, detail, approval,
-and rejection. Hospital results are restricted by the authenticated provider;
-specialists and administrators can query across providers. JPA `@Version`
-detects competing decisions and maps them to a conflict response.
+Service submission, paginated work-queue search, detail, approval ve rejection sunar. Hospital result'ları authenticated provider ile sınırlandırılır; specialist ve administrator'lar provider'lar arasında query yapabilir. JPA `@Version`, competing decision'ları tespit eder ve bunları conflict response'a map eder.
 
-### Milestone 2 — Operations portal
+### Milestone 2 — Operations Portal
 
-The Vite, React, and TypeScript application uses a pragmatic Feature-Sliced
-dependency direction: `app -> pages -> widgets -> features -> entities ->
-shared`. TanStack Query owns remote server state. React Hook Form and Zod own
-form state and validation. A shared typed client attaches the Keycloak access
-token and translates RFC 9457 responses into UI errors.
+Vite, React ve TypeScript application pragmatik bir Feature-Sliced dependency direction kullanır: `app -> pages -> widgets -> features -> entities -> shared`. TanStack Query remote server state'in sahibidir. React Hook Form ve Zod form state ile validation'ın sahibidir. Shared typed client Keycloak access token'ını ekler ve RFC 9457 response'larını UI error'larına çevirir.
 
-The current portal scope is intentionally focused on pre-authorizations:
-dashboard summary cards, a filterable/sortable/paginated work queue, submission,
-detail, and specialist approval/rejection. Role-aware navigation and controls
-supplement server-side authorization; they never replace it.
+Mevcut portal scope bilinçli olarak pre-authorization üzerine odaklanmıştır: dashboard summary card'ları, filter/sort/pagination destekli work queue, submission, detail ve specialist approval/rejection. Role-aware navigation ve control'ler server-side authorization'ı destekler; asla onun yerine geçmez.
 
 ### Milestone 3 — Policy bounded context
 
-The Policy Service became the source of truth for policy validity and coverage.
-A policy contains dated validity, status, member ownership, and one or more
-coverage definitions. Each coverage protects service code, currency, monetary
-limit, and covered amount rules.
+Policy Service policy validity ve coverage için source of truth haline geldi. Bir policy dated validity, status, member ownership ve bir veya daha fazla coverage definition içerir. Her coverage service code, currency, monetary limit ve covered amount rule'larını korur.
 
-Authorization verifies coverage synchronously through an application output
-port before it stores a pre-authorization. The REST adapter is fail-closed:
-business denial and dependency failure do not create a pending request. This
-choice gives the hospital an immediate answer and keeps policy rules in one
-service. It also introduces temporal coupling, documented as a conscious
-trade-off in ADR-005.
+Authorization, pre-authorization persist etmeden önce application output port üzerinden coverage'ı senkron doğrular. REST adapter fail-closed davranır: business denial ve dependency failure pending request oluşturmaz. Bu seçim hospital'a immediate answer verir ve policy rule'larını tek service içinde tutar. Aynı zamanda temporal coupling getirir; ADR-005'te bilinçli trade-off olarak dokümante edilmiştir.
 
-Coverage evaluation is a read-only eligibility decision. It does not reserve
-or consume a benefit limit. Cross-request limit accounting is therefore a
-known future domain requirement rather than a hidden claim of the current
-system.
+Coverage evaluation read-only eligibility decision'dır. Benefit limit reserve veya consume etmez. Cross-request limit accounting mevcut sistemin gizli iddiası değil, bilinen future domain requirement'ıdır.
 
 ### Milestone 4 — Claims and Billing bounded context
 
-An approved pre-authorization can start one claim and its invoice. Claims and
-billing live in one bounded context for now because adjudication, reconciliation,
-and payment require a local transaction and evolve together. They are separate
-aggregate roots: `Claim` owns adjudication; `Invoice` owns payable amount,
-disputes, payment references, and settlement.
+Approved bir pre-authorization tek bir claim ve onun invoice'unu başlatabilir. Claims ve billing şu an aynı bounded context içinde yaşar; çünkü adjudication, reconciliation ve payment local transaction gerektirir ve birlikte evolve olur. Bunlar ayrı aggregate root'lardır: `Claim` adjudication'ın, `Invoice` ise payable amount, dispute, payment reference ve settlement'ın sahibidir.
 
-Claims move from `SUBMITTED` to `UNDER_REVIEW`, then to `APPROVED` or
-`REJECTED`. Approval sets the insurer-approved amount and reconciles the
-invoice. A short payment produces `DISPUTED`; agreeing a payable amount moves it
-to `MATCHED`; payments accumulate until `SETTLED`. Rejecting a claim voids an
-unpaid invoice. Unique invoice numbers, pre-authorization references, and
-payment references add database-backed replay protection.
+Claim `SUBMITTED` durumundan `UNDER_REVIEW` durumuna, ardından `APPROVED` veya `REJECTED` durumuna geçer. Approval insurer-approved amount'u set eder ve invoice'u reconcile eder. Kısa payment `DISPUTED` üretir; payable amount üzerinde anlaşmak invoice'u `MATCHED` durumuna taşır; payment'lar `SETTLED` olana kadar birikir. Claim rejection unpaid invoice'u void eder. Unique invoice number, pre-authorization reference ve payment reference database-backed replay protection sağlar.
 
-### Milestone 5 — Reliable event-driven claim initiation
+### Milestone 5 — Güvenilir event-driven claim initiation
 
-Authorization records a versioned decision event in its local outbox in the
-same transaction as the aggregate decision. A scheduled relay publishes the
-event to Kafka and only then marks it delivered. A crash in that small window
-can produce a duplicate, so Claims/Billing treats idempotency as part of the
-application contract: claim, invoice, and `processed_messages` marker commit in
-one transaction. Approval starts the financial process eventually; rejection
-is published as a durable fact but has no Claims/Billing action.
+Authorization versioned decision event'ini aggregate decision ile aynı transaction içinde local outbox'a kaydeder. Scheduled relay event'i Kafka'ya publish eder ve ancak bundan sonra delivered olarak işaretler. Bu küçük pencere içinde crash duplicate üretebilir; bu nedenle Claims/Billing idempotency'yi application contract'ın parçası olarak ele alır: claim, invoice ve `processed_messages` marker tek transaction içinde commit edilir. Approval financial process'i eventually başlatır; rejection durable fact olarak publish edilir ancak Claims/Billing action üretmez.
 
-Broker errors leave the outbox row pending for a later poll. Consumer failures
-are attempted three times with fixed backoff and then moved to a DLT. A Saga was
-not added because there is no multi-step distributed compensation policy yet.
+Broker error'ları outbox row'u sonraki poll için pending bırakır. Consumer failure toplam üç fixed-backoff attempt alır ve ardından DLT'ye taşınır. Multi-step distributed compensation policy olmadığı için Saga eklenmemiştir.
 
 ### Milestone 6 — Notification delivery
 
-The Notification Worker now has a framework-independent delivery aggregate,
-application use case, repository/sender ports, and private PostgreSQL schema.
-Its `taskId` is both the database primary key and the future downstream-provider
-idempotency key. Delivered replays are no-ops; received tasks remain retryable;
-reusing a task identifier for different intent is rejected as a contract error.
+Notification Worker artık framework-independent delivery aggregate, application use case, repository/sender port'ları ve private PostgreSQL schema'ya sahiptir. `taskId` hem database primary key hem future downstream-provider idempotency key'dir. Delivered replay no-op'tur; received task retryable kalır; aynı task identifier'ın farklı intent için reuse edilmesi contract error olarak reddedilir.
 
-The persistence adapter stores only technical identifiers, a provider reference,
-notification type, template key, state, and timestamps. It does not store member,
-policy, diagnosis, email, phone, token, or rendered-content data. Liquibase owns
-the schema and database check constraints mirror the aggregate's state/timestamp
-invariants.
+Persistence adapter yalnızca technical identifier'lar, provider reference, notification type, template key, state ve timestamp saklar. Member, policy, diagnosis, email, phone, token veya rendered-content data saklamaz. Liquibase schema'nın sahibidir ve database check constraint'leri aggregate'in state/timestamp invariant'larını yansıtır.
 
-Authorization now creates a second, dedicated outbox record for notification
-work. The pre-authorization decision, Kafka business event, and minimal
-notification task share one local transaction. A PostgreSQL integration test
-proves both the successful three-write commit and rollback of the decision plus
-both outboxes when notification task persistence fails.
+Authorization artık notification work için ikinci, dedicated bir outbox record oluşturur. Pre-authorization decision, Kafka business event ve minimal notification task aynı local transaction'ı paylaşır. PostgreSQL integration testi hem successful three-write commit'i hem de notification task persistence fail olduğunda decision ve iki outbox'ın rollback olduğunu kanıtlar.
 
-A scheduled Authorization adapter now locks pending task rows and maps each to
-a persistent, versioned JSON message. It waits for a correlated RabbitMQ
-publisher confirm and checks mandatory publisher returns before setting
-`published_at`; `nack`, timeout, serialization failure, and unroutable results
-remain pending for another poll. Durable direct exchanges, a delivery queue,
-and its dead-letter route are declared in code. These producer behaviors are
-unit-tested. The worker now converts the v1 JSON contract into a framework-free
-command, invokes a transaction-decorated use case, and manually acknowledges
-only after commit. Invalid versions and processing failures are rejected without
-requeue. A safe log adapter demonstrates the sender port without claiming email
-or SMS.
+Scheduled Authorization adapter pending task row'larını lock eder ve her birini persistent, versioned JSON message'a map eder. Correlated RabbitMQ publisher confirm bekler ve `published_at` set etmeden önce mandatory publisher return'leri kontrol eder; `nack`, timeout, serialization failure ve unroutable result sonraki poll için pending kalır. Durable direct exchange, delivery queue ve dead-letter route code içinde declare edilir. Bu producer behavior'ları unit test edilir. Worker v1 JSON contract'ını framework-free command'a çevirir, transaction-decorated use case'i invoke eder ve yalnızca commit sonrasında manual acknowledge eder. Invalid version ve processing failure requeue olmadan reject edilir. Safe log adapter sender port'u gösterir ama email veya SMS gönderildiğini iddia etmez.
 
-RabbitMQ now runs in Compose with a durable direct exchange, delivery queue,
-dead-letter exchange, and DLQ. The listener retries only explicit transient
-delivery failures: three total attempts with bounded exponential backoff by
-default. Contract/version and invariant failures are permanent and go directly
-to the DLQ. Retry surrounds the transaction proxy so every attempt starts a new
-transaction; only a committed success is acknowledged. PostgreSQL/RabbitMQ
-Testcontainers prove duplicate suppression and real dead-letter routing, while
-the synthetic Compose demo proves three decisions reach `DELIVERED`.
+RabbitMQ artık Compose içinde durable direct exchange, delivery queue, dead-letter exchange ve DLQ ile çalışır. Listener yalnızca explicit transient delivery failure'ı retry eder: default olarak bounded exponential backoff ile toplam üç attempt. Contract/version ve invariant failure permanent kabul edilir ve doğrudan DLQ'ya gider. Retry transaction proxy'yi sarar; böylece her attempt yeni transaction başlatır ve yalnızca committed success acknowledge edilir. PostgreSQL/RabbitMQ Testcontainers duplicate suppression ve gerçek dead-letter routing'i kanıtlar; synthetic Compose demo üç decision'ın `DELIVERED` durumuna ulaştığını doğrular.
 
-### Milestone 7 — Cache, search, and observability
+### Milestone 7 — Cache, search ve observability
 
-Policy's application service depends on a `CoverageEvaluationCache` port, not on
-Redis. It asks the cache before loading the aggregate and stores the resulting
-decision for 30 seconds. The adapter hashes the complete evaluation identity so
-Redis keys do not reveal member or policy identifiers. Reads, writes, and
-invalidation fail open to PostgreSQL; only the authoritative dependency failure
-prevents Authorization from accepting an unverified request.
+Policy'nin application service'i Redis'e değil `CoverageEvaluationCache` port'una bağımlıdır. Aggregate yüklemeden önce cache'e bakar ve result decision'ı 30 saniye saklar. Adapter complete evaluation identity'yi hash'ler; böylece Redis key'leri member veya policy identifier'ını açığa çıkarmaz. Read, write ve invalidation PostgreSQL'e fail-open davranır; yalnızca authoritative dependency failure Authorization'ın unverified request kabul etmesini engeller.
 
-Cross-context operations search is a new read-model bounded context. Every
-Claims/Billing transition persists a complete `ClaimSearchProjection` beside the
-aggregate in one transaction. A scheduled relay publishes the projection to
-Kafka, while Search Service also consumes Authorization decision events. It maps
-both contracts into deterministic Elasticsearch documents. This gives at-least-
-once idempotency without allowing Search to mutate or impersonate source
-aggregates. Hospital queries are always replaced with the signed provider scope.
+Cross-context operations search yeni bir read-model bounded context'tir. Her Claims/Billing transition aggregate ile aynı transaction içinde complete `ClaimSearchProjection` persist eder. Scheduled relay projection'ı Kafka'ya publish eder; Search Service ayrıca Authorization decision event'lerini consume eder. Her iki contract deterministic Elasticsearch document'larına map edilir. Bu at-least-once idempotency sağlar; Search'e source aggregate'i mutate etme veya impersonate etme hakkı vermez. Hospital query'leri daima signed provider scope ile override edilir.
 
-The portal's new Search entity/API/page slice talks to port 8084 and retains
-filters and pagination in the URL. TanStack Query owns remote state. The shared
-HTTP client creates `X-Correlation-ID`; servlet filters validate and echo it,
-REST clients forward it, and asynchronous listeners derive it from event/task
-metadata. Spring Boot renders MDC as ECS JSON. Docker attaches the Elastic Java
-agent externally, so tracing concerns do not enter domain or application code.
+Portal'ın yeni Search entity/API/page slice'ı port 8084 ile konuşur ve filter ile pagination'ı URL içinde tutar. TanStack Query remote state'in sahibidir. Shared HTTP client `X-Correlation-ID` oluşturur; servlet filter'ları validate edip echo eder, REST client'lar forward eder ve asynchronous listener'lar event/task metadata'dan derive eder. Spring Boot MDC'yi ECS JSON olarak render eder. Docker Elastic Java agent'ı externally attach eder; tracing concern'leri domain veya application code'a girmez.
 
 ### Milestone 8 — Gateway security boundary
 
-APISIX is the only host-published business API origin. It validates Keycloak
-tokens at the edge and applies shared traffic, CORS, payload, timeout, header,
-and correlation policies. Each service still validates the token and owns its
-provider/role authorization decisions: gateway authentication does not replace
-application authorization.
+APISIX host'a publish edilen tek business API origin'dir. Edge'de Keycloak token'larını validate eder ve shared traffic, CORS, payload, timeout, header ve correlation policy'lerini uygular. Her service token'ı doğrulamaya devam eder ve provider/role authorization decision'larının sahibi olmaya devam eder: gateway authentication application authorization'ın yerine geçmez.
 
-### Milestone 9 — Audit and governance
+### Milestone 9 — Audit ve governance
 
-The audit design is service-owned and append-only. This avoids coupling every
-business transaction to a central audit service and lets the audit row commit
-atomically with the state it describes. Authorization records submission,
-approval, and rejection; Policy records policy issuance; Claims/Billing records
-claim adjudication, invoice reconciliation/void/dispute resolution, and payment.
-Each application core depends on a framework-free `AuditTrail` output port.
+Audit design service-owned ve append-only'dir. Böylece her business transaction central audit service'e couple olmaz ve audit row, tanımladığı state ile atomik commit olabilir. Authorization submission, approval ve rejection; Policy policy issuance; Claims/Billing ise claim adjudication, invoice reconciliation/void/dispute resolution ve payment record eder. Her application core framework-free `AuditTrail` output port'a bağımlıdır.
 
-The contract captures a controlled action, actor subject/roles, provider scope,
-correlation ID, timestamp, controlled reason code, status delta, and retention
-class. It intentionally cannot accept business snapshots or free text. A JDBC
-adapter writes the journal, and Liquibase adds database triggers that reject
-update, delete, and truncate. PostgreSQL Testcontainers prove both the positive
-path and fail-closed rollback: if audit persistence fails, the governed business
-mutation and related outboxes roll back.
+Contract controlled action, actor subject/role, provider scope, correlation ID, timestamp, controlled reason code, status delta ve retention class yakalar. Bilinçli olarak business snapshot veya free text kabul edemez. JDBC adapter journal'a yazar; Liquibase update, delete ve truncate'i reddeden database trigger'ları ekler. PostgreSQL Testcontainers hem positive path'i hem fail-closed rollback'i kanıtlar: audit persistence fail olursa governed business mutation ve ilgili outbox'lar rollback olur.
 
-Each service also owns a query port, use case, JDBC read adapter, and REST
-controller for its journal. Both controller and use case require `SYSTEM_ADMIN`;
-filters are restricted to aggregate UUID and service-local action allowlists,
-page size is capped at 100, and ordering uses timestamp plus audit ID. APISIX
-routes the three APIs, while the React Audit Trail page selects one service at a
-time. This preserves database-per-service ownership: the UI is unified, the data
-stores are not. The repeatable synthetic demo asserts minimum evidence counts for
-policy, authorization, claim, invoice, and payment transitions.
+Her service journal'ı için query port, use case, JDBC read adapter ve REST controller'ın sahibidir. Hem controller hem use case `SYSTEM_ADMIN` gerektirir; filter'lar aggregate UUID ve service-local action allowlist ile sınırlandırılır; page size maksimum 100'dür ve ordering timestamp + audit ID kullanır. APISIX üç API'yi route ederken React Audit Trail page tek seferde bir service seçer. Böylece database-per-service ownership korunur: UI unified'dır, data store'lar değildir. Repeatable synthetic demo policy, authorization, claim, invoice ve payment transition'ları için minimum evidence count'larını assert eder.
 
-Retention classes describe handling intent rather than inventing legal periods.
-Lawful basis, approved durations, disposal jobs, backup erasure, encryption/key
-management, and regulatory sign-off remain explicit production responsibilities.
+Retention class'lar yasal period uydurmak yerine handling intent'i tanımlar. Lawful basis, approved duration, disposal job, backup erasure, encryption/key management ve regulatory sign-off açık production responsibility olarak kalır.
 
-### Milestone 10 — Search and messaging recovery
+### Milestone 10 — Search ve messaging recovery
 
-Elasticsearch is explicitly derived state, so “rebuildable” now means an
-executable owner-driven process rather than a promise. Authorization and
-Claims/Billing each expose a narrow, stable, `SYSTEM_ADMIN` projection-export
-use case over only their own database. The local orchestrator pages both APIs
-through APISIX and sends the current snapshots to Search; neither Search nor the
-script receives database credentials or JPA entities.
+Elasticsearch açıkça derived state'tir; bu nedenle "rebuildable" artık söz değil executable owner-driven process anlamına gelir. Authorization ve Claims/Billing yalnızca kendi database'leri üzerinde narrow, stable, `SYSTEM_ADMIN` projection-export use case sunar. Local orchestrator iki API'yi APISIX üzerinden page eder ve current snapshot'ları Search'e gönderir; ne Search ne script database credential veya JPA entity alır.
 
-Search creates a versioned physical candidate while reads and normal event
-writes continue through the `healthcare-operations` alias. Ingestion validates
-the same domain record used by event consumers. Activation refreshes the
-candidate, compares its count to the orchestrator's distinct deterministic ID
-count, and atomically moves the alias only if it still targets the recorded
-predecessor. The predecessor is retained, so rollback is another alias
-compare-and-swap rather than a restore from backup.
+Search versioned physical candidate oluştururken read ve normal event write'ları `healthcare-operations` alias üzerinden devam eder. Ingestion event consumer'ın kullandığı aynı domain record'u validate eder. Activation candidate'ı refresh eder, count'u orchestrator'ın distinct deterministic ID count'u ile karşılaştırır ve alias hâlâ recorded predecessor'ı gösteriyorsa atomik olarak taşır. Predecessor retained kalır; rollback backup restore değil başka bir alias compare-and-swap operation olur.
 
-Deterministic IDs alone cannot stop a delayed event from overwriting a newer
-snapshot. The event and export contracts therefore carry an owner-defined
-monotonic `sourceRevision`; Elasticsearch uses a scripted conditional upsert.
-Authorization derives it from its aggregate version, while Claims/Billing
-combines Claim and Invoice versions because both contribute to one search
-document. Legacy documents/messages without the additive field map to revision
-1, which preserves compatibility until the rebuild replaces them.
+Deterministic ID tek başına delayed event'in newer snapshot'ı overwrite etmesini engellemez. Bu nedenle event ve export contract'ları owner-defined monotonic `sourceRevision` taşır; Elasticsearch scripted conditional upsert kullanır. Authorization bunu aggregate version'dan türetir; Claims/Billing ise Claim ve Invoice version'larını birleştirir, çünkü ikisi de tek search document'a katkı sağlar. Additive field olmayan legacy document/message revision 1'e map edilir; böylece rebuild bunları replace edene kadar compatibility korunur.
 
-Messaging recovery is deliberately operator-assisted. A status script reports
-outbox age/attempts, Kafka group lag, and RabbitMQ depth without payloads. The
-Kafka DLT and RabbitMQ DLQ tools inspect SHA-256/size/routing metadata, require a
-transient classification and explicit flag for replay, cap batch/attempts, and
-copy only to allowlisted routes while retaining the original dead letter.
-Idempotent consumers make a valid duplicate safe; they do not repair a permanent
-contract error.
+Messaging recovery bilinçli olarak operator-assisted'dır. Status script outbox age/attempt, Kafka group lag ve RabbitMQ depth raporlar; payload göstermez. Kafka DLT ve RabbitMQ DLQ araçları SHA-256/size/routing metadata inspect eder, replay için transient classification ve explicit flag gerektirir, batch/attempt sayılarını sınırlar ve original dead letter'ı koruyarak yalnızca allowlist route'lara copy eder. Idempotent consumer valid duplicate'i güvenli hale getirir; permanent contract error'ı onarmaz.
 
-## 3. Architecture at runtime
+## 3. Runtime mimarisi
 
 ```mermaid
 flowchart LR
@@ -279,344 +132,193 @@ flowchart LR
     Worker -. traces .-> APM
 ```
 
-The current service-to-service calls relay the caller's access token. This
-preserves end-user authorization and provider ownership in the receiving
-service. A production deployment may use token exchange or workload identity;
-that change requires a separate trust-model decision.
+Mevcut service-to-service call'lar caller'ın access token'ını relay eder. Böylece receiving service içinde end-user authorization ve provider ownership korunur. Production deployment token exchange veya workload identity kullanabilir; bu değişiklik ayrı bir trust-model kararı gerektirir.
 
-## 4. Request path through Clean Architecture
+## 4. Clean Architecture üzerinden request akışı
 
-For a typical command:
+Tipik bir command için:
 
-1. A REST controller validates the transport request and maps JWT claims to an
-   application `ActorContext`.
-2. The controller invokes an input port rather than persistence directly.
-3. A transactional decorator defines the unit-of-work boundary without placing
-   Spring annotations in the application layer.
-4. The application service checks authorization, coordinates the aggregate,
-   and calls output ports.
-5. The aggregate/value objects enforce state and monetary invariants.
-6. Infrastructure adapters translate between domain objects and JPA entities or
-   remote HTTP representations.
-7. The exception advice returns an RFC 9457 Problem Details response.
+1. REST controller transport request'i validate eder ve JWT claim'lerini application `ActorContext` modeline map eder.
+2. Controller persistence'a doğrudan gitmek yerine input port invoke eder.
+3. Transactional decorator application layer'a Spring annotation koymadan unit-of-work boundary'yi tanımlar.
+4. Application service authorization kontrolü yapar, aggregate'i coordinate eder ve output port'ları çağırır.
+5. Aggregate/value object'ler state ve monetary invariant'ları uygular.
+6. Infrastructure adapter'lar domain object'leri ile JPA entity veya remote HTTP representation'lar arasında translation yapar.
+7. Exception advice RFC 9457 Problem Details response döndürür.
 
-Queries use dedicated input and output models. This is lightweight CQRS: read
-and write use cases are explicit, but the system does not maintain a separate
-read database.
+Query'ler dedicated input ve output model kullanır. Bu lightweight CQRS'dir: read ve write use case'leri açıktır ancak sistem ayrı read database tutmaz.
 
-## 5. Domain model and invariants
+## 5. Domain modeli ve invariant'lar
 
 ### Authorization
 
-- `PreAuthorization` is the aggregate root.
-- `Money` prevents negative values and mismatched currency operations.
-- `PENDING -> APPROVED|REJECTED` are the only decision transitions.
-- A second decision is rejected at the domain level; a concurrent stale write
-  is rejected by persistence-level optimistic locking.
-- Provider ownership comes only from `provider_id` in the trusted token.
+- `PreAuthorization` aggregate root'tur.
+- `Money` negative value ve mismatched currency operation'larını engeller.
+- `PENDING -> APPROVED|REJECTED` tek decision transition'lardır.
+- İkinci decision domain level'da reddedilir; concurrent stale write persistence-level optimistic locking ile reddedilir.
+- Provider ownership yalnızca trusted token içindeki `provider_id` değerinden gelir.
 
 ### Policy
 
-- `Policy` is the aggregate root and owns its coverage collection.
-- Validity is inclusive and evaluated against an injected `Clock`.
-- Member, status, date, service code, currency, and maximum amount must all
-  match for coverage to be granted.
-- Policy data is private to the Policy Service.
+- `Policy` aggregate root'tur ve coverage collection'ın sahibidir.
+- Validity inclusive'dir ve injected `Clock` ile evaluate edilir.
+- Coverage grant edilmesi için member, status, date, service code, currency ve maximum amount'ın tamamı eşleşmelidir.
+- Policy data Policy Service'e özeldir.
 
 ### Claims and billing
 
-- `Claim` and `Invoice` are separate aggregate roots sharing one bounded
-  context and transaction where necessary.
-- A claim is linked to one approved pre-authorization and one invoice.
-- Approved amount cannot exceed the invoiced amount.
-- Payment amount must be positive; cumulative payments cannot exceed payable
-  amount; payment reference is unique.
-- Provider-scoped reads prevent cross-tenant disclosure.
+- `Claim` ve `Invoice` ayrı aggregate root'tur; aynı bounded context'i paylaşır ve gerektiğinde aynı transaction'ı kullanır.
+- Bir claim tek approved pre-authorization ve tek invoice ile ilişkilidir.
+- Approved amount invoiced amount'u aşamaz.
+- Payment amount positive olmalıdır; cumulative payment payable amount'u aşamaz; payment reference unique'dir.
+- Provider-scoped read'ler cross-tenant disclosure'ı engeller.
 
-See [Data model](architecture/data-model.md) and
-[workflow sequences](architecture/workflow-sequences.md) for the detailed
-relationships and message order.
+Detaylı relationship ve message order için [Data model](architecture/data-model.md) ve [workflow sequence'leri](architecture/workflow-sequences.md) dosyalarına bakın.
 
-## 6. Security model
+## 6. Security modeli
 
-Keycloak authenticates users. Each API validates issuer, signature, expiry, and
-realm roles as an OAuth2 resource server. The implemented roles are:
+Keycloak user'ları authenticate eder. Her API issuer, signature, expiry ve realm role'leri OAuth2 resource server olarak validate eder. Uygulanmış role'ler:
 
-| Role | Current responsibility |
+| Role | Mevcut sorumluluk |
 | --- | --- |
-| `HOSPITAL_USER` | Submit/read provider-owned pre-authorizations and claims |
-| `INSURANCE_SPECIALIST` | Decide pre-authorizations and perform reconciliation/payments |
-| `CLAIM_APPROVER` | Review, approve, or reject claims |
-| `SYSTEM_ADMIN` | Administrative read and policy/reconciliation authority |
+| `HOSPITAL_USER` | Provider-owned pre-authorization ve claim gönderme/okuma |
+| `INSURANCE_SPECIALIST` | Pre-authorization kararları ve reconciliation/payment |
+| `CLAIM_APPROVER` | Claim review, approval ve rejection |
+| `SYSTEM_ADMIN` | Administrative read ve policy/reconciliation authority |
 
-Authorization exists twice by design: controller annotations reject invalid
-endpoint access early, while application services enforce the same business
-authority independent of HTTP. Hospital users additionally require a UUID
-`provider_id` token claim. Request bodies never select the provider identity.
+Authorization tasarım gereği iki yerde bulunur: controller annotation'ları invalid endpoint access'i erken reddeder; application service aynı business authority'yi HTTP'den bağımsız enforce eder. Hospital user ayrıca UUID `provider_id` token claim gerektirir. Request body provider identity seçemez.
 
-The imported realm declares `providerId` as a managed Keycloak user-profile
-attribute. Users may view it but only administrators may edit it. The public
-PKCE client maps it into the signed `provider_id` claim; relying on an
-undeclared custom attribute would fail because Keycloak 26 ignores unmanaged
-attributes by default.
+Imported realm `providerId` değerini managed Keycloak user-profile attribute olarak declare eder. User görebilir ancak yalnızca administrator edit edebilir. Public PKCE client bunu signed `provider_id` claim'e map eder; undeclared custom attribute'a güvenmek başarısız olur çünkü Keycloak 26 unmanaged attribute'ları default olarak ignore eder.
 
-The repository contains no real patient data or credentials. Demo identifiers
-are synthetic UUIDs; credentials and tokens remain runtime-only environment
-variables. Logs and errors must not include tokens or health information.
+Repository gerçek patient data veya credential içermez. Demo identifier'lar sentetik UUID'dir; credential ve token yalnızca runtime environment variable olarak kalır. Log ve error'lar token veya health information içermemelidir.
 
-## 7. Persistence and consistency
+## 7. Persistence ve consistency
 
-Each state-owning backend component has an independent Liquibase changelog. The
-three API services and Notification Worker use four private PostgreSQL 17
-databases in Compose. RabbitMQ is a transport, not a source of domain ownership;
-the producer outbox and worker delivery table retain durable intent/outcome.
-JPA entities are persistence representations, separate from the domain model.
-This avoids Spring/JPA annotations in the domain and lets mappings evolve at the
-adapter boundary.
+State sahibi her backend component bağımsız Liquibase changelog'a sahiptir. Üç API service ve Notification Worker Compose içinde dört private PostgreSQL 17 database kullanır. RabbitMQ transport'tur, domain ownership source'u değildir; producer outbox ve worker delivery table durable intent/outcome tutar. JPA entity'leri domain model'den ayrı persistence representation'lardır. Böylece domain içinde Spring/JPA annotation bulunmaz ve mapping adapter boundary'de evolve olabilir.
 
-Transactions are placed around input ports in infrastructure decorators.
-`@Version` protects mutable aggregate rows. Unique constraints protect stable
-business references against duplicate submission. The transactional outbox
-extends the local ACID boundary to durable intent-to-publish without pretending
-PostgreSQL and Kafka share one transaction. Delivery remains at least once; the
-consumer inbox and business-key constraints make replay safe.
+Transaction input port çevresinde infrastructure decorator'larda yer alır. `@Version` mutable aggregate row'larını korur. Unique constraint'ler stable business reference'ları duplicate submission'a karşı korur. Transactional outbox local ACID boundary'yi durable intent-to-publish seviyesine uzatır; PostgreSQL ve Kafka'nın tek transaction paylaştığını iddia etmez. Delivery at-least-once kalır; consumer inbox ve business-key constraint'leri replay'i güvenli hale getirir.
 
-## 8. Error semantics and resilience
+## 8. Error semantics ve resilience
 
-APIs use RFC 9457 Problem Details for validation, authentication/authorization,
-not-found, business conflict, and dependency errors. Synchronous validation
-calls are fail-closed and use explicit timeouts. Kafka consumption has bounded
-retry and DLT recovery; outbox publication retries on later scheduled polls.
-RabbitMQ consumption classifies transient versus permanent failures, gives each
-transient attempt a fresh transaction, and dead-letters exhausted/permanent work.
-Circuit breakers for synchronous HTTP dependencies are still not implemented.
+API'ler validation, authentication/authorization, not-found, business conflict ve dependency error için RFC 9457 Problem Details kullanır. Synchronous validation call'ları fail-closed'dur ve explicit timeout kullanır. Kafka consumption bounded retry ve DLT recovery kullanır; outbox publication sonraki scheduled poll'larda retry edilir. RabbitMQ consumption transient ve permanent failure'ı classify eder, her transient attempt'e fresh transaction verir ve exhausted/permanent work'ü dead-letter eder. Synchronous HTTP dependency'ler için circuit breaker henüz uygulanmamıştır.
 
-## 9. Test strategy and evidence
+## 9. Test stratejisi ve evidence
 
-The backend test portfolio contains framework-free domain/application unit
-tests, MVC/security slice tests, Spring bean-wiring tests, ArchUnit dependency
-tests, and PostgreSQL Testcontainers integration/concurrency tests. Kafka tests
-use the official Apache Kafka Testcontainer to prove duplicate delivery and
-poison-message DLT behavior. The frontend uses Vitest, Testing Library, and architecture tests for FSD import direction,
-plus linting and a production TypeScript/Vite build.
+Backend test portföyü framework-free domain/application unit test, MVC/security slice test, Spring bean-wiring test, ArchUnit dependency test ve PostgreSQL Testcontainers integration/concurrency test'lerini içerir. Kafka test'leri official Apache Kafka Testcontainer kullanarak duplicate delivery ve poison-message DLT behavior'ını kanıtlar. Frontend Vitest, Testing Library ve FSD import direction architecture test'leri kullanır; ayrıca linting ve production TypeScript/Vite build vardır.
 
-On 8 September 2026, the Milestone 5 checkpoint was verified on Java 21.0.8
-and Docker Desktop 28.5.1. The three Maven suites contained 109 passing tests:
-Authorization 50, Policy 21, and Claims/Billing 38. The portal passed oxlint,
-all 6 Vitest tests in 5 files, and the production TypeScript/Vite build. Treat
-these numbers as dated evidence, not a permanent guarantee; the commands in the
-README are the source of truth for a fresh checkout.
+8 Eylül 2026'da Milestone 5 checkpoint Java 21.0.8 ve Docker Desktop 28.5.1 üzerinde doğrulandı. Üç Maven suite toplam 109 passing test içeriyordu: Authorization 50, Policy 21, Claims/Billing 38. Portal oxlint, 5 file içindeki tüm 6 Vitest test ve production TypeScript/Vite build'den geçti. Bu sayılar dated evidence'dır; kalıcı garanti değildir. Fresh checkout için README'deki command'lar source of truth'tur.
 
-The Notification Worker suite covers domain, application, persistence,
-architecture, configuration, retry/acknowledgement, and real-broker behavior.
-Its integration tests use PostgreSQL 17 and RabbitMQ 4.1 containers rather than
-in-memory substitutes. They prove that duplicate messages result in one
-`DELIVERED` row and that an unsupported version is quarantined in the real DLQ.
-On 8 September 2026 all four backend suites passed 141 tests: Authorization 59,
-Policy 21, Claims/Billing 38, and Notification Worker 23.
-Authorization now has 59 passing tests, including two full-context PostgreSQL
-tests for the multi-write decision transaction and five AMQP relay/topology unit
-tests. The latter verify positive/nack/unroutable outcomes, safe persistent
-message metadata, and durable dead-letter routing without claiming a live broker.
+Notification Worker suite domain, application, persistence, architecture, configuration, retry/acknowledgement ve real-broker behavior'ı kapsar. Integration test'leri in-memory substitute yerine PostgreSQL 17 ve RabbitMQ 4.1 container kullanır. Duplicate message'ın tek `DELIVERED` row ürettiğini ve unsupported version'ın gerçek DLQ'da quarantine edildiğini kanıtlar. 8 Eylül 2026'da dört backend suite toplam 141 testten geçti: Authorization 59, Policy 21, Claims/Billing 38, Notification Worker 23.
+Authorization artık 59 passing test içerir; bunlara multi-write decision transaction için iki full-context PostgreSQL test ve beş AMQP relay/topology unit test dahildir. Sonuncular positive/nack/unroutable outcome, safe persistent message metadata ve durable dead-letter routing'i live broker iddiası olmadan doğrular.
 
-On 10 September 2026, the Milestone 10 quality gate passed **193 backend tests**:
-Authorization 73, Policy 33, Claims/Billing 51, Notification Worker 23, and
-Search Service 13. The new proof includes real PostgreSQL owner-export queries,
-application authorization/bounds, conditional stale-revision handling,
-legacy-document compatibility, count-gated activation, atomic alias swaps, and
-retained-index rollback against Elasticsearch 9.5.3. The portal passed oxlint,
-9 Vitest tests in 8 files, and a production build. A live Compose rehearsal
-activated 70 distinct current projections while retaining the 55-document v1
-predecessor.
+10 Eylül 2026'da Milestone 10 quality gate **193 backend test** ile geçti: Authorization 73, Policy 33, Claims/Billing 51, Notification Worker 23 ve Search Service 13. Yeni proof gerçek PostgreSQL owner-export query'leri, application authorization/bound, conditional stale-revision handling, legacy-document compatibility, count-gated activation, atomic alias swap ve Elasticsearch 9.5.3 üzerinde retained-index rollback'i kapsar. Portal oxlint, 8 file içinde 9 Vitest test ve production build'den geçti. Live Compose rehearsal 70 distinct current projection activate ederken 55-document v1 predecessor'ı retained tuttu.
 
-The documentation has its own executable quality gate. It validates local
-Markdown links, parses the Keycloak and demo JSON, parses the PowerShell demo
-and recovery scripts, verifies the eleven expected PNG files, and renders every Mermaid block
-with Mermaid CLI. This prevents a diagram or portfolio link from silently
-rotting while later milestones change the implementation.
+Documentation'ın kendi executable quality gate'i vardır. Local Markdown link'lerini validate eder, Keycloak ve demo JSON'u parse eder, PowerShell demo ve recovery script'lerini parse eder, beklenen on bir PNG file'ı doğrular ve her Mermaid block'u Mermaid CLI ile render eder. Böylece sonraki milestone'lar implementation'ı değiştirirken diagram veya portfolio link'in sessizce bozulması engellenir.
 
-## 10. Delivery and local operations
+## 10. Delivery ve local operations
 
-Docker Compose runs Keycloak, APISIX, Kafka, RabbitMQ, Redis, four API services,
-Notification Worker, four private databases, Elasticsearch, Kibana, and APM
-Server.
-Required credentials are supplied from an ignored `.env`, using `.env.example`
-as a safe template. Health checks order database-dependent startup. GitHub
-Actions independently tests backend services and the operations portal using
-Java 21 and Node.
+Docker Compose Keycloak, APISIX, Kafka, RabbitMQ, Redis, dört API service, Notification Worker, dört private database, Elasticsearch, Kibana ve APM Server çalıştırır.
+Gerekli credential'lar ignore edilen `.env` üzerinden sağlanır; `.env.example` safe template'tir. Health check'ler database-dependent startup sırasını kontrol eder. GitHub Actions backend service'leri ve operations portal'ı Java 21 ve Node ile bağımsız test eder.
 
-APISIX is a file-driven data plane: no etcd or mutable Admin API is needed for
-the local topology. It authenticates external bearer tokens, applies traffic
-policy, and routes to unpublished Spring ports. It deliberately does not own
-provider or aggregate authorization; Spring repeats token validation and the
-application layer enforces those business rules. Gateway-native errors are
-adapted to RFC 9457 without rewriting business errors from upstream services.
+APISIX file-driven data plane'dir: local topology için etcd veya mutable Admin API gerekmez. External bearer token'ları authenticate eder, traffic policy uygular ve unpublished Spring port'larına route eder. Bilinçli olarak provider veya aggregate authorization'ın sahibi değildir; Spring token validation'ı tekrarlar ve application layer bu business rule'ları enforce eder. Gateway-native error'lar upstream business error'larını rewrite etmeden RFC 9457'ye adapt edilir.
 
-The realm declares a bearer-only `health-insurance-api` audience client. Keycloak
-adds that audience to portal and demo access tokens, and APISIX requires an exact
-audience match. A token may therefore be cryptographically valid for the realm but
-still be rejected when it was issued for another resource.
+Realm bearer-only `health-insurance-api` audience client declare eder. Keycloak portal ve demo access token'larına bu audience'ı ekler; APISIX exact audience match ister. Böylece token realm için cryptographically valid olsa bile başka resource için issue edildiyse reddedilebilir.
 
-Milestone 11 adds a Kubernetes-native Kustomize base plus a local overlay for
-the seven stateless workloads. The baseline enforces non-root execution,
-read-only root filesystems, dropped Linux capabilities, RuntimeDefault seccomp,
-resource bounds, startup/readiness/liveness probes, graceful termination,
-rolling updates, topology spread, PDBs, HPAs, dedicated ServiceAccounts without
-mounted API tokens, and default-deny NetworkPolicies. Stateful platforms remain
-external contracts because their production operation needs vendor/operator,
-storage, backup and recovery choices that cannot be honestly encoded as a few
-portfolio YAML files. ADR-013 records that boundary.
+Milestone 11, yedi stateless workload için Kubernetes-native Kustomize base ve local overlay ekler. Baseline non-root execution, read-only root filesystem, dropped Linux capability, RuntimeDefault seccomp, resource bound, startup/readiness/liveness probe, graceful termination, rolling update, topology spread, PDB, HPA, mounted API token olmadan dedicated ServiceAccount ve default-deny NetworkPolicy enforce eder. Stateful platform'lar external contract olarak kalır; çünkü production operation vendor/operator, storage, backup ve recovery kararı gerektirir ve birkaç portfolio YAML file ile dürüstçe encode edilemez. ADR-013 bu boundary'yi kaydeder.
 
-The local apply script materializes Kubernetes Secrets in memory from the
-ignored `.env`; the repository contains names and examples, never values. The
-base/local render validator checks workload count, security contexts,
-availability controls, network isolation and credential policy. Container
-images were built locally. Milestone 12 subsequently exercised this package in
-a disposable Minikube cluster: all seven Argo CD control-plane pods became Ready
-and the staging Application completed a server-side sync. Application health
-remained `Progressing` because production-owned dependencies and Secrets are
-deliberately external, not because manifest delivery failed.
+Local apply script ignore edilen `.env` üzerinden Kubernetes Secret'ları memory içinde materialize eder; repository yalnızca name ve example içerir, value içermez. Base/local render validator workload count, security context, availability control, network isolation ve credential policy'yi kontrol eder. Container image'lar local build edilmiştir. Milestone 12 daha sonra bu package'ı disposable Minikube cluster içinde çalıştırmıştır: yedi Argo CD control-plane pod'un tamamı Ready olmuş ve staging Application server-side sync'i tamamlamıştır. Application health `Progressing` kalmıştır; çünkü production-owned dependency ve Secret'lar bilinçli olarak external'dır, manifest delivery fail olduğu için değil.
 
-## 11. .NET-to-Java mapping
+## 11. .NET'ten Java'ya eşleme
 
-| Familiar .NET concept | Current project equivalent |
+| Tanıdık .NET kavramı | Mevcut proje karşılığı |
 | --- | --- |
 | ASP.NET Core Controller | Spring MVC REST controller |
-| ASP.NET Core DI | Spring IoC configuration and beans |
-| EF Core entity/configuration | JPA entity and repository adapter |
+| ASP.NET Core DI | Spring IoC configuration ve bean'ler |
+| EF Core entity/configuration | JPA entity ve repository adapter |
 | `DbContext` transaction | Spring `@Transactional` decorator |
-| FluentValidation/data annotations | Bean Validation + Zod in the browser |
+| FluentValidation/data annotations | Bean Validation + browser'da Zod |
 | ASP.NET authentication handler | Spring Security OAuth2 resource server |
-| Authorization policy | `@PreAuthorize` plus application authorization |
+| Authorization policy | `@PreAuthorize` + application authorization |
 | ProblemDetails | RFC 9457 Spring `ProblemDetail` response |
 | NuGet/MSBuild | Maven Wrapper |
-| React query/service hooks | TanStack Query feature hooks |
-| `appsettings.json` | `application.yml` and environment variables |
+| React query/service hook | TanStack Query feature hook |
+| `appsettings.json` | `application.yml` ve environment variable |
 | EF concurrency token | JPA `@Version` |
 | EF Core transactional outbox table | JPA outbox adapter + scheduled relay |
-| MassTransit consumer/error transport | Spring Kafka listener + DLT or Spring AMQP listener + DLQ |
+| MassTransit consumer/error transport | Spring Kafka listener + DLT veya Spring AMQP listener + DLQ |
 | EF Core persistence adapter | Notification JPA entity + repository adapter |
-| `IDistributedCache` adapter | Redis-backed cache output port with explicit fallback |
+| `IDistributedCache` adapter | Explicit fallback'lı Redis-backed cache output port |
 | Elasticsearch .NET client/read model | Elastic Java Client projection adapter |
 | Serilog ECS + `LogContext` | Spring Boot ECS logging + SLF4J MDC |
 | Application Insights/OpenTelemetry auto-instrumentation | Externally attached Elastic APM Java agent |
-| ASP.NET Core reverse proxy / YARP | APISIX declarative routes and edge plugins |
-| EF Core `RowVersion` carried into a read model | JPA aggregate revision mapped to projection `sourceRevision` |
+| ASP.NET Core reverse proxy / YARP | APISIX declarative route ve edge plugin |
+| EF Core `RowVersion` read model'e taşınması | Projection `sourceRevision`'a map edilen JPA aggregate revision |
 | Elasticsearch alias reindex/blue-green read model | Versioned candidate + atomic alias compare-and-swap |
-| MassTransit error queue recovery tool | Bounded Kafka DLT / RabbitMQ DLQ inspect-classify-copy scripts |
+| MassTransit error queue recovery tool | Bounded Kafka DLT / RabbitMQ DLQ inspect-classify-copy script'leri |
 
-## 12. Interview explanation
+## 12. Mülakat açıklaması
 
-### Two-minute version
+### İki dakikalık versiyon
 
-“I modeled a realistic healthcare insurance flow rather than generic CRUD. The
-system has Authorization, Policy, and Claims/Billing bounded contexts, each with
-its own PostgreSQL database and Clean Architecture boundaries. Keycloak handles
-authentication, while roles and provider ownership are enforced at both HTTP
-and application levels. Policy eligibility is synchronous because submission
-needs an immediate answer. Aggregate decisions and outbox events commit together;
-Kafka then starts Claims/Billing through an idempotent consumer with retry/DLT.
-Aggregates protect state and money rules, Liquibase versions each schema, and
-optimistic locking prevents concurrent double decisions. A React/TypeScript portal uses
-Feature-Sliced boundaries and TanStack Query for server state. Redis accelerates
-coverage reads without becoming authoritative; Kafka-backed outboxes build a
-provider-scoped Elasticsearch read model. ECS logs, correlation propagation and
-Elastic APM make synchronous and asynchronous paths diagnosable. Tests cover
-domain rules, security, architecture, persistence, concurrency, cache failure,
-and real search infrastructure.”
+“Generic CRUD yerine gerçekçi bir healthcare insurance flow modelledim. Sistemde Authorization, Policy ve Claims/Billing bounded context'leri var; her biri kendi PostgreSQL database'ine ve Clean Architecture boundary'lerine sahip. Keycloak authentication'ı yönetiyor; role ve provider ownership hem HTTP hem application level'da enforce ediliyor. Policy eligibility synchronous çünkü submission immediate answer gerektiriyor. Aggregate decision ve outbox event aynı transaction'da commit oluyor; Kafka daha sonra Claims/Billing'i retry/DLT destekli idempotent consumer üzerinden başlatıyor. Aggregate'ler state ve money rule'larını koruyor, Liquibase her schema'yı version'luyor ve optimistic locking concurrent double decision'ı engelliyor. React/TypeScript portal Feature-Sliced boundary ve server state için TanStack Query kullanıyor. Redis coverage read'lerini accelerate ediyor ama authoritative olmuyor; Kafka-backed outbox'lar provider-scoped Elasticsearch read model oluşturuyor. ECS log'ları, correlation propagation ve Elastic APM synchronous ve asynchronous path'leri diagnose edilebilir hale getiriyor. Test'ler domain rule, security, architecture, persistence, concurrency, cache failure ve gerçek search infrastructure'ını kapsıyor.”
 
-“Because Elasticsearch is disposable, I added a zero-downtime rebuild path
-from bounded source-owner snapshots instead of reading service databases or
-assuming Kafka retention is complete. A candidate index is count-validated and
-activated through an atomic alias compare-and-swap, with the predecessor kept
-for rollback. Monotonic owner revisions prevent stale events from regressing the
-new snapshot. Dead-letter recovery is similarly explicit and bounded: inspect
-safe metadata, classify, then copy-replay only transient failures while
-idempotency guards duplicates.”
+“Elasticsearch disposable olduğu için, service database'lerini okumak veya Kafka retention'ın complete olduğunu varsaymak yerine bounded source-owner snapshot'lardan zero-downtime rebuild path ekledim. Candidate index count-validate ediliyor ve atomic alias compare-and-swap ile activate ediliyor; predecessor rollback için tutuluyor. Monotonic owner revision stale event'in yeni snapshot'ı geriletmesini engelliyor. Dead-letter recovery de explicit ve bounded: safe metadata inspect ediliyor, classify ediliyor ve yalnızca transient failure copy-replay edilirken idempotency duplicate'i koruyor.”
 
-“The portal reaches one APISIX origin instead of four published service ports.
-The gateway validates Keycloak JWTs with JWKS and owns rate, CORS, body-size,
-timeout and correlation policies. I kept Spring Security and application
-authorization behind it because a gateway can authenticate traffic but should
-not own provider-scoped domain decisions. This is defence in depth rather than
-duplicated business logic.”
+“Portal dört published service port yerine tek APISIX origin'e gidiyor. Gateway Keycloak JWT'lerini JWKS ile validate ediyor ve rate, CORS, body-size, timeout ve correlation policy'lerinin sahibi. Spring Security ve application authorization'ı arkasında korudum; çünkü gateway traffic'i authenticate edebilir ama provider-scoped domain decision'ın sahibi olmamalı. Bu duplicated business logic değil, defense in depth.”
 
-### Questions to expect
+### Beklenebilecek sorular
 
-- Why are Claims and Billing one service but two aggregates?
-- Why is policy evaluation synchronous, and how does it fail?
-- Why is role checking insufficient without provider ownership?
-- Why separate JPA entities from domain entities?
-- What does optimistic locking protect, and what does it not protect?
-- Where is the transaction boundary if the application layer is framework-free?
-- Is this CQRS, and why is there no separate read database?
-- Why does the outbox provide at-least-once rather than exactly-once delivery?
-- Why is a processed-message table still needed when Kafka stores offsets?
-- What happens after broker acknowledgement but before `published_at` commits?
-- How would benefit consumption differ from the current read-only evaluation?
-- Why use Kafka and RabbitMQ for different responsibilities?
-- Why does retry wrap the transaction decorator rather than execute inside one transaction?
-- Which notification errors should bypass retry and go directly to the DLQ?
-- Why does Redis fail open while Policy Service failure remains fail closed?
-- Why is Elasticsearch a projection rather than the source of truth?
-- How does the search projection avoid a dual-write inconsistency?
-- What does a correlation ID prove, and what does it not prove?
-- Why attach the APM agent externally instead of adding a code dependency?
-- Why use APISIX standalone mode instead of etcd and the Admin API?
-- Which rules belong at the gateway and which belong in application use cases?
-- Why validate the same JWT at both APISIX and Spring Security?
-- Why is a local rate counter insufficient for multiple APISIX replicas?
-- Why is Kafka replay insufficient as the only Elasticsearch rebuild source?
-- Why use an alias and retained predecessor instead of rebuilding in place?
-- What race does `sourceRevision` close that deterministic document IDs do not?
-- Why must Elasticsearch be refreshed before the activation count check?
-- How does alias compare-and-swap prevent two operators from losing updates?
-- Why is dead-letter replay manual, classified, bounded, and copy-based?
-- Which parts of the local recovery design must change for production scale?
+- Claims ve Billing neden tek service ama iki aggregate?
+- Policy evaluation neden synchronous ve nasıl fail olur?
+- Provider ownership olmadan yalnızca role check neden yetersiz?
+- JPA entity ile domain entity neden ayrıldı?
+- Optimistic locking neyi korur, neyi korumaz?
+- Application layer framework-free ise transaction boundary nerede?
+- Bu CQRS mi, ayrı read database neden yok?
+- Outbox neden exactly-once yerine at-least-once delivery sağlar?
+- Kafka offset tutarken neden processed-message table yine gerekli?
+- Broker acknowledgement sonrasında ama `published_at` commit edilmeden önce ne olur?
+- Benefit consumption current read-only evaluation'dan nasıl farklı olurdu?
+- Kafka ve RabbitMQ neden farklı sorumluluklar için kullanılıyor?
+- Retry neden transaction decorator'ın dışında, tek transaction içinde değil?
+- Hangi notification error'ları retry'ı bypass edip doğrudan DLQ'ya gitmeli?
+- Redis neden fail-open, Policy Service failure neden fail-closed?
+- Elasticsearch neden source of truth değil projection?
+- Search projection dual-write inconsistency'yi nasıl engelliyor?
+- Correlation ID neyi kanıtlar, neyi kanıtlamaz?
+- APM agent neden code dependency yerine externally attach ediliyor?
+- APISIX standalone mode neden etcd ve Admin API yerine tercih edildi?
+- Hangi rule gateway'e, hangisi application use case'e ait?
+- Aynı JWT neden hem APISIX hem Spring Security'de validate ediliyor?
+- Local rate counter neden birden fazla APISIX replica için yetersiz?
+- Kafka replay neden tek Elasticsearch rebuild source'u olarak yetersiz?
+- Rebuild in-place yerine neden alias ve retained predecessor kullanılıyor?
+- Deterministic document ID'nin kapatamadığı hangi race'i `sourceRevision` kapatır?
+- Activation count check öncesi Elasticsearch neden refresh edilmeli?
+- Alias compare-and-swap iki operator'ın update kaybetmesini nasıl engeller?
+- Dead-letter replay neden manual, classified, bounded ve copy-based?
+- Local recovery design'ın hangi parçaları production scale'da değişmeli?
 
-## 13. Current known gaps
+## 13. Mevcut bilinen gap'ler
 
-- The portal has no policy, claim, invoice, or payment screens yet; those flows
-  are demonstrated through the API seed script.
-- Coverage evaluation does not reserve or consume policy limits across requests.
-- Service-to-service authentication relays the user token and has no workload
-  identity or token exchange.
-- Synchronous dependencies do not yet use circuit breakers or controlled retry.
-- Outbox retention is not automated. Bounded DLT/DLQ inspection and reviewed
-  copy-replay exist locally, but a durable authorized/audited control plane does not.
-- Authorization search currently projects decisions; pending items use the
-  strongly consistent Authorization work queue.
-- Search rebuild is executable; restart-resumable checkpoints, cancellation,
-  index lifecycle cleanup, workload identity, and multi-operator coordination
-  are not implemented.
-- ECS logs are emitted to stdout but a production log shipper, redaction policy,
-  dashboards, alerts, and retention policy are not yet configured.
-- Demo users must be created locally because credentials are never committed.
-- Data classification, audit minimization, service-owned write coverage, and
-  privileged bounded reads are implemented. Approved retention durations,
-  disposal jobs, backup erasure, encryption/key management, SIEM monitoring of
-  privileged access, and regulatory sign-off remain incomplete.
-- Local APISIX-to-Keycloak discovery is HTTP; production requires trusted TLS.
-- Rate-limit state is per gateway instance; a scaled topology requires shared
-  Redis counters or an explicitly accepted per-instance quota.
-- Kubernetes live-cluster rollout, trusted ingress TLS, an external secret
-  controller/workload identity, Metrics Server-backed HPA observation and
-  production stateful-service operators remain environment-specific work.
+- Portal'da henüz policy, claim, invoice veya payment screen yok; bu flow'lar API seed script ile gösteriliyor.
+- Coverage evaluation request'ler arasında policy limit reserve veya consume etmiyor.
+- Service-to-service authentication user token relay ediyor; workload identity veya token exchange yok.
+- Synchronous dependency'lerde henüz circuit breaker veya controlled retry yok.
+- Outbox retention otomatik değil. Local'da bounded DLT/DLQ inspection ve reviewed copy-replay var; fakat durable authorized/audited control plane yok.
+- Authorization search şu anda decision'ları project ediyor; pending item'lar strongly consistent Authorization work queue kullanıyor.
+- Search rebuild executable; restart-resumable checkpoint, cancellation, index lifecycle cleanup, workload identity ve multi-operator coordination uygulanmadı.
+- ECS log'ları stdout'a yazılıyor ancak production log shipper, redaction policy, dashboard, alert ve retention policy henüz configure edilmedi.
+- Demo user'lar local oluşturulmalı; credential asla commit edilmiyor.
+- Data classification, audit minimization, service-owned write coverage ve privileged bounded read'ler uygulanmış durumda. Approved retention duration, disposal job, backup erasure, encryption/key management, privileged access için SIEM monitoring ve regulatory sign-off eksik.
+- Local APISIX-to-Keycloak discovery HTTP kullanıyor; production trusted TLS gerektirir.
+- Rate-limit state gateway instance başına; scaled topology shared Redis counter veya açıkça kabul edilmiş per-instance quota gerektirir.
+- Kubernetes live-cluster rollout, trusted ingress TLS, external secret controller/workload identity, Metrics Server-backed HPA observation ve production stateful-service operator'ları environment-specific work olarak kalır.
 
-Notification persistence, transactionally recorded producer intent, the
-confirm-aware relay, durable queue/DLQ topology, classified bounded retry,
-manual acknowledgement, real-broker integration proof, and a Compose-backed
-end-to-end demo are complete. The local sender intentionally logs safe metadata;
-contact resolution and an external email/SMS provider require a later security
-and vendor-boundary decision.
-## Milestone 12 — CI/CD and software supply chain
+Notification persistence, transactionally recorded producer intent, confirm-aware relay, durable queue/DLQ topology, classified bounded retry, manual acknowledgement, real-broker integration proof ve Compose-backed end-to-end demo tamamlandı. Local sender bilinçli olarak yalnızca safe metadata loglar; contact resolution ve external email/SMS provider sonraki security ve vendor-boundary kararını gerektirir.
 
-The delivery workflow now separates verification, artifact publication, and
-GitOps deployment. Jenkins maps to an Azure DevOps/TFS build pipeline; Nexus to
-a private NuGet feed; Harbor to a private container registry; SonarQube to a
-blocking code-quality policy; and Argo CD to a pull-based deployment controller.
-The central trace key is the full Git SHA used by Harbor and Kustomize.
+## Milestone 12 — CI/CD ve software supply chain
 
-The important trade-off is scope honesty. The local environment proves the
-toolchain and control flow, but does not claim production HA, enterprise secret
-management, signed provenance, or a fully provisioned dependency platform.
+Delivery workflow artık verification, artifact publication ve GitOps deployment'ı ayırır. Jenkins Azure DevOps/TFS build pipeline'a; Nexus private NuGet feed'e; Harbor private container registry'ye; SonarQube blocking code-quality policy'ye; Argo CD ise pull-based deployment controller'a karşılık gelir. Merkezi trace key, Harbor ve Kustomize tarafından kullanılan full Git SHA'dır.
+
+Önemli trade-off scope honesty'dir. Local environment toolchain ve control flow'u kanıtlar; production HA, enterprise secret management, signed provenance veya fully provisioned dependency platform iddiasında bulunmaz.
