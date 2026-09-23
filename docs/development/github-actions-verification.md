@@ -1,58 +1,31 @@
-# GitHub and GitHub Actions verification
+# GitHub ve GitHub Actions doğrulaması
 
-## Purpose
+## Amaç
 
-GitHub Actions is the repository-hosted verification boundary. Jenkins remains
-the vacancy-aligned delivery orchestrator for SonarQube, Nexus, Harbor and Argo
-CD; GitHub Actions does not duplicate those publication responsibilities.
+GitHub Actions repository-hosted verification boundary'dir. Jenkins; SonarQube, Nexus, Harbor ve Argo CD için vacancy-aligned delivery orchestrator olarak kalır; GitHub Actions bu publication sorumluluklarını duplicate etmez.
 
-## Verified on 15 September 2026
+## 15 Eylül 2026 tarihinde doğrulandı
 
-- Hardened workflows were executed once against commit
-  `e9ccb414b4662e63694902b40fbad9e56f6d8573`; all three completed successfully:
+- Hardened workflow'lar commit `e9ccb414b4662e63694902b40fbad9e56f6d8573` üzerinde bir kez çalıştırıldı; üçü de başarıyla tamamlandı:
   [Backend CI run 34907516491](https://github.com/aydindemir1/health-insurance-platform/actions/runs/34907516491),
-  [Frontend CI run 34907516480](https://github.com/aydindemir1/health-insurance-platform/actions/runs/34907516480), and
+  [Frontend CI run 34907516480](https://github.com/aydindemir1/health-insurance-platform/actions/runs/34907516480) ve
   [Gateway CI run 34907516501](https://github.com/aydindemir1/health-insurance-platform/actions/runs/34907516501).
-- Local `main` and `origin/main` both resolved to
-  `fb84335ebf91ed856df0adbff33b0f24502ca8bc` before this CI hardening change.
-- Gateway CI run `34901588813` succeeded for the latest Compose/gateway change.
-- Frontend CI run `34896585451` succeeded for the latest portal change.
-- Backend CI run `34890911677` succeeded for all five services at commit
-  `fbadd47628b1eac821bcbcf5984caa5690a8e5ab`.
-- The later Backend CI run `34892915944` failed only in the
-  `claims-billing-service` matrix job while the other four services succeeded.
-  That commit changed Search Service and documentation, not Claims/Billing.
-  Public metadata identifies the failing `Verify application` step, but GitHub
-  requires an authenticated repository administrator to download its log. The
-  evidence therefore supports a transient/flaky-run hypothesis, not a proven
-  code root cause; the old run was deliberately not retried. The later full
-  backend matrix success on `e9ccb41` verifies the current source independently.
+- Bu CI hardening değişikliği öncesinde local `main` ve `origin/main` her ikisi de `fb84335ebf91ed856df0adbff33b0f24502ca8bc` revision'ına çözülüyordu.
+- Gateway CI run `34901588813` en güncel Compose/gateway değişikliği için başarılı oldu.
+- Frontend CI run `34896585451` en güncel portal değişikliği için başarılı oldu.
+- Backend CI run `34890911677`, commit `fbadd47628b1eac821bcbcf5984caa5690a8e5ab` üzerinde beş servisin tamamı için başarılı oldu.
+- Daha sonraki Backend CI run `34892915944`, diğer dört service başarılı olurken yalnızca `claims-billing-service` matrix job'ında fail oldu. O commit Search Service ve documentation'ı değiştiriyordu, Claims/Billing'i değil. Public metadata failing `Verify application` step'ini gösterir; fakat GitHub log'u indirmek için authenticated repository administrator gerektirir. Bu nedenle evidence transient/flaky-run hipotezini destekler, kanıtlanmış code root cause'u değil; eski run bilinçli olarak retry edilmedi. Daha sonraki full backend matrix success `e9ccb41` üzerinde current source'u bağımsız olarak doğrular.
 
-## Workflow controls
+## Workflow kontrolleri
 
-All three workflows now use read-only repository permissions, path filters,
-bounded job timeouts and per-ref concurrency cancellation. Each run records the
-full 40-character `GITHUB_SHA` in its run summary. This creates a source identity
-that the Jenkins publication flow later carries into Maven artifacts, OCI image
-labels/tags and the Kustomize deployment revision.
+Üç workflow da read-only repository permission, path filter, bounded job timeout ve ref başına concurrency cancellation kullanır. Her run, full 40-character `GITHUB_SHA` değerini run summary'ye yazar. Bu, Jenkins publication flow'un daha sonra Maven artifact, OCI image label/tag ve Kustomize deployment revision içine taşıdığı source identity'yi oluşturur.
 
-The backend matrix independently verifies all five Maven services on Java 21.
-The frontend workflow uses `npm ci`, lint, unit tests and `build:budget`, so a
-bundle regression fails CI rather than remaining a local convention. Gateway CI
-validates the Compose model and exercises a real APISIX process; its third-party
-image is pinned by the digest already verified by the Kubernetes runtime.
+Backend matrix beş Maven service'in tamamını Java 21 üzerinde bağımsız doğrular. Frontend workflow `npm ci`, lint, unit test ve `build:budget` kullanır; böylece bundle regression local convention olarak kalmak yerine CI'ı fail eder. Gateway CI Compose model'i validate eder ve gerçek APISIX process'i çalıştırır; third-party image Kubernetes runtime tarafından daha önce doğrulanmış digest ile pinlenmiştir.
 
-## Failure interpretation
+## Failure yorumlama
 
-A green historical run proves only its exact commit. A red matrix run must be
-classified from its failing job and log before code is changed. Publication
-stages must not be rerun merely because a downstream registry or deployment
-boundary failed; the immutable Git SHA allows that boundary to resume safely.
+Green historical run yalnızca kendi exact commit'ini kanıtlar. Red matrix run'da code değiştirilmeden önce failing job ve log üzerinden classification yapılmalıdır. Downstream registry veya deployment boundary fail oldu diye publication stage'leri yeniden çalıştırılmamalıdır; immutable Git SHA ilgili boundary'nin güvenle resume etmesini sağlar.
 
-## Production hardening not claimed
+## İddia edilmeyen production hardening
 
-GitHub branch protection, required status checks and environment approvals are
-repository/organization settings and are not asserted by committed YAML alone.
-Pinning reusable GitHub Actions by immutable commit SHA is a valuable additional
-supply-chain control, but is left as an explicit follow-up until those upstream
-revisions are reviewed and governed.
+GitHub branch protection, required status check ve environment approval repository/organization ayarlarıdır; yalnızca committed YAML üzerinden iddia edilmez. Reusable GitHub Actions'ı immutable commit SHA ile pinlemek değerli ek supply-chain control'dür; ancak upstream revision'lar review edilip govern edilene kadar explicit follow-up olarak bırakılmıştır.
