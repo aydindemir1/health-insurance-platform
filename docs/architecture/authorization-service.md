@@ -1,6 +1,6 @@
-# Authorization Service components
+# Authorization Service bileşenleri
 
-The Authorization Service uses Clean Architecture inside its bounded context.
+Authorization Service kendi bounded context'i içinde Clean Architecture kullanır.
 
 ```mermaid
 flowchart LR
@@ -29,37 +29,39 @@ flowchart LR
     Keycloak[Keycloak] --> Presentation
 ```
 
-## Package responsibilities
+## Package sorumlulukları
 
-- `domain.model`: aggregate state and business invariants.
-- `domain.exception`: domain-specific rule violations.
-- `application.port.in`: operations exposed by the application core.
-- `application.port.out`: capabilities required from infrastructure.
-- `application.usecase`: orchestration, ownership, and authorization policies.
-- `application.command` and `application.query`: explicit use-case inputs.
-- `application.dto`: framework-independent use-case results.
-- `infrastructure.persistence`: JPA entities, Spring Data, and repository adapter.
-- `infrastructure.messaging`: Kafka and notification outbox persistence,
-  at-least-once relays, safe wire mapping, and RabbitMQ topology.
+- `domain.model`: aggregate state ve business invariant'lar.
+- `domain.exception`: domain'e özgü rule violation'lar.
+- `application.port.in`: application core tarafından dışarı açılan operation'lar.
+- `application.port.out`: infrastructure'dan beklenen capability'ler.
+- `application.usecase`: orchestration, ownership ve authorization policy'leri.
+- `application.command` ve `application.query`: açık use-case input'ları.
+- `application.dto`: framework bağımsız use-case result'ları.
+- `infrastructure.persistence`: JPA entity'leri, Spring Data ve repository adapter.
+- `infrastructure.messaging`: Kafka ve notification outbox persistence,
+  at-least-once relay'ler, safe wire mapping ve RabbitMQ topology.
 - `infrastructure.security`: OAuth2 resource-server configuration.
-- `infrastructure.configuration`: dependency wiring and transaction boundaries.
-- `presentation.rest`: HTTP requests, responses, validation, and Problem Details.
+- `infrastructure.configuration`: dependency wiring ve transaction boundary'leri.
+- `presentation.rest`: HTTP request/response, validation ve Problem Details.
 
-The application service remains framework-free. An infrastructure decorator
-wraps its input ports in Spring-managed transactions: commands use read/write
-transactions and queries use read-only transactions.
+Application service framework bağımsız kalır. Infrastructure decorator input port'ları
+Spring-managed transaction'larla sarar: command'lar read/write transaction, query'ler
+read-only transaction kullanır.
 
-`CleanArchitectureTest` uses allowlists for the inner layers: Domain may depend
-only on Java and Domain, while Application may depend only on Java, Domain, and
-Application. Presentation cannot bypass Application to reach Domain or
-Infrastructure, and Infrastructure cannot depend on Presentation. This fails
-fast when a future framework dependency accidentally enters an inner layer.
+`CleanArchitectureTest` inner layer'lar için allowlist kullanır: Domain yalnızca
+Java ve Domain'e, Application ise yalnızca Java, Domain ve Application'a bağımlı
+olabilir. Presentation, Domain veya Infrastructure'a erişmek için Application'ı
+bypass edemez; Infrastructure da Presentation'a bağımlı olamaz. Bu yaklaşım,
+gelecekte bir framework dependency yanlışlıkla inner layer'a girdiğinde hızlıca
+failure üretir.
 
-## Paginated work queue
+## Sayfalı iş kuyruğu
 
-The list operation uses application-owned `SearchPreAuthorizationsQuery`,
-`PreAuthorizationSearchCriteria`, and `PageResult` types. Spring Data `Page`,
-`Pageable`, and `Specification` remain inside the persistence adapter.
+List operation application-owned `SearchPreAuthorizationsQuery`,
+`PreAuthorizationSearchCriteria` ve `PageResult` type'larını kullanır.
+Spring Data `Page`, `Pageable` ve `Specification` yalnızca persistence adapter
+içinde kalır.
 
 ```mermaid
 sequenceDiagram
@@ -79,80 +81,79 @@ sequenceDiagram
     REST-->>Portal: Page response
 ```
 
-Hospital users always receive a provider-scoped query. Insurance specialists
-and system administrators can search across providers. Sort fields are
-explicitly allow-listed, and `id` is added as a deterministic tie-breaker so
-records do not move unpredictably between pages when primary sort values match.
+Hospital user'lar her zaman provider-scoped query alır. Insurance specialist ve
+system administrator provider'lar arasında search yapabilir. Sort field'ları açıkça
+allowlist edilir ve primary sort value eşit olduğunda record'ların page'ler arasında
+öngörülemez şekilde hareket etmesini önlemek için `id` deterministic tie-breaker
+olarak eklenir.
 
-Query inputs are bounded before persistence: pages cannot be negative, page
-size is `1..100`, status/sort/direction values use allowlists, and policy number
-filters are capped at the persisted 50-character limit. PostgreSQL provides a
-composite `(provider_id, status, created_at)` index for the default hospital
-work queue, a functional `lower(policy_number)` index for case-insensitive exact
-matching, and member/status access indexes. The integration test proves filter,
-scope, sort, and pagination semantics against PostgreSQL. These are query-design
-controls, not a claim of measured throughput; no load benchmark is attached to
-this service.
+Query input'ları persistence öncesinde sınırlandırılır: page negatif olamaz, page size
+`1..100`, status/sort/direction allowlist kullanır ve policy number filter'ı persist
+edilen 50-character limit ile sınırlandırılır. PostgreSQL default hospital work queue
+için composite `(provider_id, status, created_at)` index, case-insensitive exact match
+için functional `lower(policy_number)` index ve member/status access index'leri sağlar.
+Integration test PostgreSQL üzerinde filter, scope, sort ve pagination semantics'i
+doğrular. Bunlar query-design control'leridir; measured throughput iddiası değildir ve
+servise load benchmark eklenmemiştir.
 
-## Concurrent decisions
+## Concurrent kararlar
 
-The JPA entity has a version column. If two specialists load the same pending
-request, the first decision increments that version and the second update no
-longer matches the database row. The persistence adapter flushes inside the
-transaction boundary and translates Spring's optimistic-lock exception into an
-application conflict. The REST boundary returns an RFC 9457 `409 Conflict`
-response with the `concurrent-update` problem type.
+JPA entity version column'a sahiptir. İki specialist aynı pending request'i yüklerse
+ilk decision bu version'ı artırır ve ikinci update artık database row ile eşleşmez.
+Persistence adapter transaction boundary içinde flush eder ve Spring optimistic-lock
+exception'ını application conflict'e translate eder. REST boundary RFC 9457
+`409 Conflict` response ve `concurrent-update` problem type döndürür.
 
-## Persistence integrity
+## Persistence bütünlüğü
 
-The aggregate validates positive monetary requests and consistent lifecycle
-data when it is created or rehydrated. Liquibase changeset `008` repeats the
-critical invariants at the PostgreSQL boundary: allowed statuses, positive
-amount, non-negative optimistic-lock version, uppercase three-letter currency,
-and the relationship between status, decision reason, and decision timestamp.
-Domain validation remains the first line of defense; database constraints also
-protect direct SQL, maintenance scripts, and future persistence adapters.
+Aggregate oluşturulurken veya rehydrate edilirken positive monetary request ve
+consistent lifecycle data doğrular. Liquibase changeset `008` kritik invariant'ları
+PostgreSQL boundary'de tekrarlar: allowed status'lar, positive amount,
+non-negative optimistic-lock version, uppercase three-letter currency ve status,
+decision reason ile decision timestamp arasındaki ilişki. Domain validation first line
+of defense olmaya devam eder; database constraint'leri direct SQL, maintenance script
+ve future persistence adapter'ları da korur.
 
-JPA uses a zero-based `@Version`. Integration/search contracts deliberately
-publish `sourceRevision = version + 1`, giving an issued request business
-revision `1` and its first decision revision `2`. Rebuild exports use the same
-mapping, so live events and reconstructed search records remain comparable.
+JPA zero-based `@Version` kullanır. Integration/search contract'ları bilinçli olarak
+`sourceRevision = version + 1` yayınlar; böylece issued request business revision
+`1`, ilk decision revision `2` olur. Rebuild export'ları aynı mapping'i kullanır;
+live event'ler ve reconstructed search record'ları karşılaştırılabilir kalır.
 
-## REST security and error contract
+## REST security ve error contract
 
-Keycloak realm roles are mapped to Spring `ROLE_*` authorities, while the
-signed `provider_id` claim becomes the application actor's provider scope.
-Hospital-owned reads and submissions therefore never trust a provider supplied
-in JSON or query parameters. Endpoint annotations reject invalid roles before
-the use case, and the framework-free application layer repeats capability and
-ownership checks for defense in depth.
+Keycloak realm role'leri Spring `ROLE_*` authority'lerine map edilir; signed
+`provider_id` claim application actor'ın provider scope'u olur. Hospital-owned read
+ve submission bu nedenle JSON veya query parameter içinden gelen provider'a güvenmez.
+Endpoint annotation'ları invalid role'leri use case öncesinde reddeder; framework
+bağımsız application layer defense in depth için capability ve ownership check'lerini
+tekrarlar.
 
-Both Spring Security filter failures and controller/application failures use
-RFC 9457 `application/problem+json`. Missing authentication returns `401` with
-the `authentication-required` problem type; an authenticated caller lacking a
-required role returns `403` with `operation-not-permitted`. This keeps browser,
-gateway, and direct API clients on one predictable error contract.
+Hem Spring Security filter failure'ları hem controller/application failure'ları RFC
+9457 `application/problem+json` kullanır. Missing authentication `401` ve
+`authentication-required` problem type döndürür; required role'a sahip olmayan
+authenticated caller `403` ve `operation-not-permitted` alır. Böylece browser,
+gateway ve direct API client'ları aynı predictable error contract'ı kullanır.
 
 ## Decision event flow
 
-Approval/rejection, its Kafka event, and its minimal notification task are part
-of the same transaction. Separate output ports and tables prevent the Kafka
-relay from accidentally publishing a RabbitMQ command. Broker relays remain
-outside the domain; the application depends only on outbox ports.
-See the [event-driven messaging view](event-driven-messaging.md).
+Approval/rejection, Kafka event'i ve minimal notification task aynı transaction'ın
+parçasıdır. Ayrı output port ve table'lar Kafka relay'in yanlışlıkla RabbitMQ command
+publish etmesini engeller. Broker relay'leri domain dışında kalır; application yalnızca
+outbox port'larına bağımlıdır.
+Bkz. [event-driven messaging görünümü](event-driven-messaging.md).
 
-The PostgreSQL transaction integration test disables Kafka auto-configuration
-because it verifies durable outbox intent rather than broker delivery. Kafka and
-RabbitMQ relay behavior is covered separately. This keeps the test boundary
-explicit and prevents unrelated broker retries from slowing the suite.
+PostgreSQL transaction integration testi Kafka auto-configuration'ı kapatır; çünkü
+broker delivery değil durable outbox intent doğrular. Kafka ve RabbitMQ relay behavior
+ayrı testlerle kapsanır. Bu test boundary'sini açık tutar ve ilgisiz broker retry'ların
+suite'i yavaşlatmasını engeller.
 
 ## Transactional audit evidence
 
-Submission, approval, and rejection append a minimized `AuditRecord` through an
-application output port. The application contract is framework-free; an MDC
-context adapter supplies the validated correlation ID and a JDBC adapter writes
-the local journal. The transaction decorator encloses the aggregate save, audit
-append, Kafka outbox append, and notification-task append.
+Submission, approval ve rejection application output port üzerinden minimized
+`AuditRecord` append eder. Application contract framework bağımsızdır; MDC context
+adapter validated correlation ID sağlar ve JDBC adapter local journal'a yazar.
+Transaction decorator aggregate save, audit append, Kafka outbox append ve
+notification-task append işlemlerini aynı boundary içinde tutar.
 
 ```mermaid
 sequenceDiagram
@@ -181,22 +182,22 @@ sequenceDiagram
     end
 ```
 
-The journal deliberately omits member/policy identifiers, diagnosis/service
-codes, money, free-text reasons, tokens, and request bodies. PostgreSQL rejects
-row update/delete and table truncation. This is strong application-level
-append-only protection, but not cryptographic immutability against a privileged
-database administrator; that residual control belongs to later backup/WORM and
-operational governance work.
+Journal bilinçli olarak member/policy identifier, diagnosis/service code, money,
+free-text reason, token ve request body içermez. PostgreSQL row update/delete ve
+table truncation'ı reddeder. Bu güçlü application-level append-only protection'dır;
+privileged database administrator'a karşı cryptographic immutability iddiası değildir.
+Bu residual control daha sonraki backup/WORM ve operational governance çalışmasına aittir.
 
 ## Privileged audit query
 
-`GET /api/v1/audit-records` maps HTTP parameters into the framework-independent
-`SearchAuditRecordsQuery` input port. The controller rejects callers without
-`SYSTEM_ADMIN`, and the application use case repeats that check so alternate
-adapters cannot bypass it. The query adapter accepts only an optional aggregate
-UUID and an allowlisted Authorization action, caps page size at 100, and sorts by
-`occurred_at DESC, audit_id DESC`. It maps rows directly to minimized application
-DTOs; business aggregates and sensitive source columns are never joined.
+`GET /api/v1/audit-records`, HTTP parameter'larını framework bağımsız
+`SearchAuditRecordsQuery` input port'una map eder. Controller `SYSTEM_ADMIN`
+olmayan caller'ları reddeder ve application use case bu check'i tekrarlar; böylece
+alternative adapter bypass edemez. Query adapter yalnızca optional aggregate UUID ve
+allowlisted Authorization action kabul eder, page size'ı 100 ile sınırlar ve
+`occurred_at DESC, audit_id DESC` sıralaması yapar. Row'ları doğrudan minimized
+application DTO'larına map eder; business aggregate veya sensitive source column
+join edilmez.
 
 ```mermaid
 sequenceDiagram
@@ -218,12 +219,12 @@ sequenceDiagram
     JDBC-->>Admin: page through App, API, Gateway
 ```
 
-The notification relay uses a pessimistic write lock to keep concurrent service
-instances from selecting the same pending batch. It sends a persistent message
-to a durable direct-exchange route, waits for the correlated broker confirm,
-and also checks mandatory publisher returns. A `nack`, timeout, serialization
-failure, or unroutable return increments the attempt count and leaves the task
-unpublished for the next scheduled poll.
+Notification relay, concurrent service instance'larının aynı pending batch'i seçmesini
+engellemek için pessimistic write lock kullanır. Persistent message'ı durable
+direct-exchange route'a gönderir, correlated broker confirm bekler ve mandatory
+publisher return'leri de kontrol eder. `nack`, timeout, serialization failure veya
+unroutable return attempt count'u artırır ve task'ı sonraki scheduled poll için
+unpublished bırakır.
 
 ## Submit flow
 
@@ -249,9 +250,9 @@ sequenceDiagram
     REST-->>Client: 201 Created
 ```
 
-The Policy REST adapter relays the initiating bearer token and correlation ID,
-uses bounded two-second connect and three-second read timeouts, and fails closed.
-HTTP/network failures, unreadable JSON, an empty body, or a response without a
-stable decision code and reason are treated as Policy dependency failures; no
-`PENDING` pre-authorization is persisted. A valid business denial remains a
-domain outcome and is translated by Authorization to `422` Problem Details.
+Policy REST adapter initiating bearer token ve correlation ID'yi relay eder, bounded
+iki saniyelik connect ve üç saniyelik read timeout kullanır ve fail-closed davranır.
+HTTP/network failure, okunamayan JSON, empty body veya stable decision code/reason
+olmayan response Policy dependency failure sayılır; hiçbir `PENDING` pre-authorization
+persist edilmez. Valid business denial domain outcome olarak kalır ve Authorization
+tarafından `422` Problem Details'e çevrilir.
