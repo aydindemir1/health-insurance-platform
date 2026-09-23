@@ -1,4 +1,4 @@
-# Local Deployment Diagram
+# Lokal Deployment Diyagramı
 
 ```mermaid
 flowchart TB
@@ -59,27 +59,26 @@ flowchart TB
     Worker --> WorkerDb
 ```
 
-APISIX is the only host-published business API port. The four Spring API ports
-are visible only on the Compose network; Keycloak remains browser-accessible for
-Authorization Code + PKCE. APISIX runs without etcd or an Admin API and loads
-Git-versioned routes from a read-only volume.
+APISIX host üzerinde publish edilen tek business API portudur. Dört Spring API
+portu yalnızca Compose network içinde görünür; Keycloak Authorization Code + PKCE
+için browser tarafından erişilebilir kalır. APISIX etcd veya Admin API olmadan
+çalışır ve Git-versioned route'ları read-only volume'dan yükler.
 
-Docker images use a Java 21 JDK build stage and a smaller Java 21 JRE runtime
-stage. Services run as the unprivileged `spring` user. Credentials are supplied
-through an ignored `.env`; `.env.example` contains placeholders only.
+Docker image'ları Java 21 JDK build stage ve daha küçük Java 21 JRE runtime stage
+kullanır. Servisler unprivileged `spring` user olarak çalışır. Credential'lar
+ignore edilen `.env` üzerinden sağlanır; `.env.example` yalnızca placeholder içerir.
 
-Compose health-gates the four PostgreSQL databases, Kafka, RabbitMQ, Redis, and
-Elasticsearch before
-starting their dependants. RabbitMQ Management at `http://localhost:15672`
-provides local queue/DLQ inspection. The worker deliberately exposes no HTTP
-business API; its observable outputs are broker acknowledgement/dead-lettering,
-safe structured task metadata in logs, and its private delivery table. Elastic
-ports bind to localhost for development only. Production deployments must enable
-TLS, authentication, authorization, retention, and secret management.
+Compose, dependent servisleri başlatmadan önce dört PostgreSQL database'i, Kafka,
+RabbitMQ, Redis ve Elasticsearch için health gate uygular. `http://localhost:15672`
+adresindeki RabbitMQ Management local queue/DLQ inspection sağlar. Worker bilinçli
+olarak HTTP business API açmaz; observable output'ları broker acknowledgement/dead-lettering,
+log'lardaki güvenli structured task metadata ve private delivery table'dır. Elastic
+portları yalnızca development için localhost'a bind edilir. Production deployment
+TLS, authentication, authorization, retention ve secret management etkinleştirmelidir.
 
-The runtime `apache/kafka-native` image does not carry administrative binaries.
-The `kafka-cli` service belongs to a `tools` profile and starts only through
-`docker compose run`; it is not another broker or long-running production
-container. Recovery scripts use it for bounded group-lag and DLT inspection.
-Elasticsearch reads/writes target the `healthcare-operations` alias; versioned
-physical indices and retained predecessors are local derived data.
+Runtime `apache/kafka-native` image administrative binary içermez. `kafka-cli`
+servisi `tools` profile'a aittir ve yalnızca `docker compose run` ile başlatılır;
+başka bir broker veya long-running production container değildir. Recovery script'leri
+bunu bounded group-lag ve DLT inspection için kullanır. Elasticsearch read/write
+işlemleri `healthcare-operations` alias'ını hedefler; versioned physical index'ler
+ve retained predecessor'lar local derived data'dır.
