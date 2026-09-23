@@ -1,104 +1,104 @@
-# ADR-012: Versioned search rebuild and controlled message recovery
+# ADR-012: Sürümlenmiş search rebuild ve kontrollü message recovery
 
-- Status: Accepted
-- Date: 2026-09-09
+- Durum: Kabul edildi
+- Tarih: 2026-09-09
 
-## Context
+## Bağlam
 
-Elasticsearch is a derived operations read model. Its current physical index,
-`healthcare-operations-v1`, is written and queried directly. If that index is
-deleted, corrupted, or requires an incompatible mapping change, there is no
-executable way to reconstruct all current records from the PostgreSQL systems of
-record. Replaying Kafka alone is insufficient because topic retention is finite
-and Authorization currently emits decisions rather than a complete snapshot of
-every pre-authorization state.
+Elasticsearch türetilmiş operations read model'dir. Mevcut physical index
+`healthcare-operations-v1` doğrudan yazılır ve query edilir. Bu index silinirse,
+corrupt olursa veya incompatible mapping change gerekirse PostgreSQL system of
+record'lardan tüm current record'ları yeniden oluşturacak executable yöntem
+yoktur. Yalnızca Kafka replay yeterli değildir; topic retention sonludur ve
+Authorization şu anda her pre-authorization state'in complete snapshot'ı yerine
+decision event'leri üretir.
 
-Kafka DLT and RabbitMQ DLQ routing prevent poison messages from blocking healthy
-traffic, but a dead-letter destination is not a recovery process. Blind replay
-can repeat a permanent contract error, create a retry storm, or bypass an
-operator's authorization and evidence requirements. Outbox rows and consumer lag
-also need bounded operational visibility before recovery begins.
+Kafka DLT ve RabbitMQ DLQ routing poison message'ların healthy traffic'i
+bloklamasını engeller ancak dead-letter destination recovery process değildir.
+Blind replay permanent contract error'ı tekrarlayabilir, retry storm oluşturabilir
+veya operator authorization/evidence requirement'larını bypass edebilir.
+Recovery başlamadan önce outbox row ve consumer lag için de bounded operational
+visibility gerekir.
 
-The recovery design must preserve database-per-service ownership, least
-privilege, idempotency, sensitive-data minimization, and availability of the
-current search view while a replacement is prepared.
+Recovery design database-per-service ownership, least privilege, idempotency,
+sensitive-data minimization ve replacement hazırlanırken current search view'ın
+availability'sini korumalıdır.
 
-## Decision
+## Karar
 
-### Source-owned projection exports
+### Source-owned projection export'ları
 
-Authorization and Claims/Billing will expose paginated projection-export use
-cases backed only by their own PostgreSQL databases. They return the existing
-search contract, not JPA entities or arbitrary table data. Both presentation and
-application layers require `SYSTEM_ADMIN`, page sizes are capped, ordering is
-stable, and the APIs remain behind APISIX. Search and operational tooling never
-connect to another service's database.
+Authorization ve Claims/Billing yalnızca kendi PostgreSQL database'leriyle
+backed paginated projection-export use case'leri sunar. JPA entity veya arbitrary
+table data değil mevcut search contract'ını döndürür. Presentation ve application
+layer'ların ikisi de `SYSTEM_ADMIN` gerektirir; page size sınırlandırılır,
+ordering stable'dır ve API'ler APISIX arkasında kalır. Search ve operational
+tooling hiçbir zaman başka servisin database'ine bağlanmaz.
 
-The initial local recovery orchestrator is an operator-run PowerShell script. It
-uses a short-lived `SYSTEM_ADMIN` token supplied at runtime, calls the owner APIs,
-and submits bounded batches to Search Service. It never stores tokens or payloads
-on disk. A future production deployment can replace user-token relay with a
-workload identity without changing the application projection contracts.
+İlk local recovery orchestrator operator-run PowerShell script'tir. Runtime'da
+sağlanan short-lived `SYSTEM_ADMIN` token kullanır, owner API'leri çağırır ve
+Search Service'e bounded batch'ler gönderir. Token veya payload'ları diskte
+saklamaz. Gelecekteki production deployment application projection contract'larını
+değiştirmeden user-token relay yerine workload identity kullanabilir.
 
-### Versioned physical indices and stable alias
+### Sürümlenmiş physical index'ler ve stable alias
 
-Search reads and normal projection writes use a stable
-`healthcare-operations` alias. A rebuild creates a physical index named from a
-validated schema version and opaque run identifier, for example
-`healthcare-operations-v2-20260909t220000z`. The candidate receives explicit
-mappings and is never queried by normal users before activation.
+Search read ve normal projection write'ları stable `healthcare-operations`
+alias kullanır. Rebuild validated schema version ve opaque run identifier'dan
+adlandırılmış physical index oluşturur; örneğin
+`healthcare-operations-v2-20260909t220000z`. Candidate explicit mapping alır ve
+activation öncesinde normal user'lar tarafından query edilmez.
 
-Activation is allowed only after the orchestrator proves:
+Activation yalnızca orchestrator şunları doğruladıktan sonra mümkündür:
 
-- all owner pages completed without error;
-- indexed document count equals the number of distinct deterministic document
-  IDs exported by the owners;
-- every document passed the current mapping and domain validation;
-- the alias still points to the expected predecessor, preventing concurrent
-  rebuilds from silently replacing each other.
+- tüm owner page'leri hatasız tamamlandı;
+- indexed document count owner'lar tarafından export edilen distinct deterministic
+  document ID sayısına eşit;
+- her document current mapping ve domain validation'dan geçti;
+- alias hâlâ expected predecessor'ı gösteriyor; böylece concurrent rebuild'ler
+  birbirini sessizce replace edemez.
 
-Elasticsearch's atomic alias update removes the alias from the predecessor and
-adds it to the candidate in one cluster-state operation. The predecessor remains
-available for an explicit bounded rollback. Index deletion is never part of
-activation and requires a separate retention decision.
+Elasticsearch atomic alias update predecessor'dan alias'ı kaldırır ve candidate'a
+tek cluster-state operation içinde ekler. Predecessor explicit bounded rollback
+için korunur. Index deletion activation parçası değildir ve ayrı retention
+kararı gerektirir.
 
-### Concurrent events and stale-write protection
+### Concurrent event'ler ve stale-write protection
 
-Deterministic IDs prevent duplicates but do not prevent an older event from
-overwriting a newer snapshot. Before online rebuild activation, every projection
-will carry an owner-defined monotonic `sourceRevision`. Normal event handling and
-rebuild ingestion use conditional upsert semantics: a document is replaced only
-when the incoming revision is greater than the stored revision. An equal
-revision is an idempotent no-op, so a divergent duplicate cannot win by arrival
-order.
+Deterministic ID duplicate'i engeller ancak older event'in newer snapshot'ı
+overwrite etmesini engellemez. Online rebuild activation öncesinde her projection
+owner-defined monotonic `sourceRevision` taşır. Normal event handling ve rebuild
+ingestion conditional upsert semantics kullanır: document yalnızca incoming
+revision stored revision'dan büyükse replace edilir. Equal revision idempotent
+no-op'tur; böylece divergent duplicate arrival order ile kazanamaz.
 
-Authorization derives the revision from its aggregate version. Claims/Billing
-defines one monotonic projection revision for the combined Claim/Invoice view;
-it must not confuse the event contract version with business-state revision.
-This allows events queued during a rebuild to catch up after alias activation
-without regressing a newer PostgreSQL snapshot.
+Authorization revision'ı aggregate version'dan türetir. Claims/Billing combined
+Claim/Invoice view için tek monotonic projection revision tanımlar; event contract
+version ile business-state revision'ı karıştırmamalıdır. Böylece rebuild sırasında
+queue'lanan event'ler alias activation sonrasında yeni PostgreSQL snapshot'ı
+geriletmeden catch up olabilir.
 
-### Controlled DLT and DLQ recovery
+### Kontrollü DLT ve DLQ recovery
 
-Recovery is an explicit `inspect -> classify -> replay or quarantine` workflow:
+Recovery açık bir `inspect -> classify -> replay or quarantine` workflow'udur:
 
-1. Inspection exposes only safe broker metadata and a payload digest by default.
-2. Permanent contract/schema failures remain quarantined until compatible code
-   is deployed or a reviewed transformation exists.
-3. Transient failures may be replayed only after dependency recovery is proven.
-4. Replay preserves the original message/task ID for downstream idempotency,
-   adds a new recovery/correlation ID, records source destination and attempt,
-   and enforces a maximum replay count.
-5. `Inspect` and `Quarantine` are non-publishing views; quarantine means the
-   original remains retained in its dead-letter destination.
-6. Local replay requires explicit `Transient` classification, a confirmation
-   flag, an allowlisted destination, and an attempt between one and three.
-   Automatic infinite replay and destructive discard are prohibited.
+1. Inspection varsayılan olarak yalnızca safe broker metadata ve payload digest açar.
+2. Permanent contract/schema failure'lar compatible code deploy edilene veya
+   review edilmiş transformation oluşana kadar quarantine'de kalır.
+3. Transient failure yalnızca dependency recovery kanıtlandıktan sonra replay edilebilir.
+4. Replay downstream idempotency için original message/task ID'yi korur, yeni
+   recovery/correlation ID ekler, source destination ve attempt'i kaydeder ve
+   maximum replay count uygular.
+5. `Inspect` ve `Quarantine` non-publishing view'lardır; quarantine original
+   mesajın dead-letter destination'da retained kalması anlamına gelir.
+6. Local replay explicit `Transient` classification, confirmation flag,
+   allowlisted destination ve bir ile üç arasında attempt gerektirir.
+   Automatic infinite replay ve destructive discard yasaktır.
 
-Kafka consumer lag, RabbitMQ queue depth, and outbox backlog are diagnostic
-signals, not business truth. The operational view will report counts, oldest age,
-maximum attempt count, and safe error categories without exposing payloads,
-tokens, member identifiers, policy numbers, diagnosis data, or contact details.
+Kafka consumer lag, RabbitMQ queue depth ve outbox backlog diagnostic signal'dır,
+business truth değildir. Operational view count, oldest age, maximum attempt
+count ve safe error category raporlar; payload, token, member identifier, policy
+number, diagnosis data veya contact detail göstermez.
 
 ## Recovery sequence
 
@@ -125,53 +125,49 @@ sequenceDiagram
     Search-->>Tool: Activation evidence
 ```
 
-## Failure and rollback behavior
+## Failure ve rollback davranışı
 
-- Owner/API/Elasticsearch failure leaves the current alias untouched.
-- A partially populated candidate is never automatically activated.
-- Repeating the same export is idempotent because document IDs and revisions are
-  deterministic.
-- An alias compare-and-swap mismatch rejects activation and forces the operator
-  to inspect a concurrent rebuild.
-- Rollback is an explicit alias swap to the retained predecessor. Events received
-  after rollback still obey source-revision ordering.
-- Candidate cleanup is separate from rollback and follows derived-data retention
-  policy; recovery never deletes PostgreSQL source records.
+- Owner/API/Elasticsearch failure current alias'ı değiştirmez.
+- Kısmen doldurulmuş candidate hiçbir zaman otomatik activate edilmez.
+- Aynı export'u tekrarlamak document ID ve revision deterministik olduğu için idempotent'tır.
+- Alias compare-and-swap mismatch activation'ı reddeder ve operator'ı concurrent
+  rebuild'i inspect etmeye zorlar.
+- Rollback retained predecessor'a explicit alias swap'tır. Rollback sonrası
+  alınan event'ler yine source-revision ordering'e uyar.
+- Candidate cleanup rollback'ten ayrıdır ve derived-data retention policy'yi
+  izler; recovery PostgreSQL source record'larını asla silmez.
 
-## Consequences
+## Sonuçlar
 
-- Elasticsearch can be rebuilt from authoritative owners without shared database
-  access or dependence on complete Kafka history.
-- Search remains available from the old alias during candidate construction.
-- Source services gain narrow administrative export surfaces and must test both
-  role enforcement and data minimization.
-- Monotonic projection revisions add contract and persistence work but close the
-  stale-event race that deterministic IDs alone cannot solve.
-- The local orchestrator is intentionally not a durable workflow engine. Very
-  large or multi-hour production rebuilds would require workload identity,
-  checkpoint persistence, cancellation, and resumable job coordination.
-- Search keeps rebuild/rollback run state in memory. A service restart leaves
-  indices intact but requires manual alias inspection rather than resuming the
-  old run through the API.
-- The local broker tools rely on Docker access and runtime RabbitMQ credentials;
-  a production operations API must add workload identity, approval/audit
-  evidence, and durable case state.
-- Keeping predecessor indices consumes storage and therefore requires an explicit
-  later cleanup/retention policy.
+- Elasticsearch shared database access veya complete Kafka history bağımlılığı
+  olmadan authoritative owner'lardan rebuild edilebilir.
+- Candidate oluşturulurken search old alias üzerinden available kalır.
+- Source service'ler narrow administrative export surface kazanır ve role
+  enforcement ile data minimization'ı test etmelidir.
+- Monotonic projection revision ek contract ve persistence işi getirir ancak
+  deterministic ID'nin tek başına çözemediği stale-event race'i kapatır.
+- Local orchestrator bilinçli olarak durable workflow engine değildir. Çok büyük
+  veya multi-hour production rebuild workload identity, checkpoint persistence,
+  cancellation ve resumable job coordination gerektirir.
+- Search rebuild/rollback run state'i memory'de tutar. Service restart index'leri
+  korur ancak eski run'ı API üzerinden resume etmek yerine manual alias inspection gerekir.
+- Local broker tool'ları Docker access ve runtime RabbitMQ credential kullanır;
+  production operations API workload identity, approval/audit evidence ve durable
+  case state eklemelidir.
+- Predecessor index'leri tutmak storage tüketir ve açık cleanup/retention policy gerektirir.
 
-## Alternatives considered
+## Değerlendirilen alternatifler
 
-- **Reset Kafka consumer offsets:** rejected as the authoritative rebuild path
-  because topic retention and incomplete event coverage cannot guarantee a full
-  current snapshot. It remains useful for bounded consumer recovery tests.
-- **Read service databases directly from Search or a script:** rejected because
-  it violates database ownership, couples recovery to private schemas, and
-  expands credential exposure.
-- **Use one fixed physical index:** rejected because destructive mapping changes
-  and partial rebuilds would affect live search immediately and make rollback
-  difficult.
-- **Automatically replay every DLT/DLQ message:** rejected because permanent
-  poison messages and incompatible contracts require human classification.
-- **Source services publish an entire rebuild through Kafka:** deferred. It is a
-  viable high-scale evolution, but adds broker dependency and distributed job
-  coordination before the current portfolio needs them.
+- **Kafka consumer offset reset:** topic retention ve incomplete event coverage
+  complete current snapshot garanti edemediği için authoritative rebuild path
+  olarak reddedildi. Bounded consumer recovery testlerinde hâlâ yararlıdır.
+- **Search veya script'ten service database'lerini doğrudan okumak:** database
+  ownership'i ihlal ettiği, recovery'yi private schema'ya bağladığı ve credential
+  exposure'ı genişlettiği için reddedildi.
+- **Tek fixed physical index kullanmak:** destructive mapping change ve partial
+  rebuild live search'ü anında etkileyip rollback'i zorlaştıracağı için reddedildi.
+- **Her DLT/DLQ mesajını otomatik replay etmek:** permanent poison message ve
+  incompatible contract human classification gerektirdiği için reddedildi.
+- **Source service'lerin tüm rebuild'i Kafka üzerinden publish etmesi:** ertelendi.
+  High-scale için geçerli evolution'dır ancak mevcut portföy ihtiyaç duymadan
+  broker dependency ve distributed job coordination ekler.
