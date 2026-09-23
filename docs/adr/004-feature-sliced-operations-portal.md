@@ -1,41 +1,39 @@
-# ADR-004: Organize the operations portal by business capability
+# ADR-004: Operations Portal'ın business capability'lere göre düzenlenmesi
 
-- Status: Accepted
-- Date: 2026-09-03
+- Durum: Kabul edildi
+- Tarih: 2026-09-03
 
-## Context
+## Bağlam
 
-The portal will grow from pre-authorization operations into policy, claims,
-billing, and reporting workflows. A folder structure based only on technical
-types such as `components`, `hooks`, and `services` would mix unrelated domain
-capabilities and make ownership unclear.
+Portal, ön provizyon operasyonlarından policy, claims, billing ve reporting
+workflow'larına genişleyecektir. Yalnızca `components`, `hooks` ve
+`services` gibi teknik türlere dayalı klasör yapısı ilgisiz domain
+capability'lerini karıştırır ve ownership'i belirsiz hale getirir.
 
-## Decision
+## Karar
 
-The React application uses a pragmatic Feature-Sliced dependency direction:
+React application pragmatik bir Feature-Sliced dependency direction kullanır:
 
 ```text
 app -> pages -> widgets -> features -> entities -> shared
 ```
 
-- `app` composes providers, routing, error handling, and global styles.
-- `pages` compose complete routes without owning reusable business behavior.
-- `widgets` provide larger layout compositions such as the application shell.
-- `features` implement user actions such as authentication, submission, and
-  specialist decisions.
-- `entities` contain domain-facing types, API functions, and visual primitives.
-- `shared` contains domain-agnostic HTTP, configuration, state, and UI helpers.
+- `app` provider'ları, routing'i, error handling'i ve global style'ları compose eder.
+- `pages` reusable business behavior sahibi olmadan tam route'ları compose eder.
+- `widgets` application shell gibi daha büyük layout composition'ları sağlar.
+- `features` authentication, submission ve specialist decision gibi user action'larını uygular.
+- `entities` domain-facing type'ları, API function'larını ve visual primitive'leri içerir.
+- `shared` domain-agnostic HTTP, configuration, state ve UI helper'larını içerir.
 
-A Vitest architecture test scans alias imports and rejects dependencies that
-point upward through these layers. TanStack Query owns server state; API data is
-not copied into a global client-state store.
+Bir Vitest architecture testi alias import'larını tarar ve bu katmanlar içinde
+yukarı yönlü dependency'leri reddeder. Server state TanStack Query tarafından
+yönetilir; API data global client-state store'a kopyalanmaz.
 
-## Consequences
+## Sonuçlar
 
-- Business capabilities remain discoverable as the portal grows.
-- Lower layers can be reused without depending on route or application setup.
-- Some small features require more files than a flat starter application.
-- Cross-feature imports are avoided; shared behavior must be deliberately
-  promoted to an entity or shared module.
-- No global state library is introduced until a concrete client-state problem
-  requires one.
+- Portal büyüdükçe business capability'leri kolayca bulunabilir kalır.
+- Alt katmanlar route veya application setup'a bağımlı olmadan yeniden kullanılabilir.
+- Bazı küçük feature'lar flat starter application'a göre daha fazla dosya gerektirir.
+- Cross-feature import'lardan kaçınılır; shared behavior bilinçli olarak entity
+  veya shared module seviyesine yükseltilmelidir.
+- Somut bir client-state problemi oluşana kadar global state library eklenmez.
