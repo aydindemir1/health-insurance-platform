@@ -1,39 +1,39 @@
-# ADR-001: Use Clean Architecture boundaries inside services
+# ADR-001: Servislerin içinde Clean Architecture sınırlarının kullanılması
 
-- Status: Accepted
-- Date: 2026-09-03
+- Durum: Kabul edildi
+- Tarih: 2026-09-03
 
-## Context
+## Bağlam
 
-The system will integrate PostgreSQL, Kafka, RabbitMQ, Redis, Keycloak, and
-external healthcare systems. Business rules must remain testable without
-starting those technologies.
+Sistem PostgreSQL, Kafka, RabbitMQ, Redis, Keycloak ve harici sağlık sistemleriyle
+entegrasyon kuracaktır. Business rule'lar, bu teknolojileri başlatmaya gerek
+kalmadan test edilebilir durumda kalmalıdır.
 
-## Decision
+## Karar
 
-The domain model is plain Java. Application use cases are also framework-free
-and expose input ports while depending on output ports. Spring MVC is the
-presentation boundary. JPA, security configuration, transaction management,
-and external integrations are infrastructure concerns. Persistence entities
-are separate from domain objects.
+Domain modeli plain Java olarak tutulur. Application use case'leri de framework
+bağımsızdır; input port'ları açar ve output port'lara bağımlıdır. Spring MVC
+presentation sınırıdır. JPA, security configuration, transaction management ve
+harici entegrasyonlar infrastructure concern'leridir. Persistence entity'leri
+domain object'lerinden ayrıdır.
 
-The dependency direction is:
+Bağımlılık yönü şöyledir:
 
 ```text
 Presentation -> Application -> Domain
 Infrastructure -> Application / Domain
 ```
 
-ArchUnit rules verify that domain and application code do not depend on Spring,
-JPA, presentation, or infrastructure packages.
+ArchUnit kuralları, domain ve application kodunun Spring, JPA, presentation veya
+infrastructure package'larına bağımlı olmadığını doğrular.
 
-## Consequences
+## Sonuçlar
 
-- Business rules can be tested quickly without Spring or a database.
-- Use cases can be tested without a Spring application context.
-- Infrastructure can be replaced without rewriting the domain.
-- Explicit mapping adds a small amount of code.
-- Transaction annotations live in an infrastructure decorator rather than the
-  application service.
-- The separation must remain pragmatic; trivial behavior does not need an
-  interface merely to increase the number of layers.
+- Business rule'lar Spring veya veritabanı olmadan hızlı biçimde test edilebilir.
+- Use case'ler Spring application context olmadan test edilebilir.
+- Infrastructure, domain yeniden yazılmadan değiştirilebilir.
+- Açık mapping küçük miktarda ek kod oluşturur.
+- Transaction annotation'ları application service yerine infrastructure
+  decorator içinde bulunur.
+- Ayrım pragmatik kalmalıdır; basit davranışlar yalnızca katman sayısını artırmak
+  için interface gerektirmez.
