@@ -1,29 +1,19 @@
-# Search and messaging recovery runbook
+# Search ve messaging recovery runbook
 
-This runbook covers the executable local recovery controls delivered in
-Milestone 10. It is intentionally conservative: source databases remain
-authoritative, the active Elasticsearch index is never rebuilt in place, and
-dead-letter messages are never replayed automatically.
+Bu runbook, Milestone 10 kapsamında sunulan çalıştırılabilir lokal recovery kontrollerini kapsar. Bilinçli olarak muhafazakârdır: source database'ler authoritative kalır, aktif Elasticsearch index'i hiçbir zaman yerinde yeniden oluşturulmaz ve dead-letter message'lar hiçbir zaman otomatik olarak replay edilmez.
 
-## Safety contract
+## Güvenlik sözleşmesi
 
-- Use only synthetic local data. Never print or persist access tokens, message
-  payloads, member identifiers, policy numbers, contact details, or diagnoses.
-- Inspect before classifying. Replay only a reviewed transient failure after the
-  failed dependency is healthy.
-- Keep each recovery batch between 1 and 10 broker messages and each search
-  ingestion batch between 1 and 200 projections.
-- Preserve original DLT/DLQ records as quarantine evidence. The supplied tools
-  copy a reviewed message; they do not delete or acknowledge the original.
-- Stop if the active alias, document count, topic, queue, or recovery attempt is
-  not the expected value. Do not compensate by resetting offsets or deleting an
-  index.
-- Runtime tokens and RabbitMQ credentials belong only in process variables.
+- Yalnızca sentetik lokal veri kullanın. Access token, message payload, member identifier, policy number, contact detail veya diagnosis bilgisini hiçbir zaman yazdırmayın veya persist etmeyin.
+- Classification yapmadan önce inspect edin. Replay işlemini yalnızca failed dependency tekrar healthy olduktan sonra, incelenmiş transient failure için gerçekleştirin.
+- Her recovery batch'ini 1–10 broker message arasında; her search ingestion batch'ini ise 1–200 projection arasında tutun.
+- Orijinal DLT/DLQ record'larını quarantine evidence olarak koruyun. Sağlanan araçlar incelenmiş message'ın bir kopyasını oluşturur; orijinal message'ı silmez veya acknowledge etmez.
+- Active alias, document count, topic, queue veya recovery attempt beklenen value değilse durun. Offset reset ederek veya index silerek telafi etmeyin.
+- Runtime token'lar ve RabbitMQ credential'ları yalnızca process variable'larında bulunmalıdır.
 
-## Preconditions and first inspection
+## Ön koşullar ve ilk inceleme
 
-Start the local stack using the ignored `.env` file, then check container health
-and the bounded recovery summary:
+Ignore edilen `.env` dosyasını kullanarak lokal stack'i başlatın; ardından container health durumunu ve bounded recovery summary'yi kontrol edin:
 
 ```powershell
 docker compose up -d
@@ -31,21 +21,17 @@ docker compose ps
 .\scripts\inspect-recovery-status.ps1 | ConvertTo-Json -Depth 6
 ```
 
-The summary reads only:
+Summary yalnızca şunları okur:
 
-- unpublished row count, oldest age, and maximum attempts for Authorization's
-  Kafka and RabbitMQ outboxes and Claims/Billing's search outbox;
-- Kafka consumer-group lag using the tools-only `kafka-cli` Compose profile;
-- RabbitMQ ready, unacknowledged, consumer, and queue-state counters.
+- Authorization'ın Kafka ve RabbitMQ outbox'ları ile Claims/Billing search outbox'ı için unpublished row count, oldest age ve maximum attempt sayısı;
+- tools-only `kafka-cli` Compose profile kullanılarak Kafka consumer-group lag;
+- RabbitMQ ready, unacknowledged, consumer ve queue-state counter'ları.
 
-It does not display outbox bodies or broker payloads. A non-zero backlog is a
-signal to investigate dependency health and logs; it is not proof that a
-business transaction failed.
+Outbox body veya broker payload göstermez. Non-zero backlog, dependency health ve log'ların incelenmesi gerektiğine dair bir sinyaldir; business transaction'ın başarısız olduğunun kanıtı değildir.
 
-## Rebuild the Elasticsearch projection
+## Elasticsearch projection'ını yeniden oluşturma
 
-Obtain a short-lived local `SYSTEM_ADMIN` access token without storing it in the
-repository, then run:
+Repository içinde saklamadan short-lived lokal `SYSTEM_ADMIN` access token alın ve ardından şunu çalıştırın:
 
 ```powershell
 $runtimeAccessToken = '<short-lived-system-admin-token>'
@@ -56,26 +42,18 @@ $runtimeAccessToken = '<short-lived-system-admin-token>'
 Remove-Variable runtimeAccessToken
 ```
 
-The orchestrator performs these steps:
+Orchestrator şu adımları gerçekleştirir:
 
-1. Search Service records the current alias target and creates an isolated
-   `healthcare-operations-v{schema}-{runId}` candidate.
-2. Authorization exports stable `CREATED_AT, id` pages from its own database.
-3. Claims/Billing exports stable claim-ID pages and computes the current joined
-   claim/invoice/payment projection from its own database.
-4. The script detects duplicate deterministic document IDs in memory and sends
-   bounded batches through APISIX.
-5. Search validates every record as a domain `SearchRecord` and uses conditional
-   upsert based on the owner-defined monotonic `sourceRevision`.
-6. Activation refreshes the candidate, compares its count with the distinct
-   exported ID count, verifies the predecessor has not changed, and atomically
-   swaps the stable alias.
+1. Search Service mevcut alias target'ını kaydeder ve izole bir `healthcare-operations-v{schema}-{runId}` candidate oluşturur.
+2. Authorization kendi database'inden stable `CREATED_AT, id` page'leri export eder.
+3. Claims/Billing stable claim-ID page'leri export eder ve kendi database'inden current joined claim/invoice/payment projection'ını hesaplar.
+4. Script memory içinde duplicate deterministic document ID'leri tespit eder ve bounded batch'leri APISIX üzerinden gönderir.
+5. Search her record'u domain `SearchRecord` olarak validate eder ve owner tarafından tanımlanan monotonic `sourceRevision` değerine göre conditional upsert kullanır.
+6. Activation candidate'ı refresh eder, count değerini distinct exported ID count ile karşılaştırır, predecessor'ın değişmediğini doğrular ve stable alias'ı atomik olarak swap eder.
 
-An owner/API/mapping/count failure leaves the old alias untouched and prints
-only the run/candidate identifiers needed for inspection. A partial candidate
-must not be activated by changing the expected count.
+Owner/API/mapping/count failure eski alias'a dokunmaz ve inspection için yalnızca gerekli run/candidate identifier'larını yazdırır. Partial candidate, expected count değiştirilerek activate edilmemelidir.
 
-### Verify activation
+### Activation doğrulaması
 
 ```powershell
 curl.exe -sS "http://localhost:9200/_cat/aliases/healthcare-operations?format=json&h=alias,index,is_write_index"
@@ -83,15 +61,11 @@ curl.exe -sS "http://localhost:9200/healthcare-operations/_count"
 curl.exe -sS "http://localhost:9200/_cat/indices/healthcare-operations-v*?format=json&h=index,docs.count,status"
 ```
 
-Expected evidence is exactly one writable alias target, the exported distinct
-count on that target, and a retained predecessor. Normal reads and event writes
-continue through `healthcare-operations`; physical index names are operational
-details only.
+Beklenen evidence tam olarak bir writable alias target, bu target üzerinde exported distinct count ve retained predecessor'dır. Normal read ve event write işlemleri `healthcare-operations` üzerinden devam eder; physical index name'leri yalnızca operational detail'dır.
 
-### Explicit rollback
+### Açık rollback
 
-Rollback is valid only while the Search Service process still holds the active
-run state and the alias still points to that run's candidate:
+Rollback yalnızca Search Service process active run state'i hâlâ tutuyorsa ve alias hâlâ ilgili run'ın candidate'ını gösteriyorsa geçerlidir:
 
 ```powershell
 $runtimeAccessToken = '<short-lived-system-admin-token>'
@@ -101,14 +75,11 @@ $runtimeAccessToken = '<short-lived-system-admin-token>'
 Remove-Variable runtimeAccessToken
 ```
 
-The operation is another compare-and-swap alias update. It retains both the
-candidate and predecessor; cleanup is a separate, intentionally unimplemented
-retention decision. The local run registry is in memory, so a Search Service
-restart requires manual alias inspection and a newly reviewed recovery plan.
+Operation başka bir compare-and-swap alias update işlemidir. Candidate ve predecessor'ın ikisini de korur; cleanup ayrı ve bilinçli olarak uygulanmamış bir retention kararıdır. Lokal run registry memory içindedir; bu nedenle Search Service restart'ı manual alias inspection ve yeni review edilmiş recovery plan gerektirir.
 
 ## Kafka DLT workflow
 
-Only the two allowlisted DLT topics can be inspected:
+Yalnızca allowlist edilmiş iki DLT topic inspect edilebilir:
 
 ```powershell
 .\scripts\recover-kafka-dlt.ps1 `
@@ -117,16 +88,15 @@ Only the two allowlisted DLT topics can be inspected:
   -MaxMessages 5
 ```
 
-The output contains the message key, SHA-256 digest, and byte length—not the
-payload. Classify each digest using the consumer error and deployment evidence:
+Output payload yerine message key, SHA-256 digest ve byte length içerir. Her digest'i consumer error ve deployment evidence kullanarak classify edin:
 
-| Classification | Examples | Action |
+| Classification | Örnekler | Aksiyon |
 | --- | --- | --- |
-| Transient | Broker/dependency outage after a valid contract arrived | Prove dependency recovery, then bounded replay |
-| Permanent | Unsupported schema version, malformed JSON, invariant violation | Quarantine until compatible code or reviewed transform exists |
-| Unknown | Insufficient evidence | Keep quarantined and investigate |
+| Transient | Valid contract geldikten sonra broker/dependency outage | Dependency recovery'yi kanıtlayın, ardından bounded replay |
+| Permanent | Unsupported schema version, malformed JSON, invariant violation | Compatible code veya review edilmiş transform oluşana kadar quarantine |
+| Unknown | Yetersiz evidence | Quarantine'de tutun ve araştırın |
 
-Record a reviewed transient copy replay explicitly:
+Review edilmiş transient copy replay işlemini açıkça kaydedin:
 
 ```powershell
 .\scripts\recover-kafka-dlt.ps1 `
@@ -138,14 +108,11 @@ Record a reviewed transient copy replay explicitly:
   -ConfirmReplay
 ```
 
-The copy targets the allowlisted original topic, preserves the original key and
-payload, and adds recovery ID/source/attempt headers. Attempts are capped at
-three. Consumer inbox/business uniqueness and monotonic search revisions make a
-reviewed duplicate safe; they do not make poison data valid.
+Kopya allowlist edilmiş original topic'i hedefler, original key ve payload'u korur ve recovery ID/source/attempt header'ları ekler. Attempt sayısı üç ile sınırlandırılır. Consumer inbox/business uniqueness ve monotonic search revision'lar review edilmiş duplicate'i güvenli hale getirir; poison data'yı geçerli hale getirmez.
 
 ## RabbitMQ DLQ workflow
 
-Supply a temporary local RabbitMQ account at runtime:
+Runtime'da temporary lokal RabbitMQ account sağlayın:
 
 ```powershell
 $runtimeRabbitUser = '<temporary-monitor-user>'
@@ -158,33 +125,23 @@ $runtimeRabbitPassword = '<temporary-password>'
 Remove-Variable runtimeRabbitUser, runtimeRabbitPassword
 ```
 
-Inspection uses `ack_requeue_true`, so messages remain in
-`health.notifications.delivery.v1.dlq`. Output contains digest, byte length,
-redelivery flag, exchange, and routing key. A transient replay additionally
-requires `-Classification Transient -RecoveryAttempt 1 -ConfirmReplay`; it
-publishes a persistent copy to the allowlisted `health.notifications` exchange
-and `pre-authorization.decision` routing key. The original `taskId` remains the
-worker idempotency key.
+Inspection `ack_requeue_true` kullanır; bu nedenle message'lar `health.notifications.delivery.v1.dlq` içinde kalır. Output digest, byte length, redelivery flag, exchange ve routing key içerir. Transient replay ayrıca `-Classification Transient -RecoveryAttempt 1 -ConfirmReplay` gerektirir; persistent bir kopyayı allowlist edilmiş `health.notifications` exchange ve `pre-authorization.decision` routing key'e publish eder. Orijinal `taskId`, worker idempotency key olarak korunur.
 
-## Failure decision table
+## Failure karar tablosu
 
-| Symptom | Likely cause | Safe next step |
+| Belirti | Muhtemel neden | Güvenli sonraki adım |
 | --- | --- | --- |
-| Candidate count mismatch | Refresh/write failure, duplicate owner ID, incomplete page | Leave alias unchanged; inspect owner/API and candidate |
-| Alias compare-and-swap conflict | Another operator/rebuild changed the alias | Stop; inspect alias and retained indices |
-| Legacy search document has no revision | Pre-M10 projection | Reader maps it to baseline revision 1; rebuild replaces it from owners |
-| Outbox pending and attempts rising | Broker unavailable or contract send failure | Restore dependency; observe bounded relay retries |
-| Kafka DLT permanent error | Contract/schema/data defect | Quarantine; deploy reviewed compatibility handling |
-| Rabbit DLQ transient delivery error | Provider/dependency outage | Prove recovery, copy one message, verify idempotent result |
-| Replay returns to DLT/DLQ | Misclassification or dependency still unhealthy | Stop replay immediately; reclassify and investigate |
+| Candidate count mismatch | Refresh/write failure, duplicate owner ID, incomplete page | Alias'ı değiştirmeden bırakın; owner/API ve candidate'ı inceleyin |
+| Alias compare-and-swap conflict | Başka operator/rebuild alias'ı değiştirdi | Durun; alias ve retained index'leri inceleyin |
+| Legacy search document revision içermiyor | Pre-M10 projection | Reader bunu baseline revision 1'e map eder; rebuild owner'lardan replace eder |
+| Outbox pending ve attempt sayısı artıyor | Broker unavailable veya contract send failure | Dependency'yi restore edin; bounded relay retry'larını gözlemleyin |
+| Kafka DLT permanent error | Contract/schema/data defect | Quarantine; review edilmiş compatibility handling deploy edin |
+| Rabbit DLQ transient delivery error | Provider/dependency outage | Recovery'yi kanıtlayın, tek message kopyalayın, idempotent sonucu doğrulayın |
+| Replay yeniden DLT/DLQ'ya dönüyor | Yanlış classification veya dependency hâlâ unhealthy | Replay'i hemen durdurun; yeniden classify edin ve araştırın |
 
-## Current limitations
+## Mevcut sınırlamalar
 
-- The rebuild coordinator and run/rollback state are local and in-memory; they
-  are not resumable across Search Service restarts.
-- Broker tools rely on local Docker/RabbitMQ access rather than a production
-  workload identity and audited operations API.
-- Broker quarantine is retention-by-non-deletion, not a separate quarantine
-  store. There is no destructive discard command.
-- Index lifecycle cleanup, durable checkpoints, automated alerts, and production
-  authorization/audit for recovery commands belong to later milestones.
+- Rebuild coordinator ve run/rollback state lokal ve in-memory'dir; Search Service restart'ları arasında resumable değildir.
+- Broker araçları production workload identity ve audited operations API yerine lokal Docker/RabbitMQ access'e dayanır.
+- Broker quarantine ayrı quarantine store değil, silmeme yoluyla retention'dır. Destructive discard command yoktur.
+- Index lifecycle cleanup, durable checkpoint'ler, automated alert'ler ve recovery command'ları için production authorization/audit sonraki milestone'lara aittir.
