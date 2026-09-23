@@ -1,7 +1,7 @@
-# Clean Architecture Component Model
+# Clean Architecture Bileşen Modeli
 
-All three backend services use the same dependency rule while keeping only the
-abstractions their use cases need.
+Üç backend servisin tamamı, yalnızca use case'lerinin ihtiyaç duyduğu
+abstraction'ları koruyarak aynı dependency rule'u kullanır.
 
 ```mermaid
 flowchart LR
@@ -54,8 +54,8 @@ flowchart LR
     Config --> Jpa
 ```
 
-Solid arrows are compile-time dependencies. Dashed `implements` arrows show
-Dependency Inversion: application owns the interfaces, infrastructure supplies
-the implementations. ArchUnit tests reject domain-to-framework,
-application-to-infrastructure, presentation-to-domain, and
-infrastructure-to-presentation dependencies.
+Düz oklar compile-time dependency'leri gösterir. Kesik `implements` okları
+Dependency Inversion'ı gösterir: interface'lerin sahibi application'dır,
+implementation'ları infrastructure sağlar. ArchUnit testleri domain-to-framework,
+application-to-infrastructure, presentation-to-domain ve
+infrastructure-to-presentation dependency'lerini reddeder.
