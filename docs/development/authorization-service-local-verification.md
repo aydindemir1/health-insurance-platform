@@ -1,55 +1,49 @@
-# Authorization Service local verification
+# Authorization Service lokal doğrulaması
 
-This guide is a focused learning and verification path for Authorization
-Service. It uses synthetic data and does not require the complete platform.
+Bu rehber Authorization Service için odaklı öğrenme ve doğrulama yoludur. Sentetik veri kullanır ve tüm platformun çalışmasını gerektirmez.
 
-## What this proves
+## Bu çalışma neyi kanıtlar?
 
-- Java 21/Spring Boot application wiring and PostgreSQL persistence
-- Keycloak authentication, role checks, and provider ownership
-- synchronous Policy coverage validation before submission
-- legal `PENDING -> APPROVED|REJECTED` transitions and optimistic concurrency
-- aggregate, audit, Kafka outbox, and RabbitMQ task-outbox transaction boundaries
-- asynchronous broker publication without placing a broker call in the HTTP transaction
-- RFC 9457 errors for unauthenticated, invalid, forbidden, and conflicting operations
+- Java 21/Spring Boot application wiring ve PostgreSQL persistence
+- Keycloak authentication, role check'leri ve provider ownership
+- Submission öncesinde senkron Policy coverage validation
+- Legal `PENDING -> APPROVED|REJECTED` transition'ları ve optimistic concurrency
+- Aggregate, audit, Kafka outbox ve RabbitMQ task-outbox transaction boundary'leri
+- Broker çağrısını HTTP transaction içine koymadan asynchronous publication
+- Unauthenticated, invalid, forbidden ve conflicting operation'lar için RFC 9457 error'ları
 
-## Architecture learning map
+## Architecture öğrenme haritası
 
-| Java/Spring element | Responsibility | Familiar .NET equivalent |
+| Java/Spring öğesi | Sorumluluk | Tanıdık .NET karşılığı |
 | --- | --- | --- |
-| REST controller | HTTP mapping and validation | ASP.NET Core Controller |
-| input port/use case | application capability and orchestration | application service/command handler |
-| aggregate | protects lifecycle invariants | rich domain entity/aggregate |
-| output port | framework-free dependency contract | application interface |
+| REST controller | HTTP mapping ve validation | ASP.NET Core Controller |
+| input port/use case | application capability ve orchestration | application service/command handler |
+| aggregate | lifecycle invariant'larını korur | rich domain entity/aggregate |
+| output port | framework bağımsız dependency contract | application interface |
 | JPA adapter | PostgreSQL mapping | EF Core repository adapter |
-| transaction decorator | one transaction around application writes | transactional decorator/unit of work |
-| Spring Security resource server | validates JWT and authorities | ASP.NET Core JWT bearer authorization |
+| transaction decorator | application write'ları etrafında tek transaction | transactional decorator/unit of work |
+| Spring Security resource server | JWT ve authority doğrulaması | ASP.NET Core JWT bearer authorization |
 | Liquibase changeset | versioned database evolution | EF Core migration/DbUp script |
 
-## Fast automated verification
+## Hızlı otomatik doğrulama
 
-From `services/authorization-service`:
+`services/authorization-service` dizininden:
 
 ```powershell
 .\mvnw.cmd --batch-mode test
 ```
 
-The current checkpoint contains 78 passing tests. The suite covers domain,
-application authorization/ownership, controller contracts, Spring bean wiring,
-PostgreSQL/Testcontainers persistence and concurrency, transactional outbox,
-relay behavior, and ArchUnit dependency rules. A future JDK Mockito agent
-warning is informational; it is not a failed test.
+Mevcut checkpoint 78 başarılı test içerir. Suite domain, application authorization/ownership, controller contract'ları, Spring bean wiring, PostgreSQL/Testcontainers persistence ve concurrency, transactional outbox, relay behavior ve ArchUnit dependency rule'larını kapsar. Gelecekteki JDK'larla ilgili Mockito agent warning bilgilendirme amaçlıdır; failed test değildir.
 
-## Focused local runtime
+## Odaklı lokal runtime
 
-Start only the dependencies needed by this bounded context, using the existing
-local images:
+Bu bounded context için yalnızca gerekli dependency'leri mevcut local image'larla başlatın:
 
 ```powershell
 docker compose up -d authorization-db kafka rabbitmq keycloak
 ```
 
-Prepare local identities without seeding Claims/Search data:
+Claims/Search data seed etmeden local identity'leri hazırlayın:
 
 ```powershell
 $env:DEMO_KEYCLOAK_ADMIN_USERNAME = "<local-admin>"
@@ -58,27 +52,23 @@ $env:DEMO_USER_PASSWORD = "<temporary-demo-password>"
 .\demo\prepare-and-seed-local-demo.ps1 -SkipDataSeed
 ```
 
-Start Policy Service on `8082`, then Authorization Service on `8081`. Keep
-database credentials and JWTs only in process environment variables. Submit as
-`HOSPITAL_USER`, read the created `PENDING` request, and decide it as
-`INSURANCE_SPECIALIST`. Repeating the decision must return `409`.
+Policy Service'i `8082`, ardından Authorization Service'i `8081` üzerinde başlatın. Database credential ve JWT'leri yalnızca process environment variable'larında tutun. `HOSPITAL_USER` olarak submit yapın, oluşturulan `PENDING` request'i okuyun ve `INSURANCE_SPECIALIST` olarak karar verin. Aynı decision tekrarlandığında `409` dönmelidir.
 
-The verified synthetic checkpoint produced:
+Doğrulanmış sentetik checkpoint şu sonuçları üretti:
 
 - unauthenticated collection request: `401 application/problem+json`
 - submitted request: `PENDING`, trusted token provider scope
 - specialist decision: `APPROVED`
 - repeated decision: `409 Conflict`
 - persisted aggregate version: `1`
-- applied Authorization migrations: `8`
+- uygulanan Authorization migration sayısı: `8`
 - Kafka event outbox: broker acknowledged, one attempt
 - RabbitMQ task outbox: broker acknowledged, one attempt
-- audit actions: `PRE_AUTHORIZATION_SUBMITTED`, `PRE_AUTHORIZATION_APPROVED`
+- audit action'ları: `PRE_AUTHORIZATION_SUBMITTED`, `PRE_AUTHORIZATION_APPROVED`
 
-## Inspect safe evidence
+## Güvenli evidence inceleme
 
-Replace the UUID with the synthetic request reported by the API. Do not render
-payload, member, diagnosis, policy, token, or credential values in evidence.
+UUID'yi API'nin döndürdüğü sentetik request ile değiştirin. Evidence içinde payload, member, diagnosis, policy, token veya credential value göstermeyin.
 
 ```powershell
 docker compose exec -T authorization-db psql -U authorization_local -d authorization -c "select id,status,version,provider_id,created_at,decided_at from pre_authorizations where id='<synthetic-uuid>';"
@@ -89,40 +79,25 @@ npm run screenshots:authorization
 npm run screenshots:authorization-infrastructure
 ```
 
-The Kafka native runtime image intentionally contains the broker executable,
-not the classic `kafka-topics.sh` toolbox. Broker health plus the outbox relay's
-acknowledged `published_at` is the local publication evidence. A separate CLI
-container would add download/runtime cost without improving this bounded-context
-checkpoint.
+Kafka native runtime image broker executable'ını içerir, klasik `kafka-topics.sh` toolbox'ını değil. Broker health ile outbox relay'in acknowledged `published_at` değeri local publication evidence'dır. Ayrı CLI container bu bounded-context checkpoint'e anlamlı ek kanıt sağlamadan download/runtime maliyeti ekler.
 
-## Interpretation and limits
+## Yorumlama ve sınırlar
 
-PostgreSQL is authoritative. `published_at` proves the relay received a broker
-acknowledgement; it does not prove every downstream consumer completed. Kafka
-provides durable integration events, while RabbitMQ distributes notification
-work—these channels do not solve the same problem. Provider ownership is taken
-from the verified token, not client input. The test and screenshot checkpoint
-is portfolio evidence, not a production capacity, penetration, or availability
-claim.
+PostgreSQL authoritative'dir. `published_at`, relay'in broker acknowledgement aldığını kanıtlar; downstream consumer'ların tamamladığını kanıtlamaz. Kafka durable integration event sağlar; RabbitMQ notification work dağıtır. Bunlar aynı problemi çözmez. Provider ownership client input'tan değil verified token'dan alınır. Test ve screenshot checkpoint portfolio evidence'dır; production capacity, penetration veya availability iddiası değildir.
 
 ## Requirement-to-evidence traceability
 
 | Concern | Implementation boundary | Automated/live evidence |
 | --- | --- | --- |
-| provider ownership | verified JWT claim mapped to application `ActorContext` | controller/use-case tests and `401/403` runtime contract |
-| coverage before submission | `CoverageVerificationPort` and fail-closed REST adapter | adapter tests plus successful synthetic submission |
-| legal decisions | `PreAuthorization` aggregate | domain tests plus `PENDING -> APPROVED -> 409` runtime flow |
-| concurrent decisions | JPA optimistic version translated to application conflict | PostgreSQL integration test and persisted version evidence |
-| atomic decision side effects | transaction decorator enclosing state, audit and two outboxes | transaction integration test and matching committed rows |
-| Kafka business event | Kafka outbox relay | broker topic partitions and acknowledged outbox evidence |
-| RabbitMQ notification work | notification task outbox relay | durable queue/DLQ topology and acknowledged outbox evidence |
-| architecture direction | inner-layer dependency allowlists | ArchUnit suite |
+| provider ownership | verified JWT claim -> application `ActorContext` | controller/use-case testleri ve `401/403` runtime contract |
+| submission öncesi coverage | `CoverageVerificationPort` ve fail-closed REST adapter | adapter testleri + successful synthetic submission |
+| legal decision'lar | `PreAuthorization` aggregate | domain testleri + `PENDING -> APPROVED -> 409` runtime flow |
+| concurrent decision'lar | application conflict'e çevrilen JPA optimistic version | PostgreSQL integration testi + persisted version evidence |
+| atomic decision side effect'leri | state, audit ve iki outbox'ı saran transaction decorator | transaction integration testi + matching committed row'lar |
+| Kafka business event | Kafka outbox relay | broker topic partition'ları + acknowledged outbox evidence |
+| RabbitMQ notification work | notification task outbox relay | durable queue/DLQ topology + acknowledged outbox evidence |
+| architecture direction | inner-layer dependency allowlist'leri | ArchUnit suite |
 
-This table is the reading order for the service: start with the business rule,
-find its owning layer, run its focused test, and finally inspect the safe live
-evidence. A screenshot supplements executable verification; it never replaces it.
+Bu tablo service için okuma sırasıdır: önce business rule'u bulun, owning layer'ı belirleyin, focused test'i çalıştırın, ardından safe live evidence'ı inceleyin. Screenshot executable verification'ı destekler; yerine geçmez.
 
-For design details, see the
-[Authorization architecture](../architecture/authorization-service.md),
-[business analysis](../business/authorization-service-business-analysis.md),
-and [demo scenario](../demo/demo-scenario.md).
+Detaylar için [Authorization architecture](../architecture/authorization-service.md), [business analysis](../business/authorization-service-business-analysis.md) ve [demo scenario](../demo/demo-scenario.md) dosyalarına bakın.
