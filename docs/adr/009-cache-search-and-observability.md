@@ -1,64 +1,66 @@
-# ADR 009: Separate Redis caching, Elasticsearch projections, and observability data
+# ADR-009: Redis caching, Elasticsearch projection'ları ve observability data'nın ayrılması
 
-- Status: Accepted
-- Date: 2026-09-09
+- Durum: Kabul edildi
+- Tarih: 2026-09-09
 
-## Context
+## Bağlam
 
-Policy coverage checks are repeated on the synchronous authorization path, while
-operations users need cross-context claim and pre-authorization search. These are
-different problems: eligibility needs a short-lived acceleration layer over the
-Policy source of truth; search needs a denormalized, eventually consistent read
-model. Runtime diagnosis also needs one request identifier and machine-readable
-logs across HTTP and message boundaries.
+Policy coverage check'leri synchronous authorization path üzerinde tekrarlanır;
+operations kullanıcıları ise cross-context claim ve pre-authorization search'e
+ihtiyaç duyar. Bunlar farklı problemlerdir: eligibility, Policy source of truth
+üzerinde kısa ömürlü acceleration layer gerektirirken search denormalized,
+eventually consistent read model gerektirir. Runtime diagnosis ayrıca HTTP ve
+message boundary'leri boyunca tek request identifier ve machine-readable log
+gerektirir.
 
-## Decision
+## Karar
 
-Policy Service uses Redis with cache-aside semantics. The cache key is a SHA-256
-digest of the complete coverage evaluation input and values expire after 30
-seconds. Policy creation invalidates the policy's tracked keys. A cache outage is
-fail-open: Policy logs safe metadata and evaluates against PostgreSQL. A Policy or
-PostgreSQL outage remains fail-closed at Authorization because eligibility cannot
-be guessed.
+Policy Service Redis'i cache-aside semantics ile kullanır. Cache key complete
+coverage evaluation input'un SHA-256 digest'idir ve value'lar 30 saniye sonra
+expire olur. Policy creation ilgili policy'nin tracked key'lerini invalidate
+eder. Cache outage fail-open'dır: Policy safe metadata loglar ve PostgreSQL
+üzerinden evaluate eder. Policy veya PostgreSQL outage ise eligibility tahmin
+edilemeyeceği için Authorization tarafında fail-closed kalır.
 
-Search Service owns an Elasticsearch index named `healthcare-operations-v1`.
-Claims/Billing writes a versioned search projection to its PostgreSQL outbox in
-the same transaction as each aggregate transition, then publishes it to Kafka.
-Search Service also consumes Authorization decision events. Deterministic document
-identifiers make at-least-once redelivery an overwrite rather than a duplicate.
-Hospital users are restricted to the signed `provider_id`; insurer roles may query
-across providers. Elasticsearch is a projection, never a system of record.
+Search Service `healthcare-operations-v1` adlı Elasticsearch index'in sahibidir.
+Claims/Billing her aggregate transition ile aynı transaction içinde versioned
+search projection'ı PostgreSQL outbox'a yazar ve sonra Kafka'ya publish eder.
+Search Service ayrıca Authorization decision event'lerini consume eder.
+Deterministic document identifier'lar at-least-once redelivery'yi duplicate
+yerine overwrite yapar. Hospital user'lar signed `provider_id` ile sınırlandırılır;
+insurer role'leri provider'lar arası query yapabilir. Elasticsearch projection'dır,
+asla system of record değildir.
 
-All Java services emit Spring Boot ECS JSON. HTTP filters accept only bounded safe
-`X-Correlation-ID` values, create an ID otherwise, add it to MDC and echo it in
-the response. Synchronous clients propagate it; Kafka/RabbitMQ consumers derive a
-correlation ID from message metadata. The Elastic Java agent is copied into the
-runtime image and attached with `-javaagent`; APM Server stores telemetry in the
-same-version Elastic Stack and Kibana visualizes it.
+Tüm Java servisleri Spring Boot ECS JSON üretir. HTTP filter'ları yalnızca bounded
+safe `X-Correlation-ID` value'larını kabul eder; aksi durumda ID üretir, MDC'ye
+ekler ve response'a echo eder. Synchronous client'lar bunu propagate eder;
+Kafka/RabbitMQ consumer'ları correlation ID'yi message metadata'dan türetir.
+Elastic Java agent runtime image'a kopyalanır ve `-javaagent` ile attach edilir;
+APM Server telemetry'yi aynı sürüm Elastic Stack'te saklar ve Kibana görselleştirir.
 
-## Consequences
+## Sonuçlar
 
-- PostgreSQL remains authoritative and cache loss does not corrupt business data.
-- Search is fast and cross-context without database sharing, at the cost of
-  eventual consistency and projection-rebuild operations.
-- The claims search outbox prevents a committed financial transition from losing
-  its indexing intent.
-- Authorization search currently represents decision events, so pending requests
-  remain available from Authorization's strongly consistent work queue.
-- Redis, Elasticsearch, Kibana and APM add memory and operational overhead; they
-  are optional infrastructure outside the core domain model.
-- Correlation IDs improve navigation but are technical identifiers, not proof of
-  a distributed transaction.
+- PostgreSQL authoritative kalır ve cache kaybı business data'yı corrupt etmez.
+- Search database sharing olmadan hızlı ve cross-context olur; karşılığında
+  eventual consistency ve projection-rebuild operation gerekir.
+- Claims search outbox, commit edilmiş financial transition'ın indexing intent'ini
+  kaybetmesini engeller.
+- Authorization search şu anda decision event'lerini temsil eder; pending request'ler
+  Authorization'ın strongly consistent work queue'sundan erişilebilir kalır.
+- Redis, Elasticsearch, Kibana ve APM memory ve operational overhead ekler; core
+  domain model dışında optional infrastructure'dır.
+- Correlation ID navigation'ı geliştirir ancak technical identifier'dır,
+  distributed transaction kanıtı değildir.
 
-## Alternatives considered
+## Değerlendirilen alternatifler
 
-- Cache annotations were rejected because explicit ports make fallback,
-  invalidation and privacy-safe keys testable without Spring in the use case.
-- Database joins or shared schemas were rejected because they violate bounded
-  context ownership.
-- Synchronous dual-write to Elasticsearch was rejected because a search outage
-  could break financial transactions or silently lose updates.
-- Logback-specific JSON encoders were rejected because Spring Boot provides ECS
-  structured logging and automatically includes MDC fields.
-- Adding the APM agent as an application dependency was rejected; the supported
-  external-agent attachment keeps instrumentation out of domain/application code.
+- Cache annotation'ları reddedildi; çünkü explicit port'lar fallback, invalidation
+  ve privacy-safe key'leri use case içinde Spring olmadan test edilebilir kılar.
+- Database join veya shared schema'lar bounded context ownership'i ihlal ettiği
+  için reddedildi.
+- Elasticsearch'e synchronous dual-write, search outage'ın financial transaction'ı
+  bozabilmesi veya update kaybettirebilmesi nedeniyle reddedildi.
+- Logback-specific JSON encoder'lar reddedildi; Spring Boot ECS structured logging
+  sağlar ve MDC field'larını otomatik içerir.
+- APM agent'ı application dependency olarak eklemek reddedildi; desteklenen
+  external-agent attachment instrumentation'ı domain/application code dışında tutar.
