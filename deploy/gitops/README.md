@@ -1,39 +1,43 @@
-# Argo CD GitOps boundary
+# Argo CD GitOps sınırı
 
-`AppProject` restricts the repository and destination. `Application` tracks the
-staging Kustomize overlay but intentionally has no automated sync until real
-Harbor image references replace every sentinel value. Jenkins builds and
-publishes; it does not receive Kubernetes credentials. Promotion changes the
-six image references in Git through review, then Argo CD reconciles that commit.
+`AppProject`, repository ve hedef ortamı sınırlar. `Application`, staging
+Kustomize overlay'ini takip eder ancak gerçek Harbor image referansları tüm
+sentinel değerlerin yerini alana kadar bilinçli olarak automated sync içermez.
+Jenkins build ve publication işlemlerini gerçekleştirir; Kubernetes
+credential'ları almaz. Promotion işlemi Git üzerindeki altı image referansını
+review süreci üzerinden değiştirir; ardından Argo CD bu commit'i reconcile eder.
 
-Render before applying:
+Uygulamadan önce render edin:
 
 ```powershell
 kubectl kustomize deploy/gitops/environments/staging
 kubectl kustomize deploy/gitops/argocd
 ```
 
-Install Argo CD in a disposable cluster from its official release manifests,
-then apply the rendered project and application only after the registry values
-are immutable and reachable from that cluster.
+Argo CD'yi disposable bir cluster'a resmi release manifest'lerinden kurun;
+ardından registry değerleri immutable hale gelip ilgili cluster'dan erişilebilir
+olduktan sonra render edilmiş project ve application kaynaklarını uygulayın.
 
-`install-local-argocd.ps1 -Context <disposable-context>` installs the pinned
-official Argo CD `v3.5.2` manifest. It refuses a context mismatch and names that
-look production-like. The Application has no automated sync while sentinel
-image tags remain, so installation cannot deploy placeholder images.
+`install-local-argocd.ps1 -Context <disposable-context>`, sabitlenmiş resmi
+Argo CD `v3.5.2` manifest'ini kurar. Context uyuşmazlığını ve production
+ortamını çağrıştıran isimleri reddeder. Sentinel image tag'leri mevcut olduğu
+sürece Application automated sync içermez; bu nedenle kurulum placeholder
+image'ları deploy edemez.
 
-The local installer changes only runtime ergonomics: Argo workloads use
-`IfNotPresent` so an already loaded image is not downloaded again, while the API
-and repository-server probes tolerate Docker Desktop I/O latency. Use at least
-8 GiB for the Minikube profile when Argo CD and all platform workloads share one
-node.
+Lokal installer yalnızca runtime ergonomisini değiştirir: Argo workload'ları,
+önceden yüklenmiş bir image'ın tekrar indirilmemesi için `IfNotPresent`
+kullanırken API ve repository-server probe'ları Docker Desktop I/O latency'sini
+tolere eder. Argo CD ile tüm platform workload'ları aynı node'u paylaşıyorsa
+Minikube profili için en az 8 GiB bellek kullanın.
 
-Before the first private-registry rollout, create the ignored runtime Secret:
+İlk private-registry rollout'undan önce Git tarafından ignore edilen runtime
+Secret'ı oluşturun:
 
 ```powershell
 .\deploy\gitops\create-local-registry-secret.ps1 -Context portfolio-ci
 ```
 
-The script reads `infra/cicd/.env`, applies the Docker registry credential over
-stdin, and never writes or prints the Secret payload. `AppProject` deliberately
-cannot manage `Secret`, `Role`, or `RoleBinding` resources.
+Script `infra/cicd/.env` dosyasını okur, Docker registry credential'ını stdin
+üzerinden uygular ve Secret payload'ını hiçbir zaman dosyaya yazmaz veya ekrana
+basmaz. `AppProject`, `Secret`, `Role` veya `RoleBinding` kaynaklarını
+bilinçli olarak yönetemez.
