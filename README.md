@@ -181,8 +181,7 @@ Coverage değerlendirmesi şu anda yalnızca uygunluğu yanıtlar; talepler aras
 - Secret'lar isimleriyle referans edilir ve Kustomize tarafından asla render edilmez. Guard edilmiş lokal helper ignore edilen environment değerlerini okuyup Secret YAML'ı diske yazmadan doğrudan Kubernetes API'ye gönderir.
 - Production odaklı base ve tek replica'lı local overlay'in ikisi de render edilir ve repository policy validation'dan geçer. Milestone 12 ayrıca paketi Argo CD üzerinden disposable Minikube cluster'a uygulamıştır.
 
-Bkz. [Milestone 11 tamamlanma kaydı](docs/milestones/milestone-11-kubernetes-deployment-security.md),
-[ADR-013](docs/adr/013-kustomize-and-secure-stateless-workloads.md) ve
+Bkz. [ADR-013](docs/adr/013-kustomize-and-secure-stateless-workloads.md) ve
 [Kubernetes deployment rehberi](docs/deployment/kubernetes.md).
 
 ### Milestone 12 — CI/CD ve software supply chain
@@ -205,8 +204,7 @@ Persist edilmiş Nexus instance da build, pull veya republish yapılmadan yenide
 
 Harbor daha sonra herhangi bir application image yeniden build edilmeden mevcut 2.15.2 image'larından restore edilmiştir. Private project anonymous erişimi reddeder, 90 günlük least-privilege robot başarılı şekilde push/pull gerçekleştirmiştir ve altı repository'nin tamamı kaydedilmiş manifest digest'lerle aynı full Git SHA tag'ini sunar. Docker Desktop mount düzeltmeleri ve runtime evidence [Harbor doğrulama rehberinde](docs/development/harbor-local-verification.md) yer alır.
 
-Bkz. [Milestone 12 tamamlanma kaydı](docs/milestones/milestone-12-ci-cd-software-supply-chain.md),
-[ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md),
+Bkz. [ADR-014](docs/adr/014-local-ci-cd-software-supply-chain.md),
 [CI/CD mimarisi](docs/architecture/ci-cd-supply-chain.md) ve
 [CI/CD demosu](docs/demo/milestone-12-ci-cd-demo.md).
 
@@ -690,8 +688,6 @@ ve [Kafka idempotent consumer'ı](docs/screenshots/24-claims-billing-kafka-consu
 - [Search ve messaging recovery runbook](docs/operations/search-and-messaging-recovery.md)
 - [Demo senaryosu](docs/demo/demo-scenario.md)
 - [Milestone 12 CI/CD demosu](docs/demo/milestone-12-ci-cd-demo.md)
-- [Milestone 11 tamamlanma kaydı](docs/milestones/milestone-11-kubernetes-deployment-security.md)
-- [Milestone 12 tamamlanma kaydı](docs/milestones/milestone-12-ci-cd-software-supply-chain.md)
 - [Screenshot kataloğu](docs/screenshots/README.md)
 - [ADR'ler](docs/adr/)
 
