@@ -1,59 +1,57 @@
-# ADR-007: Transactional Outbox and Idempotent Kafka Consumer
+# ADR-007: Transactional Outbox ve Idempotent Kafka Consumer
 
-- Status: Accepted
-- Date: 2026-09-08
+- Durum: Kabul edildi
+- Tarih: 2026-09-08
 
-## Context
+## Bağlam
 
-Authorization must publish a durable decision without creating a dual-write
-failure between PostgreSQL and Kafka. Claims/Billing must tolerate Kafka's
-at-least-once delivery, consumer restarts, offset commit failures, and poison
-messages. Directly publishing inside the HTTP transaction could persist the
-decision without publishing the event, or publish an event for a rolled-back
-decision.
+Authorization, PostgreSQL ile Kafka arasında dual-write failure oluşturmadan
+durable bir decision yayınlamalıdır. Claims/Billing Kafka'nın at-least-once
+delivery davranışını, consumer restart'larını, offset commit failure'larını ve
+poison message'ları tolere etmelidir. HTTP transaction içinde doğrudan publish
+etmek, decision persist edildiği halde event yayınlanmamasına veya rollback
+edilen decision için event yayınlanmasına yol açabilir.
 
-## Decision
+## Karar
 
-Authorization writes `PreAuthorizationApproved` or
-`PreAuthorizationRejected` to `outbox_messages` in the same local database
-transaction as the aggregate update. A scheduled relay locks an unpublished
-batch, publishes JSON to `health.authorization.pre-authorization.v1`, and marks
-the row published only after broker acknowledgement.
+Authorization, `PreAuthorizationApproved` veya `PreAuthorizationRejected`
+event'ini aggregate update ile aynı local database transaction içinde
+`outbox_messages` tablosuna yazar. Scheduled relay unpublished batch'i lock'lar,
+JSON'u `health.authorization.pre-authorization.v1` topic'ine publish eder ve
+satırı yalnızca broker acknowledgement sonrasında published olarak işaretler.
 
-The topic key is the pre-authorization ID, preserving order for one aggregate.
-The contract has a stable event name and integer version. Claims/Billing
-consumes approved events and atomically creates its Claim/Invoice plus a
-`processed_messages` entry. Re-delivery returns without repeating the business
-operation. Rejected decisions are durable integration facts but do not start a
-claim.
+Topic key pre-authorization ID'dir; böylece tek aggregate için sıra korunur.
+Contract stable event name ve integer version taşır. Claims/Billing approved
+event'leri tüketir ve Claim/Invoice ile `processed_messages` entry'sini atomik
+olarak oluşturur. Redelivery business operation'ı tekrarlamadan return eder.
+Rejected decision'lar durable integration fact'tir ancak claim başlatmaz.
 
-Consumer failures use blocking fixed-backoff retry: three total attempts with a
-one-second delay by default. Exhausted records are published to the matching
-`.DLT` topic with the original key, value, partition, and diagnostic headers.
+Consumer failure'ları blocking fixed-backoff retry kullanır: varsayılan olarak
+bir saniye arayla toplam üç deneme. Tükenen record'lar original key, value,
+partition ve diagnostic header'larla eşleşen `.DLT` topic'ine yayınlanır.
 
-## Consequences
+## Sonuçlar
 
-- Database state and intent-to-publish are atomic.
-- Delivery is at least once, not exactly once; duplicate publication is expected
-  after a crash between broker acknowledgement and `published_at` update.
-- Consumer idempotency is a business requirement, not a broker configuration.
-- Claims start eventually rather than within the approval HTTP response.
-- Outbox locks are held during broker acknowledgement. This is intentionally
-  simple for the current scale; a lease/claim-based relay is preferable at high
-  throughput.
-- DLT records require an operational replay/quarantine process in a later
-  observability milestone.
+- Database state ile publish intent atomiktir.
+- Delivery exactly-once değil at-least-once'dur; broker acknowledgement ile
+  `published_at` update arasındaki crash sonrasında duplicate publication beklenir.
+- Consumer idempotency broker configuration değil business requirement'tır.
+- Claims approval HTTP response içinde değil eventually başlar.
+- Broker acknowledgement beklenirken outbox lock'ları tutulur. Mevcut ölçekte
+  bilinçli olarak basit tutulmuştur; yüksek throughput için lease/claim-based
+  relay daha uygundur.
+- DLT record'ları daha sonraki observability milestone'da operational
+  replay/quarantine process gerektirir.
 
-## Alternatives
+## Alternatifler
 
-- **Database/Kafka coordinated transaction:** rejected because it still does not
-  provide a single atomic transaction across PostgreSQL and Kafka and increases
-  operational coupling.
-- **Publish directly after commit:** rejected because a process crash can lose
-  the event permanently.
-- **Kafka exactly-once semantics only:** rejected because Kafka EOS does not make
-  the PostgreSQL aggregate write and broker write one transaction.
-- **CDC/Debezium outbox relay:** a strong production alternative, deferred until
-  its additional infrastructure and operational ownership are justified.
-- **Saga/process manager:** not used. This flow has one event followed by one
-  local transaction and no multi-step compensation policy yet.
+- **Database/Kafka coordinated transaction:** PostgreSQL ile Kafka arasında tek
+  atomik transaction sağlamadığı ve operational coupling'i artırdığı için reddedildi.
+- **Commit sonrasında doğrudan publish:** process crash event'i kalıcı olarak
+  kaybettirebileceği için reddedildi.
+- **Yalnızca Kafka exactly-once semantics:** Kafka EOS PostgreSQL aggregate write
+  ile broker write'ı tek transaction yapmadığı için reddedildi.
+- **CDC/Debezium outbox relay:** güçlü bir production alternatifidir; ek
+  infrastructure ve operational ownership gerekçelendirilene kadar ertelendi.
+- **Saga/process manager:** kullanılmadı. Bu flow tek event ardından tek local
+  transaction içerir ve henüz multi-step compensation policy'si yoktur.
