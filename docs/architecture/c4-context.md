@@ -1,7 +1,7 @@
-# C4 Level 1 — System Context
+# C4 Level 1 — Sistem Bağlamı
 
-This diagram describes the user and trust boundary implemented through
-Milestone 10. Runtime containers and brokers are expanded in the Level 2 view.
+Bu diyagram Milestone 10'a kadar uygulanan kullanıcı ve trust boundary'yi açıklar.
+Runtime container'lar ve broker'lar Level 2 görünümünde ayrıntılandırılır.
 
 ```mermaid
 flowchart LR
@@ -28,11 +28,11 @@ flowchart LR
     class KC external
 ```
 
-## Trust boundaries
+## Trust boundary'leri
 
-- Browser input is untrusted. Provider ownership is derived from the signed
-  `provider_id` token claim, never from a request body.
-- Keycloak authenticates users; every service independently validates JWTs and
-  enforces application-level authorization.
-- No service reads another service's database.
-- Only synthetic data may be used in the public repository and demo assets.
+- Browser input trusted değildir. Provider ownership request body'den değil,
+  signed `provider_id` token claim'inden türetilir.
+- Keycloak kullanıcıları authenticate eder; her servis JWT'leri bağımsız olarak
+  doğrular ve application-level authorization uygular.
+- Hiçbir servis başka bir servisin database'ini okumaz.
+- Public repository ve demo asset'lerinde yalnızca sentetik veri kullanılabilir.
