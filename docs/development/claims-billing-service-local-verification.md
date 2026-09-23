@@ -1,120 +1,90 @@
-# Claims and Billing Service local verification
+# Claims and Billing Service lokal doğrulaması
 
-This guide provides a focused order for learning and testing the implemented
-Claims/Billing bounded context without revalidating earlier milestones.
+Bu rehber, önceki milestone'ları yeniden doğrulamadan uygulanmış Claims/Billing bounded context'ini öğrenmek ve test etmek için odaklı bir sıra sağlar.
 
-## Reading order
+## Okuma sırası
 
-1. Read `Claim` for adjudication transitions and amount rules.
-2. Read `Invoice` for reconciliation, payment, and settlement rules.
-3. Read `ClaimsBillingApplicationService` for roles, ownership, transaction
-   composition, audit writes, and search projection intent.
-4. Read `PreAuthorizationDecisionListener` for the Kafka contract boundary.
-5. Read JPA adapters and Liquibase changesets for concurrency and uniqueness.
-6. Use tests and live evidence to verify—not replace—the code reading.
+1. Adjudication transition ve amount rule'ları için `Claim`.
+2. Reconciliation, payment ve settlement rule'ları için `Invoice`.
+3. Role, ownership, transaction composition, audit write ve search projection intent için `ClaimsBillingApplicationService`.
+4. Kafka contract boundary için `PreAuthorizationDecisionListener`.
+5. Concurrency ve uniqueness için JPA adapter'ları ve Liquibase changeset'leri.
+6. Code reading'i doğrulamak için test ve live evidence kullanın; yerine geçirmeyin.
 
-## Fast automated verification
+## Hızlı otomatik doğrulama
 
-From `services/claims-billing-service`:
+`services/claims-billing-service` dizininden:
 
 ```powershell
 .\mvnw.cmd --batch-mode test
 ```
 
-Verified checkpoint:
+Doğrulanmış checkpoint:
 
 - Java: `21.0.8`
-- tests: `57`
-- failures/errors/skips: `0/0/0`
+- test: `57`
+- failure/error/skip: `0/0/0`
 - PostgreSQL integration runtime: Testcontainers `postgres:17-alpine`
 - Kafka integration runtime: Testcontainers `apache/kafka-native:4.1.1`
-- result: `BUILD SUCCESS`
+- sonuç: `BUILD SUCCESS`
 
-The Mockito dynamic-agent message is a future-JDK compatibility warning, not a
-failed business or integration test.
+Mockito dynamic-agent mesajı future-JDK compatibility warning'dir; failed business veya integration test değildir.
 
 ## Requirement-to-evidence traceability
 
 | Concern | Owning implementation | Evidence |
 | --- | --- | --- |
-| claim transitions | `Claim` aggregate | `ClaimTest` |
+| claim transition'ları | `Claim` aggregate | `ClaimTest` |
 | invoice reconciliation/payment | `Invoice` aggregate | `InvoiceTest` |
-| role and provider ownership | application service plus REST annotations | application/controller tests |
-| Claim + Invoice atomicity | transaction decorator/application wiring | transaction integration tests |
-| concurrent writes | JPA `@Version` | PostgreSQL repository integration test |
-| duplicate Kafka delivery | processed-message inbox and unique pre-authorization | Kafka integration test creates exactly one pair |
-| poison event recovery | bounded retry and DLT | Kafka integration test reads original invalid payload from DLT |
-| recoverable search indexing | claim-search transactional outbox | application and transaction tests |
-| append-only minimized audit | audit port/JDBC adapter/Liquibase guards | audit use-case and transaction tests |
-| synchronous Authorization boundary | token-relaying REST adapter plus validated application record | seven adapter contract/failure tests |
-| dependency direction | Clean Architecture package rules | four ArchUnit tests |
+| role ve provider ownership | application service + REST annotation'ları | application/controller testleri |
+| Claim + Invoice atomicity | transaction decorator/application wiring | transaction integration testleri |
+| concurrent write'lar | JPA `@Version` | PostgreSQL repository integration testi |
+| duplicate Kafka delivery | processed-message inbox + unique pre-authorization | Kafka integration testi tam bir pair oluşturur |
+| poison event recovery | bounded retry + DLT | Kafka integration testi original invalid payload'ı DLT'den okur |
+| recoverable search indexing | claim-search transactional outbox | application ve transaction testleri |
+| append-only minimized audit | audit port/JDBC adapter/Liquibase guard'ları | audit use-case ve transaction testleri |
+| synchronous Authorization boundary | token-relaying REST adapter + validated application record | yedi adapter contract/failure testi |
+| dependency direction | Clean Architecture package rule'ları | dört ArchUnit testi |
 
-## What the 57-test result means
+## 57 testlik sonuç ne anlama gelir?
 
-The result demonstrates deterministic domain behavior, dependency wiring, real
-PostgreSQL mappings/migrations, and real Kafka consumer retry/idempotency. It
-does not claim production load capacity, external bank integration, or complete
-end-to-end deployment health.
+Sonuç deterministic domain behavior, dependency wiring, gerçek PostgreSQL mapping/migration ve gerçek Kafka consumer retry/idempotency davranışını gösterir. Production load capacity, external bank integration veya complete end-to-end deployment health iddiası değildir.
 
-The hardening checkpoint additionally proves five Liquibase migrations against
-both a fresh Testcontainer and the existing local dataset, 13 owner-table
-lifecycle constraints, invalid rehydration rejection, allowlist-based inner
-layer ArchUnit rules, and RFC 9457 filter-level `401/403` responses.
+Hardening checkpoint ayrıca fresh Testcontainer ve mevcut local dataset üzerinde beş Liquibase migration'ı, 13 owner-table lifecycle constraint'i, invalid rehydration rejection, allowlist-based inner-layer ArchUnit rule'ları ve RFC 9457 filter-level `401/403` response'larını doğrular.
 
-`prepare-and-seed-local-demo.ps1 -SkipDataSeed` also prepares
-`hospital-other-provider-demo` with a second synthetic `provider_id`. Use it to
-prove that a valid `HOSPITAL_USER` token still receives `403` when reading the
-first provider's Claim. This separates authentication success from resource
-ownership authorization.
+`prepare-and-seed-local-demo.ps1 -SkipDataSeed`, ikinci sentetik `provider_id` ile `hospital-other-provider-demo` kullanıcısını da hazırlar. Valid `HOSPITAL_USER` token'ın ilk provider'ın Claim'ini okurken hâlâ `403` aldığını göstermek için kullanın. Bu authentication success ile resource ownership authorization'ı ayırır.
 
-The live ownership check was executed with a valid token for the second
-synthetic provider against the first provider's Claim. It returned `403` with
-`application/problem+json` and disclosed no Claim data. An unauthenticated
-request independently returned `401` with the same media type.
+Live ownership check, ikinci synthetic provider için valid token ile ilk provider'ın Claim'ine karşı çalıştırıldı. `403 application/problem+json` döndü ve Claim data disclose edilmedi. Unauthenticated request bağımsız olarak aynı media type ile `401` döndürdü.
 
-The synchronous manual-claim adapter is verified fail closed: it relays the
-bearer token and accepts only a complete, identity-matching, positive-money
-Authorization contract with an allowlisted status. Network/`5xx` failures,
-malformed JSON, missing fields, a mismatched response ID, invalid values, and a
-missing bearer token map to dependency unavailability (`503` at the API
-boundary) before any Claim can be created. Authorization `404` remains the
-separate not-approved/not-found business path.
+Synchronous manual-claim adapter fail-closed olarak doğrulandı: bearer token'ı relay eder ve yalnızca complete, identity-matching, positive-money Authorization contract ile allowlisted status kabul eder. Network/`5xx` failure, malformed JSON, missing field, mismatched response ID, invalid value ve missing bearer token; Claim oluşturulmadan önce dependency unavailability olarak map edilir (API boundary'de `503`). Authorization `404`, ayrı not-approved/not-found business path olarak kalır.
 
-## Next live-runtime checkpoint
+## Sonraki live-runtime checkpoint
 
-The next step should start only Claims/Billing dependencies already used by the
-workflow, consume one synthetic approved Authorization event, and inspect:
+Sonraki adım workflow tarafından kullanılan mevcut Claims/Billing dependency'lerini başlatmalı, bir synthetic approved Authorization event consume etmeli ve şunları incelemelidir:
 
-- one `claims` row and its `SUBMITTED` status;
-- one linked `invoices` row in `ISSUED`;
-- one `processed_messages` idempotency marker;
-- Claim/Invoice audit rows;
-- one claim-search outbox row;
-- Kafka source topic and DLT metadata;
-- authenticated provider-scoped reads;
-- review, approval, dispute/match, payment, and settlement transitions.
+- bir `claims` row ve `SUBMITTED` status;
+- bağlı bir `invoices` row, `ISSUED`;
+- bir `processed_messages` idempotency marker;
+- Claim/Invoice audit row'ları;
+- bir claim-search outbox row;
+- Kafka source topic ve DLT metadata;
+- authenticated provider-scoped read'ler;
+- review, approval, dispute/match, payment ve settlement transition'ları.
 
-Separate PostgreSQL and Kafka screenshots should be generated from that live
-run. Tokens, message payloads, member/policy/service values, money, payment
-references, and credentials must not be rendered.
+Ayrı PostgreSQL ve Kafka screenshot'ları bu live run'dan üretilmelidir. Token, message payload, member/policy/service value, money, payment reference ve credential gösterilmemelidir.
 
-## Verified live checkpoint
+## Doğrulanmış live checkpoint
 
-A source-run service on port `8083` consumed the previously published synthetic
-Authorization approval and created exactly one `SUBMITTED` Claim with one
-`ISSUED` Invoice. Real role-bearing Keycloak tokens then drove:
+Port `8083` üzerindeki source-run service daha önce publish edilmiş synthetic Authorization approval'ı consume etti ve tam olarak bir `SUBMITTED` Claim ile bir `ISSUED` Invoice oluşturdu. Gerçek role-bearing Keycloak token'lar şu akışı yürüttü:
 
 ```text
 Claim:   SUBMITTED -> UNDER_REVIEW -> APPROVED
 Invoice: ISSUED -> MATCHED -> SETTLED
 ```
 
-A repeated claim approval returned `409`. PostgreSQL recorded Claim and Invoice
-optimistic versions `2`, one payment row, six minimized audit actions, four
-successive search-projection outbox snapshots, and the processed-message inbox
-marker that links the Kafka event identity to `claims-pre-authorization-approved-v1`.
+Repeated claim approval `409` döndürdü. PostgreSQL Claim ve Invoice için optimistic version `2`, bir payment row, altı minimized audit action, dört successive search-projection outbox snapshot ve Kafka event identity'yi `claims-pre-authorization-approved-v1` ile bağlayan processed-message inbox marker kaydetti.
 
-Capture the safe evidence without repeating the workflow:
+Workflow'u tekrar etmeden safe evidence capture edin:
 
 ```powershell
 $env:CLAIMS_SCREENSHOT_CLAIM_ID = "<synthetic-claim-uuid>"
@@ -122,18 +92,17 @@ Set-Location apps/operations-portal
 npm run screenshots:claims
 ```
 
-## .NET comparison
+## .NET karşılaştırması
 
-| Java/Spring | .NET analogue |
+| Java/Spring | .NET karşılığı |
 | --- | --- |
-| aggregate methods | rich domain entity methods |
+| aggregate method'ları | rich domain entity method'ları |
 | input port/use case | application command handler/service |
 | JPA/Hibernate adapter | EF Core repository implementation |
 | `@Version` | optimistic concurrency token/row version |
 | Spring Kafka listener | MassTransit/Kafka consumer |
 | processed-message table | consumer inbox/idempotency store |
-| transactional outbox | EF Core transaction plus outbox entity |
+| transactional outbox | EF Core transaction + outbox entity |
 | Spring transaction decorator | Unit of Work/application decorator |
 
-For business meaning and state diagrams, see the
-[Claims/Billing business analysis](../business/claims-billing-service-business-analysis.md).
+Business anlamı ve state diagram'ları için [Claims/Billing business analysis](../business/claims-billing-service-business-analysis.md) dosyasına bakın.
