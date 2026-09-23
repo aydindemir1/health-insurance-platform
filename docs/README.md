@@ -45,8 +45,6 @@ the end of the project.
 - [Demo scenario](demo/demo-scenario.md)
 - [Milestone 12 CI/CD demo](demo/milestone-12-ci-cd-demo.md)
 - [Screenshot catalogue](screenshots/README.md)
-- [Milestone 11 completion record](milestones/milestone-11-kubernetes-deployment-security.md)
-- [Milestone 12 completion record](milestones/milestone-12-ci-cd-software-supply-chain.md)
 
 ## Architecture decisions
 
