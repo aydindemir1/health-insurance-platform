@@ -1,4 +1,4 @@
-# Operations Portal Architecture
+# Operations Portal Mimarisi
 
 ```mermaid
 flowchart TB
@@ -22,39 +22,40 @@ flowchart TB
     Entities --> Shared
 ```
 
-Imports may only point downward. `src/app/architecture.test.ts` scans source
-imports and rejects reverse dependencies. TanStack Query owns server state;
-authentication uses a narrow React context; API data is not copied into a
-global client store. React Hook Form and Zod validate submission input, while
-route and feature components apply role-aware UI behavior.
+Import'lar yalnızca aşağı yönlü olabilir. `src/app/architecture.test.ts` source
+import'larını tarar ve ters dependency'leri reddeder. Server state TanStack Query
+tarafından yönetilir; authentication dar kapsamlı React context kullanır; API
+data global client store'a kopyalanmaz. React Hook Form ve Zod submission input'u
+doğrularken route ve feature component'leri role-aware UI davranışı uygular.
 
-The authorization and search clients retain separate environment override keys,
-but both default to the APISIX origin at `http://localhost:9080/api/v1`. The
-shared HTTP client supplies the same Keycloak access token and a fresh bounded
-correlation ID. Search filters and pagination are URL state, while TanStack Query
-keeps results in its server-state cache. The Search Service, not the browser,
-enforces provider ownership.
+Authorization ve search client'ları ayrı environment override key'lerini korur,
+ancak ikisi de varsayılan olarak `http://localhost:9080/api/v1` adresindeki APISIX
+origin'ini kullanır. Shared HTTP client aynı Keycloak access token'ını ve yeni,
+bounded correlation ID'yi sağlar. Search filter'ları ve pagination URL state'tir;
+TanStack Query result'ları server-state cache içinde tutar. Provider ownership'i
+browser değil Search Service uygular.
 
-Canonical identifiers use the shared `javaUuid()` Zod schema. It mirrors the
-text accepted by backend `java.util.UUID` without incorrectly requiring RFC
-version bits, and is reused by forms, URL filters and API response schemas.
+Canonical identifier'lar shared `javaUuid()` Zod schema'sını kullanır. Bu schema,
+RFC version bit'lerini yanlışlıkla zorunlu kılmadan backend `java.util.UUID`
+tarafından kabul edilen text formatını yansıtır ve form, URL filter ve API response
+schema'larında tekrar kullanılır.
 
-The shared HTTP boundary applies a ten-second default timeout, composes caller
-cancellation, refreshes the bearer token, propagates a bounded correlation ID,
-preserves RFC 9457 failures and rejects successful payloads that violate their
-Zod contract. A `401` invokes centralized Keycloak session recovery. Query-level
-errors render safe retry controls; unexpected render failures stop at the app
-Error Boundary, whose console metadata excludes exception messages and component
-details.
+Shared HTTP boundary on saniyelik default timeout uygular, caller cancellation'ı
+compose eder, bearer token'ı refresh eder, bounded correlation ID propagate eder,
+RFC 9457 failure'ları korur ve Zod contract'ını ihlal eden başarılı payload'ları
+reddeder. `401` centralized Keycloak session recovery'yi tetikler. Query-level
+error'lar güvenli retry control'leri gösterir; beklenmeyen render failure'ları app
+Error Boundary'de durur ve console metadata exception message veya component
+detail içermez.
 
-Responsive behavior uses 820px and 520px breakpoints: the fixed desktop shell
-becomes a flow layout, forms and filters collapse to one column, and wide tables
-scroll inside their own container instead of widening the document. Focus rings,
-reduced-motion preferences, named table columns and WCAG AA table contrast are
-verified in a real 390px Chrome viewport with axe-core.
+Responsive davranış 820px ve 520px breakpoint'leri kullanır: fixed desktop shell
+flow layout'a dönüşür, form ve filter'lar tek kolona düşer, geniş table'lar document'i
+genişletmek yerine kendi container'ları içinde scroll eder. Focus ring, reduced-motion
+preference, named table column ve WCAG AA table contrast gerçek 390px Chrome viewport'ta
+axe-core ile doğrulanır.
 
-All page components are route-level lazy imports. Vite also separates React,
-TanStack Query, forms/validation and Keycloak into stable vendor chunks so a
-page change does not invalidate every third-party dependency. The
-`build:budget` check rejects any JavaScript chunk above 100 KiB gzip; the current
-largest chunk is the React vendor bundle at 70.54 KiB gzip.
+Tüm page component'leri route-level lazy import'tur. Vite ayrıca React, TanStack
+Query, form/validation ve Keycloak'ı stable vendor chunk'lara ayırır; böylece page
+değişikliği tüm third-party dependency'leri invalidate etmez. `build:budget`
+kontrolü 100 KiB gzip üzerindeki JavaScript chunk'ını reddeder; mevcut en büyük
+chunk 70.54 KiB gzip ile React vendor bundle'dır.
