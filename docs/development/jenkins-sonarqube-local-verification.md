@@ -1,41 +1,34 @@
-# Jenkins and SonarQube local verification
+# Jenkins ve SonarQube lokal doğrulaması
 
-## Purpose
+## Amaç
 
-This checkpoint verifies the existing local quality stack without rebuilding
-images or starting another expensive pipeline. Jenkins orchestrates the delivery
-flow; SonarQube is its blocking static-analysis gate. A healthy UI alone is not
-sufficient evidence, so the checks cover authenticated APIs, job stages, source
-revision, webhook configuration and container-to-container connectivity.
+Bu checkpoint mevcut lokal quality stack'i image rebuild etmeden veya yeni pahalı pipeline başlatmadan doğrular. Jenkins delivery flow'u orchestrate eder; SonarQube onun blocking static-analysis gate'idir. Healthy UI tek başına yeterli evidence değildir; bu nedenle check'ler authenticated API, job stage, source revision, webhook configuration ve container-to-container connectivity'yi kapsar.
 
-## Runtime verification — 15 September 2026
+## Runtime doğrulaması — 15 Eylül 2026
 
-The existing local images and persistent volumes were started with:
+Mevcut local image ve persistent volume'lar şu komutla başlatıldı:
 
 ```powershell
 docker compose --env-file infra/cicd/.env `
   -f infra/cicd/compose.quality.yaml up --detach --no-build
 ```
 
-No image was built or pulled. Runtime secrets remained in the ignored
-`infra/cicd/.env`; only variable names were validated and no value was printed.
+Hiçbir image build veya pull edilmedi. Runtime secret'lar ignore edilen `infra/cicd/.env` içinde kaldı; yalnızca variable name'ler doğrulandı ve hiçbir value yazdırılmadı.
 
-| Check | Verified result |
+| Kontrol | Doğrulanan sonuç |
 |---|---|
-| Jenkins container | Healthy; authenticated API available on `127.0.0.1:8086` |
-| SonarQube container | Healthy; `/api/system/status` returned `UP` on `127.0.0.1:9000` |
-| Sonar PostgreSQL | Healthy; persisted database reused |
-| Internal connectivity | Jenkins resolved `sonarqube` and received status `UP` over the Compose network |
+| Jenkins container | Healthy; authenticated API `127.0.0.1:8086` üzerinde erişilebilir |
+| SonarQube container | Healthy; `/api/system/status`, `127.0.0.1:9000` üzerinde `UP` döndürdü |
+| Sonar PostgreSQL | Healthy; persisted database yeniden kullanıldı |
+| Internal connectivity | Jenkins `sonarqube` adını resolve etti ve Compose network üzerinden `UP` aldı |
 | Jenkins job | `health-insurance-platform`, GitHub `main`, repository `Jenkinsfile`, lightweight checkout |
-| Sonar authentication | Runtime administrator credential accepted |
+| Sonar authentication | Runtime administrator credential kabul edildi |
 | Quality Gate | `OK`; `new_violations=0`, error threshold `0` |
-| Webhook | `jenkins-local` targets `http://jenkins:8080/sonarqube-webhook/` |
+| Webhook | `jenkins-local`, `http://jenkins:8080/sonarqube-webhook/` hedefini kullanıyor |
 
 ## Final Build #10 evidence
 
-Jenkins Build #10 completed `SUCCESS` for immutable source revision
-`6c07fa81df22330699c58574059b89e58777f0ed`. This is the single final pipeline
-execution used by the delivery proof:
+Jenkins Build #10 immutable source revision `6c07fa81df22330699c58574059b89e58777f0ed` için `SUCCESS` ile tamamlandı. Delivery proof'ta kullanılan tek final pipeline execution budur:
 
 ```text
 Checkout -> five backend services -> frontend -> Sonar analysis -> Quality Gate
@@ -43,17 +36,11 @@ Checkout -> five backend services -> frontend -> Sonar analysis -> Quality Gate
               SUCCESS              SUCCESS             SUCCESS
 ```
 
-All five Java services passed with JaCoCo reports; frontend lint, 27 tests,
-coverage, and production build passed. SonarQube then reported Quality Gate
-`OK`, `new_violations=0`, overall coverage `80.3%`, line coverage `86.3%`, and
-branch coverage `61.7%`. Nexus, SBOM, and all six Harbor publications completed.
+Beş Java service'in tamamı JaCoCo report'larıyla geçti; frontend lint, 27 test, coverage ve production build başarılı oldu. SonarQube ardından Quality Gate `OK`, `new_violations=0`, overall coverage `80.3%`, line coverage `86.3%` ve branch coverage `61.7%` raporladı. Nexus, SBOM ve altı Harbor publication tamamlandı.
 
-Build #8 proved the fail-closed gate (`new_coverage=0`, nine new violations).
-Build #9 exposed local resource contention while Elasticsearch Testcontainers
-started. Minikube and the application Compose stack were stopped without data
-loss; Build #10 then passed. No Jenkins build was repeated after Build #10.
+Build #8 fail-closed gate'i kanıtladı (`new_coverage=0`, dokuz new violation). Build #9 Elasticsearch Testcontainers başlatılırken local resource contention ortaya çıkardı. Minikube ve application Compose stack data loss olmadan durduruldu; Build #10 ardından geçti. Build #10 sonrasında başka Jenkins build tekrarlanmadı.
 
-## How to inspect safely
+## Güvenli inceleme
 
 ```powershell
 docker compose --env-file infra/cicd/.env `
@@ -62,25 +49,15 @@ docker compose --env-file infra/cicd/.env `
 ./scripts/validate-ci-pipeline.ps1
 ```
 
-Open `http://localhost:8086/job/health-insurance-platform/10/pipeline-overview/`
-for the stage graph and `http://localhost:9000/dashboard?id=health-insurance-platform`
-for the analysis. Credentials come from the ignored runtime environment and must
-never be copied into screenshots, commands, Git history or documentation.
+Stage graph için `http://localhost:8086/job/health-insurance-platform/10/pipeline-overview/`, analysis için `http://localhost:9000/dashboard?id=health-insurance-platform` adresini açın. Credential'lar ignore edilen runtime environment'tan gelir; screenshot, command, Git history veya documentation içine asla kopyalanmamalıdır.
 
-## Architecture and .NET mapping
+## Architecture ve .NET eşlemesi
 
-- Jenkins Pipeline corresponds to a multi-stage Azure DevOps/TFS or GitLab CI
-  pipeline; the `Jenkinsfile` is the versioned pipeline definition.
-- SonarQube Quality Gate corresponds to a blocking code-quality policy before a
-  NuGet/Maven or container publication stage.
-- The Sonar webhook is asynchronous completion notification. Jenkins waits for
-  the authoritative gate result instead of guessing from scanner exit status.
-- Nexus is the Maven artifact boundary; Harbor is the OCI image boundary. Their
-  independent retry semantics are intentional.
+- Jenkins Pipeline multi-stage Azure DevOps/TFS veya GitLab CI pipeline'a karşılık gelir; `Jenkinsfile` versioned pipeline definition'dır.
+- SonarQube Quality Gate, NuGet/Maven veya container publication stage öncesindeki blocking code-quality policy'ye karşılık gelir.
+- Sonar webhook asynchronous completion notification'dır. Jenkins scanner exit status'tan tahmin yürütmek yerine authoritative gate result'ı bekler.
+- Nexus Maven artifact boundary, Harbor OCI image boundary'dir. Independent retry semantics bilinçli tasarımdır.
 
-## Honest portfolio boundary
+## Dürüst portfolio boundary
 
-This local evidence proves configuration, authentication, network integration,
-analysis gating and stage-level failure isolation. It does not claim Jenkins or
-SonarQube high availability, enterprise backup, trusted TLS, external identity,
-or production runner isolation.
+Bu local evidence configuration, authentication, network integration, analysis gating ve stage-level failure isolation'ı kanıtlar. Jenkins veya SonarQube high availability, enterprise backup, trusted TLS, external identity veya production runner isolation iddiasında bulunmaz.
