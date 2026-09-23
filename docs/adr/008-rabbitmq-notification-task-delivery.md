@@ -1,86 +1,85 @@
 # ADR-008: RabbitMQ Notification Task Delivery
 
-- Status: Accepted and implemented
-- Date: 2026-09-08
+- Durum: Kabul edildi ve uygulandı
+- Tarih: 2026-09-08
 
-## Context
+## Bağlam
 
-Kafka already carries durable business facts between bounded contexts. A
-notification is different: it is an operational command asking a worker to
-perform retryable work. Reusing Kafka for task competition would blur those
-semantics, while publishing directly to RabbitMQ beside a database write would
-reintroduce a dual-write failure window.
+Kafka bounded context'ler arasında durable business fact'leri zaten taşır.
+Notification farklıdır: bir worker'dan retry edilebilir iş yapmasını isteyen
+operational command'dır. Task competition için Kafka'yı tekrar kullanmak bu
+semantics'i bulanıklaştırır; database write yanında doğrudan RabbitMQ publish
+etmek ise dual-write failure penceresini yeniden oluşturur.
 
-Notification payloads must not expose member, policy, diagnosis, or contact
-data. The first use case is informing a provider that a pre-authorization was
-approved or rejected.
+Notification payload'ları member, policy, diagnosis veya contact data
+açıklamamalıdır. İlk use case provider'a bir pre-authorization'ın approved veya
+rejected olduğunu bildirmektir.
 
-## Decision
+## Karar
 
-- Kafka remains the integration-event stream; RabbitMQ carries notification
-  delivery commands.
-- Authorization persists a notification task in a dedicated local outbox in
-  the same transaction as the decision. A scheduled AMQP relay publishes it as
-  a persistent message and waits for a correlated publisher confirm.
-- Mandatory publishing and publisher returns are enabled. A positive broker
-  confirm with a returned message is still treated as failure because no queue
-  accepted the routing key.
-- The durable direct exchange will route work to one delivery queue. Exhausted
-  retries will be rejected without requeue and routed to a dead-letter queue.
-- A task contains `taskId`, `causationId`, notification type, provider recipient
-  reference, business reference, template key, and contract version. It contains
-  no member, policy, diagnosis, token, email, or phone value.
-- Notification Worker owns delivery records in its own PostgreSQL database.
-  `taskId` is the broker-consumer and downstream-provider idempotency key.
-- The worker obtains a PostgreSQL transaction advisory lock derived from
-  `taskId` before its idempotency lookup. Same-task consumers are serialized
-  before the sender side effect; unrelated tasks remain concurrent.
-- The worker acknowledges manually only after the transactional application
-  use case returns. Unsupported contracts and failed processing are rejected
-  without requeue so broker dead-letter routing can quarantine them.
-- Only `TransientNotificationDeliveryException` is retryable. The listener
-  performs three total attempts by default with bounded exponential backoff
-  (`250 ms`, `500 ms`, maximum `2 s`); contract/version errors and other
-  permanent failures are attempted once. Exhausted work is rejected with
-  `requeue=false` and RabbitMQ routes it to the durable DLQ.
-- The sender port must forward that idempotency key to any future email/SMS
-  provider. This limits duplicate external side effects if the worker crashes
-  after the provider accepts a request but before local commit.
+- Kafka integration-event stream olarak kalır; RabbitMQ notification delivery
+  command'larını taşır.
+- Authorization, notification task'ı decision ile aynı transaction içinde özel
+  local outbox'a persist eder. Scheduled AMQP relay bunu persistent message olarak
+  publish eder ve correlated publisher confirm bekler.
+- Mandatory publishing ve publisher return etkinleştirilmiştir. Returned message
+  ile birlikte gelen positive broker confirm yine failure kabul edilir; çünkü
+  routing key hiçbir queue tarafından kabul edilmemiştir.
+- Durable direct exchange işi tek delivery queue'ya route eder. Retry'ları tükenen
+  mesajlar requeue edilmeden reject edilir ve dead-letter queue'ya yönlendirilir.
+- Task; `taskId`, `causationId`, notification type, provider recipient
+  reference, business reference, template key ve contract version içerir. Member,
+  policy, diagnosis, token, email veya phone değeri içermez.
+- Notification Worker kendi PostgreSQL database'indeki delivery record'ların
+  sahibidir. `taskId`, broker-consumer ve downstream-provider idempotency key'dir.
+- Worker idempotency lookup öncesinde `taskId`'den türetilmiş PostgreSQL
+  transaction advisory lock alır. Aynı task consumer'ları sender side effect
+  öncesinde serialize edilir; ilgisiz task'lar concurrent kalır.
+- Worker yalnızca transactional application use case return ettikten sonra manuel
+  acknowledgement gönderir. Unsupported contract ve failed processing,
+  broker dead-letter routing bunları quarantine edebilsin diye requeue edilmeden reject edilir.
+- Yalnızca `TransientNotificationDeliveryException` retry edilebilir. Listener
+  varsayılan olarak bounded exponential backoff ile toplam üç deneme yapar
+  (`250 ms`, `500 ms`, maksimum `2 s`); contract/version error'ları ve diğer
+  permanent failure'lar bir kez denenir. Tükenen işler `requeue=false` ile
+  reject edilir ve RabbitMQ bunları durable DLQ'ya route eder.
+- Sender port bu idempotency key'i gelecekteki email/SMS provider'a forward
+  etmelidir. Worker provider request'i kabul ettikten sonra local commit öncesi
+  crash olsa bile duplicate external side effect'leri sınırlar.
 
-## Consequences
+## Sonuçlar
 
-- RabbitMQ and Kafka solve distinct, explainable problems.
-- Producer and consumer both remain at-least-once; duplicate work is expected.
-- Notification Worker can scale horizontally because RabbitMQ distributes tasks.
-- Contact resolution and a real external email/SMS provider remain separate
-  security and integration decisions.
-- The implementation includes the framework-independent worker core, private
-  PostgreSQL/Liquibase persistence, Authorization producer outbox and rollback
-  proof, confirm-aware relay, durable exchange/queue/DLX/DLQ topology,
-  version-aware listener, per-attempt transactions, bounded retry, and manual
-  acknowledgement. Compose and Testcontainers both exercise a real RabbitMQ
-  broker.
-- Retry happens outside the transaction decorator. Every transient attempt gets
-  a new transaction: failed attempts roll back, the successful attempt commits,
-  and only then does the listener acknowledge the broker delivery.
-- The advisory lock deliberately couples this infrastructure adapter to
-  PostgreSQL. A 64-bit hash collision may serialize unrelated tasks but cannot
-  corrupt data; the lock is transaction-scoped and needs no cleanup table.
-- The relay currently waits for confirms while holding a pessimistic database
-  lock. This is deliberately simple and safe for the current workload, but
-  asynchronous batching is a future throughput optimization.
+- RabbitMQ ve Kafka farklı ve açıklanabilir problemleri çözer.
+- Producer ve consumer at-least-once kalır; duplicate work beklenir.
+- RabbitMQ task'ları dağıttığı için Notification Worker horizontal scale edebilir.
+- Contact resolution ve gerçek external email/SMS provider ayrı security ve
+  integration kararları olarak kalır.
+- Implementation; framework bağımsız worker core, private PostgreSQL/Liquibase
+  persistence, Authorization producer outbox ve rollback proof, confirm-aware
+  relay, durable exchange/queue/DLX/DLQ topology, version-aware listener,
+  per-attempt transaction'lar, bounded retry ve manual acknowledgement içerir.
+  Compose ve Testcontainers gerçek RabbitMQ broker'ı çalıştırır.
+- Retry transaction decorator dışında gerçekleşir. Her transient attempt yeni
+  transaction alır: failed attempt rollback olur, successful attempt commit olur,
+  ardından listener broker delivery'yi acknowledge eder.
+- Advisory lock bu infrastructure adapter'ı bilinçli olarak PostgreSQL'e bağlar.
+  64-bit hash collision ilgisiz task'ları serialize edebilir ancak data corrupt
+  edemez; lock transaction-scoped'dur ve cleanup table gerektirmez.
+- Relay şu anda pessimistic database lock tutarken confirm bekler. Mevcut workload
+  için bilinçli olarak basit ve güvenlidir; asynchronous batching gelecekteki
+  throughput optimization'dır.
 
-## Alternatives
+## Alternatifler
 
-- **Consume Kafka directly in the worker:** rejected because it would use the
-  event stream as a competing work queue and would not demonstrate the intended
-  task-delivery responsibility of RabbitMQ.
-- **Publish directly to RabbitMQ from the request transaction:** rejected due to
-  the database/broker dual-write window.
-- **Put email or phone in the task:** rejected because broker payloads should not
-  become a source of sensitive contact data.
-- **Assume exactly-once delivery:** rejected because acknowledgements can be lost
-  and external side effects require their own idempotency contract.
-- **Retry every exception:** rejected because malformed/unsupported contracts
-  and violated invariants cannot become valid with time; retrying them delays
-  quarantine and wastes consumer capacity.
+- **Worker'ın Kafka'yı doğrudan consume etmesi:** event stream'i competing work
+  queue olarak kullanacağı ve RabbitMQ'nun hedeflenen task-delivery sorumluluğunu
+  göstermeyeceği için reddedildi.
+- **Request transaction içinden RabbitMQ'ya doğrudan publish:** database/broker
+  dual-write penceresi nedeniyle reddedildi.
+- **Task içine email veya phone koymak:** broker payload'ları sensitive contact
+  data source'u olmamalı olduğu için reddedildi.
+- **Exactly-once delivery varsaymak:** acknowledgement kaybolabileceği ve external
+  side effect'lerin kendi idempotency contract'ına ihtiyacı olduğu için reddedildi.
+- **Her exception'ı retry etmek:** malformed/unsupported contract'lar ve violated
+  invariant'lar zamanla geçerli hale gelmez; retry quarantine'i geciktirir ve
+  consumer capacity tüketir.
