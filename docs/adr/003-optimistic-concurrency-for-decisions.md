@@ -1,37 +1,37 @@
-# ADR-003: Protect pre-authorization decisions with optimistic concurrency
+# ADR-003: Ön provizyon kararlarının optimistic concurrency ile korunması
 
-- Status: Accepted
-- Date: 2026-09-03
+- Durum: Kabul edildi
+- Tarih: 2026-09-03
 
-## Context
+## Bağlam
 
-Two insurance specialists may open the same pending pre-authorization and
-submit different decisions at nearly the same time. Checking the status only in
-the aggregate is insufficient because both transactions can observe `PENDING`
-before either commits.
+İki sigorta uzmanı aynı pending ön provizyonu açıp neredeyse aynı anda farklı
+kararlar gönderebilir. Yalnızca aggregate içindeki status kontrolü yeterli
+değildir; iki transaction da diğerinin commit'inden önce `PENDING` durumunu
+görebilir.
 
-## Decision
+## Karar
 
-The persistence entity uses a JPA `@Version` column. Updates therefore include
-the version read by the transaction. The repository adapter uses
-`saveAndFlush` so a stale write is detected before control leaves the adapter,
-then translates Spring's `OptimisticLockingFailureException` into the
-framework-independent `ConcurrentPreAuthorizationUpdateException` application
-exception. The REST exception handler represents it as an RFC 9457
-`409 Conflict` response.
+Persistence entity bir JPA `@Version` kolonu kullanır. Bu nedenle update
+işlemleri transaction'ın okuduğu version değerini içerir. Repository adapter,
+stale write adapter'dan çıkılmadan algılansın diye `saveAndFlush` kullanır;
+ardından Spring'in `OptimisticLockingFailureException` exception'ını framework
+bağımsız `ConcurrentPreAuthorizationUpdateException` application exception'ına
+çevirir. REST exception handler bunu RFC 9457 `409 Conflict` response olarak
+temsil eder.
 
-PostgreSQL Testcontainers tests verify both the Liquibase version column and a
-real stale-update conflict. Unit and MVC slice tests verify exception
-translation and the HTTP contract.
+PostgreSQL Testcontainers testleri hem Liquibase version kolonunu hem de gerçek
+bir stale-update conflict durumunu doğrular. Unit ve MVC slice testleri exception
+translation ve HTTP contract'ını doğrular.
 
-## Consequences
+## Sonuçlar
 
-- Concurrent decisions cannot silently overwrite each other.
-- Normal reads do not acquire database locks.
-- A conflicting caller must reload the latest state before deciding again.
-- Flushing each aggregate write adds a database round trip, but makes technical
-  persistence failures translatable inside the adapter.
-- Pessimistic locking was rejected because it holds database locks while a
-  transaction is active and reduces throughput.
-- An HTTP `ETag`/`If-Match` contract remains a useful future addition for more
-  general edit workflows, but is not required for the current decision command.
+- Concurrent kararlar birbirini sessizce overwrite edemez.
+- Normal read işlemleri database lock almaz.
+- Conflict yaşayan caller yeniden karar vermeden önce güncel state'i tekrar yüklemelidir.
+- Her aggregate write'ın flush edilmesi ek bir database round trip oluşturur,
+  ancak teknik persistence failure'ların adapter içinde translate edilmesini sağlar.
+- Pessimistic locking, transaction aktifken database lock tuttuğu ve throughput'u
+  azalttığı için reddedilmiştir.
+- Daha genel edit workflow'ları için HTTP `ETag`/`If-Match` contract'ı ileride
+  yararlı bir ek olabilir ancak mevcut decision command için gerekli değildir.
