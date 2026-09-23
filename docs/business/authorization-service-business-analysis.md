@@ -1,25 +1,20 @@
-# Authorization Service business analysis
+# Authorization Service iş analizi
 
-This document describes the implemented pre-authorization workflow. It is a
-business view of existing behavior, not a proposal to expand the product.
+Bu doküman uygulanmış ön provizyon iş akışını açıklar. Mevcut davranışın business görünümüdür; ürün kapsamını genişletme önerisi değildir.
 
-## Purpose and actors
+## Amaç ve aktörler
 
-Authorization Service owns hospital pre-authorization requests and their
-decisions. Policy rules remain in Policy Service; claim and invoice ownership
-begins only after an approval event reaches Claims/Billing.
+Authorization Service hastane ön provizyon taleplerinin ve bunlara verilen kararların sahibidir. Policy kuralları Policy Service içinde kalır; claim ve invoice sahipliği yalnızca approval event Claims/Billing'e ulaştıktan sonra başlar.
 
-| Actor | Implemented responsibility |
+| Aktör | Uygulanan sorumluluk |
 | --- | --- |
-| `HOSPITAL_USER` | Submit a request for the provider in the signed `provider_id`; list and read only that provider's requests |
-| `INSURANCE_SPECIALIST` | List/read requests across providers; approve or reject a pending request |
-| `SYSTEM_ADMIN` | List/read across providers and query minimized audit evidence; cannot decide unless also assigned `INSURANCE_SPECIALIST` |
+| `HOSPITAL_USER` | Signed `provider_id` içindeki provider adına request gönderir; yalnızca o provider'ın request'lerini listeler ve okur |
+| `INSURANCE_SPECIALIST` | Provider'lar arasında request listeler/okur; pending request'i approve veya reject eder |
+| `SYSTEM_ADMIN` | Provider'lar arasında list/read yapar ve minimized audit evidence sorgular; ayrıca `INSURANCE_SPECIALIST` atanmadıkça karar veremez |
 
-The provider ID is derived from the verified token, never trusted from the
-request body. Role checks at REST and application layers protect both HTTP and
-future alternative adapters.
+Provider ID verified token'dan türetilir; request body içinden gelen değere asla güvenilmez. REST ve application layer'daki role check'ler hem HTTP'yi hem future alternative adapter'ları korur.
 
-## State model
+## State modeli
 
 ```mermaid
 stateDiagram-v2
@@ -30,11 +25,7 @@ stateDiagram-v2
     REJECTED --> REJECTED: second decision rejected with conflict
 ```
 
-There is no arbitrary status update, reopening, cancellation, or deletion
-workflow. A decision is legal only from `PENDING`. Optimistic locking ensures
-that two concurrent specialists cannot both persist a decision. The same state,
-amount, currency, timestamp, and version invariants are repeated as PostgreSQL
-constraints so invalid direct writes cannot bypass the aggregate.
+Arbitrary status update, reopening, cancellation veya deletion workflow yoktur. Decision yalnızca `PENDING` durumundan verilebilir. Optimistic locking iki concurrent specialist'in aynı request için birlikte karar persist etmesini engeller. Aynı state, amount, currency, timestamp ve version invariant'ları PostgreSQL constraint'leriyle tekrarlanır; böylece invalid direct write aggregate'i bypass edemez.
 
 ## Submission workflow
 
@@ -50,80 +41,53 @@ flowchart TD
     H --> I[201 Created with dereferenceable Location]
 ```
 
-Required business input includes member, policy number, service, diagnosis,
-positive requested amount, and currency. Coverage evaluation is synchronous
-because the hospital requires an immediate answer before a request is accepted.
-This creates temporal coupling but prevents an invalid `PENDING` request from
-being stored.
+Required business input member, policy number, service, diagnosis, positive requested amount ve currency içerir. Coverage evaluation synchronous'dur; çünkü hospital bir request kabul edilmeden önce immediate answer ister. Bu temporal coupling oluşturur ancak invalid `PENDING` request'in saklanmasını engeller.
 
 ## Decision workflow
 
-| Step | Rule or effect |
+| Adım | Kural veya etki |
 | ---: | --- |
-| 1 | Caller must have `INSURANCE_SPECIALIST` |
-| 2 | Target request must exist and be `PENDING` |
-| 3 | Approval reason is optional; rejection reason is mandatory |
-| 4 | Aggregate, audit evidence, Kafka event, and RabbitMQ notification-task outbox record are written in one local transaction |
-| 5 | Kafka later starts Claims/Billing only for an approved event |
-| 6 | RabbitMQ later delivers the provider notification task |
+| 1 | Caller `INSURANCE_SPECIALIST` rolüne sahip olmalıdır |
+| 2 | Target request bulunmalı ve `PENDING` olmalıdır |
+| 3 | Approval reason optional, rejection reason mandatory'dir |
+| 4 | Aggregate, audit evidence, Kafka event ve RabbitMQ notification-task outbox record tek local transaction içinde yazılır |
+| 5 | Kafka daha sonra yalnızca approved event için Claims/Billing başlatır |
+| 6 | RabbitMQ daha sonra provider notification task'ını deliver eder |
 
-Broker publication is not inside the HTTP transaction. The outbox records make
-the committed decision recoverable when Kafka or RabbitMQ is temporarily
-unavailable. At-least-once delivery requires downstream idempotency.
+Broker publication HTTP transaction içinde değildir. Outbox record'ları Kafka veya RabbitMQ geçici unavailable olduğunda committed decision'ı recover edilebilir tutar. At-least-once delivery downstream idempotency gerektirir.
 
-## Read and work-queue rules
+## Read ve work-queue kuralları
 
-Hospital queries are always scoped to the signed provider identity. Insurance
-specialists and system administrators may query across providers. Filters,
-page size, and sort fields are bounded; stable ID tie-breaking prevents records
-with equal primary sort values from moving unpredictably between pages.
+Hospital query'leri her zaman signed provider identity ile scope edilir. Insurance specialist ve system administrator provider'lar arasında query yapabilir. Filter, page size ve sort field'ları bounded'dır; stable ID tie-breaker, primary sort value eşit olduğunda record'ların page'ler arasında öngörülemez biçimde hareket etmesini engeller.
 
-The API exposes submission, collection search, detail lookup, approval, and
-rejection. These operations form a task-oriented REST API rather than a generic
-CRUD status endpoint.
+API submission, collection search, detail lookup, approval ve rejection sunar. Bu operation'lar generic CRUD status endpoint yerine task-oriented REST API oluşturur.
 
 ## Failure semantics
 
-| Situation | Contract | Business effect |
+| Durum | Contract | Business etkisi |
 | --- | --- | --- |
-| Unauthenticated / wrong role / wrong provider | `401` or `403` Problem Details | No disclosure or mutation |
-| Policy business denial | `422` Problem Details | No pre-authorization created |
-| Policy dependency unavailable | `503` Problem Details | Fail closed; no request created |
-| Missing request | `404` Problem Details | No mutation |
-| Already decided or concurrent update | `409` Problem Details | First committed decision remains authoritative |
-| Broker unavailable after decision | HTTP decision can remain committed | Outbox stays pending for retry |
+| Unauthenticated / yanlış role / yanlış provider | `401` veya `403` Problem Details | Disclosure veya mutation yok |
+| Policy business denial | `422` Problem Details | Pre-authorization oluşturulmaz |
+| Policy dependency unavailable | `503` Problem Details | Fail-closed; request oluşturulmaz |
+| Request bulunamadı | `404` Problem Details | Mutation yok |
+| Zaten karar verilmiş veya concurrent update | `409` Problem Details | İlk committed decision authoritative kalır |
+| Decision sonrası broker unavailable | HTTP decision committed kalabilir | Outbox retry için pending kalır |
 
-## Privacy and audit boundary
+## Privacy ve audit boundary
 
-The aggregate contains member, policy, diagnosis, service, provider, and money
-references needed for the workflow. Logs and audit evidence deliberately avoid
-these values. Audit rows contain controlled action/status metadata, actor
-identity and roles, correlation ID, and timestamps. Each service owns its own
-append-only journal; no cross-database audit join is performed.
+Aggregate workflow için gereken member, policy, diagnosis, service, provider ve money reference'larını içerir. Log ve audit evidence bu value'ları bilinçli olarak içermez. Audit row'ları controlled action/status metadata, actor identity ve role'leri, correlation ID ve timestamp içerir. Her servis kendi append-only journal'ının sahibidir; cross-database audit join yapılmaz.
 
-## Verified acceptance scenarios
+## Doğrulanmış acceptance scenario'ları
 
-The domain tests verify creation as `PENDING`, approval, rejection with a
-mandatory reason, rejection of a second decision, and positive amount. Broader
-application, persistence, controller, security, transaction, outbox, and
-concurrency evidence is described in
-[Authorization Service architecture](../architecture/authorization-service.md)
-and the [end-to-end workflow diagrams](../architecture/workflow-sequences.md).
+Domain testleri `PENDING` creation, approval, mandatory reason ile rejection, ikinci decision'ın reddi ve positive amount davranışlarını doğrular. Daha geniş application, persistence, controller, security, transaction, outbox ve concurrency evidence [Authorization Service architecture](../architecture/authorization-service.md) ve [end-to-end workflow diyagramlarında](../architecture/workflow-sequences.md) açıklanır.
 
-The focused local checkpoint also executed the real HTTP and broker path with
-synthetic data: unauthenticated access returned RFC 9457 `401`, a hospital user
-submitted a provider-scoped `PENDING` request, a specialist approved it, and a
-repeat decision returned `409`. PostgreSQL recorded aggregate version `1`, both
-audit actions, and one-attempt acknowledged Kafka and RabbitMQ outbox records.
-The complete Authorization suite passed all 78 tests at this checkpoint. The
-reproduction commands and evidence limits are documented in the
-[local verification guide](../development/authorization-service-local-verification.md).
+Focused local checkpoint gerçek HTTP ve broker path'i sentetik data ile de çalıştırdı: unauthenticated access RFC 9457 `401` döndürdü, hospital user provider-scoped `PENDING` request gönderdi, specialist bunu approve etti ve repeat decision `409` döndürdü. PostgreSQL aggregate version `1`, iki audit action ve birer attempt'te acknowledged Kafka ile RabbitMQ outbox record'larını kaydetti. Complete Authorization suite bu checkpoint'te 78 testin tamamından geçti. Reproduction command ve evidence limit'leri [local verification guide](../development/authorization-service-local-verification.md) içinde dokümante edilmiştir.
 
-## Explicit scope boundaries
+## Açık scope boundary'leri
 
-- There is no automatic approval strategy, medical rules engine, reopening, or cancellation workflow.
-- Policy evaluation does not reserve coverage limit.
-- Claims/Billing creation is eventually consistent after approval.
-- End-user token relay is used instead of production workload identity or token exchange.
-- Diagnosis is stored as a code string; terminology validation is outside the implemented scope.
-- The workflow is portfolio-grade and tested, but its operational limits are not claimed as production capacity evidence.
+- Automatic approval strategy, medical rules engine, reopening veya cancellation workflow yoktur.
+- Policy evaluation coverage limit reserve etmez.
+- Claims/Billing creation approval sonrasında eventually consistent'tir.
+- Production workload identity veya token exchange yerine end-user token relay kullanılır.
+- Diagnosis code string olarak saklanır; terminology validation implemented scope dışındadır.
+- Workflow portfolio-grade ve test edilmiştir; operational limit'leri production capacity evidence olarak sunulmaz.
